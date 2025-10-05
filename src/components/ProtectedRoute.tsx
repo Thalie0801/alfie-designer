@@ -1,5 +1,6 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useEffect, useState } from 'react';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -7,9 +8,17 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRouteProps) {
-  const { user, isAdmin, loading } = useAuth();
+  const { user, isAdmin, loading, refreshProfile } = useAuth();
+  const [checkingAdmin, setCheckingAdmin] = useState(false);
 
-  if (loading) {
+  useEffect(() => {
+    if (requireAdmin && user && !isAdmin && !checkingAdmin) {
+      setCheckingAdmin(true);
+      refreshProfile().finally(() => setCheckingAdmin(false));
+    }
+  }, [requireAdmin, user, isAdmin, checkingAdmin, refreshProfile]);
+
+  if (loading || checkingAdmin) {
     return (
       <div className="min-h-screen gradient-subtle flex items-center justify-center">
         <div className="text-center">

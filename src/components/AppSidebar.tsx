@@ -29,7 +29,7 @@ import alfieMain from '@/assets/alfie-main.png';
 export function AppSidebar() {
   const { open } = useSidebar();
   const location = useLocation();
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, isAdmin, signOut } = useAuth();
   const canSeeAdminToggle = user?.email === 'nathaliestaelens@gmail.com';
 
   const navItems = [
@@ -40,7 +40,7 @@ export function AppSidebar() {
     { path: '/affiliate', label: 'Affiliation', icon: TrendingUp },
   ];
 
-  if (canSeeAdminToggle) {
+  if (isAdmin || canSeeAdminToggle) {
     navItems.push({ path: '/admin', label: 'Admin', icon: Settings });
   }
 
