@@ -11,6 +11,7 @@ import Creator from "./pages/Creator";
 import Dashboard from "./pages/Dashboard";
 import Billing from "./pages/Billing";
 import Admin from "./pages/Admin";
+import Affiliate from "./pages/Affiliate";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -54,6 +55,14 @@ const App = () => (
               element={
                 <ProtectedRoute requireAdmin>
                   <Admin />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/affiliate"
+              element={
+                <ProtectedRoute>
+                  <Affiliate />
                 </ProtectedRoute>
               }
             />
