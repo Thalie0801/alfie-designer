@@ -221,6 +221,103 @@ export default function AlfieLanding() {
         </div>
       </section>
 
+      {/* Community Program */}
+      <section className="max-w-6xl mx-auto px-4 py-14">
+        <div className="grid md:grid-cols-2 gap-8 items-center">
+          <div>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              Rejoins la communauté <span className="bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">Alfie Creators</span>
+            </h2>
+            <p className="text-lg text-slate-600 mb-6">
+              Partage Alfie avec d&apos;autres créateurs et construis ton réseau. Plus tu accompagnes de personnes, plus tu es récompensé. Simple, transparent, communautaire.
+            </p>
+            <ul className="space-y-3 mb-6">
+              <li className="flex items-start gap-3">
+                <div className="bg-green-500 text-white rounded-full p-1 mt-0.5">
+                  <Check className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="font-semibold">Recommande & Gagne</p>
+                  <p className="text-sm text-slate-600">Touche des revenus récurrents sur chaque membre que tu parraines</p>
+                </div>
+              </li>
+              <li className="flex items-start gap-3">
+                <div className="bg-blue-500 text-white rounded-full p-1 mt-0.5">
+                  <Check className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="font-semibold">Construis ton réseau</p>
+                  <p className="text-sm text-slate-600">Bénéficie de la croissance de ton équipe sur plusieurs niveaux</p>
+                </div>
+              </li>
+              <li className="flex items-start gap-3">
+                <div className="bg-purple-500 text-white rounded-full p-1 mt-0.5">
+                  <Check className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="font-semibold">Évolue avec ta communauté</p>
+                  <p className="text-sm text-slate-600">Accède à des statuts exclusifs et des avantages premium</p>
+                </div>
+              </li>
+            </ul>
+            <Button 
+              size="lg" 
+              className="gradient-hero text-white shadow-medium gap-2"
+              onClick={() => window.location.href = '/devenir-partenaire'}
+            >
+              Devenir Partenaire <Share2 className="h-5 w-5" />
+            </Button>
+          </div>
+          <div className="relative">
+            <div className="rounded-3xl bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/10 p-8 border-2 border-primary/20 shadow-strong">
+              <div className="space-y-4">
+                <div className="bg-white rounded-2xl p-4 shadow-medium">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-white font-bold">
+                      15%
+                    </div>
+                    <div>
+                      <p className="font-semibold">Niveau 1</p>
+                      <p className="text-xs text-slate-500">Tes filleuls directs</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white rounded-2xl p-4 shadow-medium ml-6">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold">
+                      5%
+                    </div>
+                    <div>
+                      <p className="font-semibold">Niveau 2</p>
+                      <p className="text-xs text-slate-500">Le réseau de ton réseau</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white rounded-2xl p-4 shadow-medium ml-12">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold">
+                      2%
+                    </div>
+                    <div>
+                      <p className="font-semibold">Niveau 3</p>
+                      <p className="text-xs text-slate-500">Réseau étendu</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-6 text-center">
+                <p className="text-sm text-slate-600">
+                  <strong>Exemple:</strong> Avec 5 filleuls → 15 niveau 2 → 45 niveau 3
+                </p>
+                <p className="text-2xl font-bold text-primary mt-2">
+                  ≈70€/mois récurrents 💰
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="border-t border-slate-100">
         <div className="max-w-6xl mx-auto px-4 py-8 grid md:grid-cols-3 gap-6 text-sm text-slate-600">
@@ -231,9 +328,9 @@ export default function AlfieLanding() {
           <div>
             <div className="font-semibold mb-2">Ressources</div>
             <ul className="space-y-1">
-              <li><a className="hover:underline" href="#">Guide de démarrage</a></li>
-              <li><a className="hover:underline" href="#">FAQ</a></li>
-              <li><a className="hover:underline" href="#">Programme d'affiliation</a></li>
+              <li><a className="hover:underline hover:text-primary transition-colors" href="#">Guide de démarrage</a></li>
+              <li><a className="hover:underline hover:text-primary transition-colors" href="#">FAQ</a></li>
+              <li><a className="hover:underline hover:text-primary transition-colors cursor-pointer" onClick={() => window.location.href = '/devenir-partenaire'}>Programme Partenaire 💰</a></li>
             </ul>
           </div>
           <div>
