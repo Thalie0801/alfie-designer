@@ -7,7 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
-import App from "./pages/App";
+import Creator from "./pages/Creator";
 import Dashboard from "./pages/Dashboard";
 import Billing from "./pages/Billing";
 import Admin from "./pages/Admin";
@@ -15,7 +15,7 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const AppRouter = () => (
+const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
@@ -29,7 +29,7 @@ const AppRouter = () => (
               path="/app"
               element={
                 <ProtectedRoute>
-                  <App />
+                  <Creator />
                 </ProtectedRoute>
               }
             />
@@ -65,4 +65,4 @@ const AppRouter = () => (
   </QueryClientProvider>
 );
 
-export default AppRouter;
+export default App;
