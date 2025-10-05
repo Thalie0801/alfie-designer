@@ -45,6 +45,7 @@ serve(async (req) => {
     const plan = session.metadata?.plan;
     const userId = session.metadata?.user_id;
     const customerEmail = session.customer_details?.email;
+    const affiliateRef = session.metadata?.affiliate_ref;
 
     if (!plan || !PLAN_CONFIG[plan as keyof typeof PLAN_CONFIG]) {
       throw new Error("Invalid plan in session metadata");
@@ -86,6 +87,76 @@ serve(async (req) => {
             stripe_subscription_id: session.subscription as string,
           })
           .eq("email", customerEmail);
+      }
+    }
+
+    // Handle affiliate conversion if affiliate_ref exists
+    if (affiliateRef && userId) {
+      console.log("Processing affiliate conversion for ref:", affiliateRef);
+      
+      // Find the affiliate by their code (using id as the code)
+      const { data: affiliate, error: affiliateError } = await supabaseClient
+        .from("affiliates")
+        .select("id")
+        .eq("id", affiliateRef)
+        .single();
+
+      if (affiliate && !affiliateError) {
+        console.log("Found affiliate:", affiliate.id);
+        
+        // Get the amount from session
+        const amount = session.amount_total ? session.amount_total / 100 : 0;
+        
+        // Create the conversion
+        const { data: conversion, error: conversionError } = await supabaseClient
+          .from("affiliate_conversions")
+          .insert({
+            affiliate_id: affiliate.id,
+            user_id: userId,
+            plan,
+            amount,
+            status: "paid",
+          })
+          .select()
+          .single();
+
+        if (conversion && !conversionError) {
+          console.log("Conversion created:", conversion.id);
+          
+          // Calculate MLM commissions (3 levels)
+          const { error: commissionError } = await supabaseClient.rpc(
+            "calculate_mlm_commissions",
+            {
+              conversion_id_param: conversion.id,
+              direct_affiliate_id: affiliate.id,
+              conversion_amount: amount,
+            }
+          );
+
+          if (commissionError) {
+            console.error("Error calculating commissions:", commissionError);
+          } else {
+            console.log("Commissions calculated successfully");
+          }
+
+          // Update affiliate status based on their performance
+          const { error: statusError } = await supabaseClient.rpc(
+            "update_affiliate_status",
+            {
+              affiliate_id_param: affiliate.id,
+            }
+          );
+
+          if (statusError) {
+            console.error("Error updating affiliate status:", statusError);
+          } else {
+            console.log("Affiliate status updated successfully");
+          }
+        } else {
+          console.error("Error creating conversion:", conversionError);
+        }
+      } else {
+        console.log("Affiliate not found or error:", affiliateError);
       }
     }
 

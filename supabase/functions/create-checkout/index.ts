@@ -32,7 +32,7 @@ serve(async (req) => {
   );
 
   try {
-    const { plan } = await req.json();
+    const { plan, affiliate_ref } = await req.json();
     
     if (!plan || !PRICE_IDS[plan as keyof typeof PRICE_IDS]) {
       throw new Error("Invalid plan selected");
@@ -83,6 +83,7 @@ serve(async (req) => {
       metadata: {
         plan,
         user_id: userId || "",
+        affiliate_ref: affiliate_ref || "",
       },
     });
 
