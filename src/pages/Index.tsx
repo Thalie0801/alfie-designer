@@ -39,13 +39,17 @@ export default function AlfieLanding() {
       {/* Hero */}
       <section className="max-w-6xl mx-auto px-4 py-14 grid md:grid-cols-2 gap-10 items-center">
         <div>
-          <h1 className="text-4xl md:text-5xl font-extrabold leading-tight tracking-tight">
-            Ton agent de création <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">via Canva</span> 👋
+          <h1 className="text-4xl md:text-5xl font-extrabold leading-tight tracking-tight animate-fade-in">
+            Ton agent de création <span className="bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">via Canva</span> 👋
           </h1>
-          <p className="mt-4 text-lg text-slate-600">Alfie est ton agent de création et planification. Demande-lui ce que tu souhaites et hop, ton design arrive directement dans ton Canva !</p>
-              <div className="mt-6 flex flex-wrap gap-3">
-                <Button size="lg" onClick={() => window.location.href = '/auth'}>Commencer</Button>
-                <Button size="lg" variant="outline" onClick={() => window.location.href = '/auth'}>Voir une démo</Button>
+          <p className="mt-4 text-lg text-slate-600 animate-fade-in">Alfie est ton agent de création et planification. Demande-lui ce que tu souhaites et hop, ton design arrive directement dans ton Canva !</p>
+              <div className="mt-6 flex flex-wrap gap-3 animate-fade-in">
+                <Button size="lg" className="gradient-hero text-white shadow-medium hover:shadow-strong" onClick={() => window.location.href = '/auth'}>
+                  Commencer ✨
+                </Button>
+                <Button size="lg" variant="outline" className="hover:scale-105 transition-transform" onClick={() => window.location.href = '/auth'}>
+                  Voir une démo
+                </Button>
               </div>
           <div className="mt-6 flex items-center gap-4 text-slate-500 text-sm">
             <div className="flex items-center gap-2"><Shield className="h-4 w-4"/> Client maître : aucune publication auto</div>

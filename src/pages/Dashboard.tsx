@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { ExternalLink, Trash2 } from 'lucide-react';
+import { ExternalLink, Trash2, Palette, Sparkles } from 'lucide-react';
 import { BrandDialog } from '@/components/BrandDialog';
 import { toast } from 'sonner';
 import {
@@ -78,23 +78,28 @@ export default function Dashboard() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
+          <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+            Dashboard
+          </h1>
           <p className="text-muted-foreground">
             Retrouvez vos créations et gérez vos marques
           </p>
         </div>
-        <Button className="gap-2" onClick={() => alert('OAuth Canva → Coming soon')}>
+        <Button className="gap-2 gradient-hero text-white shadow-medium hover:shadow-strong" onClick={() => alert('OAuth Canva → Coming soon')}>
           <ExternalLink className="h-4 w-4" />
           Connecter Canva
         </Button>
       </div>
 
       {/* Brands */}
-      <Card>
-        <CardHeader>
+      <Card className="border-primary/20 shadow-medium">
+        <CardHeader className="bg-gradient-subtle">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Mes marques</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Palette className="h-5 w-5 text-primary" />
+                Mes marques
+              </CardTitle>
               <CardDescription>Gérez vos Brand Kits</CardDescription>
             </div>
             <BrandDialog onSuccess={loadData} />
@@ -112,8 +117,8 @@ export default function Dashboard() {
           ) : (
             <div className="grid md:grid-cols-2 gap-4">
               {brands.map((brand) => (
-                <Card key={brand.id} className="group hover:shadow-md transition-shadow">
-                  <CardHeader>
+                <Card key={brand.id} className="group hover:shadow-strong hover:border-primary/30 transition-all border-2">
+                  <CardHeader className="bg-gradient-subtle">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
@@ -127,8 +132,10 @@ export default function Dashboard() {
                           <CardTitle className="text-lg">{brand.name}</CardTitle>
                         </div>
                         <div className="space-y-2">
-                          <Badge variant={brand.canva_connected ? 'default' : 'secondary'}>
-                            {brand.canva_connected ? 'Canva connecté' : 'Non connecté'}
+                          <Badge 
+                            className={brand.canva_connected ? 'bg-green-500 hover:bg-green-600' : 'bg-orange-500 hover:bg-orange-600'}
+                          >
+                            {brand.canva_connected ? '✓ Canva connecté' : '○ Non connecté'}
                           </Badge>
                           {brand.voice && (
                             <p className="text-sm text-muted-foreground line-clamp-2">
@@ -174,9 +181,12 @@ export default function Dashboard() {
       </Card>
 
       {/* Recent Posts */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Créations récentes</CardTitle>
+      <Card className="border-secondary/20 shadow-medium">
+        <CardHeader className="bg-gradient-warm/10">
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-secondary" />
+            Créations récentes
+          </CardTitle>
           <CardDescription>Vos derniers visuels générés</CardDescription>
         </CardHeader>
         <CardContent>
@@ -191,7 +201,7 @@ export default function Dashboard() {
               {posts.map((post) => (
                 <div
                   key={post.id}
-                  className="flex items-center justify-between p-4 rounded-lg border hover:shadow-sm transition"
+                  className="flex items-center justify-between p-4 rounded-lg border-2 hover:shadow-medium hover:border-primary/30 transition-all bg-gradient-subtle"
                 >
                   <div>
                     <h3 className="font-medium">{post.title || 'Sans titre'}</h3>
@@ -200,8 +210,8 @@ export default function Dashboard() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant={post.status === 'draft' ? 'secondary' : 'default'}>
-                      {post.status}
+                    <Badge className={post.status === 'draft' ? 'bg-blue-500' : 'bg-green-500'}>
+                      {post.status === 'draft' ? '📝 Brouillon' : '✓ Publié'}
                     </Badge>
                     {post.planner_deep_link && (
                       <Button size="sm" variant="outline" className="gap-2">

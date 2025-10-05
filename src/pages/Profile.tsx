@@ -67,17 +67,21 @@ export default function Profile() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-3xl font-bold mb-2">Mon Profil</h1>
+        <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+          Mon Profil
+        </h1>
         <p className="text-muted-foreground">
           Gérez vos informations personnelles
         </p>
       </div>
 
       {/* Profile Information */}
-      <Card>
-        <CardHeader>
+      <Card className="border-primary/20 shadow-medium">
+        <CardHeader className="bg-gradient-subtle">
           <CardTitle className="flex items-center gap-2">
-            <User className="h-5 w-5" />
+            <div className="bg-gradient-to-br from-blue-500 to-purple-500 p-2 rounded-lg">
+              <User className="h-5 w-5 text-white" />
+            </div>
             Informations personnelles
           </CardTitle>
           <CardDescription>
@@ -113,19 +117,21 @@ export default function Profile() {
               </p>
             </div>
 
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading} className="gradient-hero text-white shadow-medium">
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Enregistrer
+              💾 Enregistrer
             </Button>
           </form>
         </CardContent>
       </Card>
 
       {/* Subscription Info */}
-      <Card>
-        <CardHeader>
+      <Card className="border-secondary/20 shadow-medium">
+        <CardHeader className="bg-gradient-warm/10">
           <CardTitle className="flex items-center gap-2">
-            <CreditCard className="h-5 w-5" />
+            <div className="bg-gradient-to-br from-orange-500 to-pink-500 p-2 rounded-lg">
+              <CreditCard className="h-5 w-5 text-white" />
+            </div>
             Abonnement
           </CardTitle>
           <CardDescription>
@@ -135,7 +141,12 @@ export default function Profile() {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">Plan actuel</span>
-            <Badge variant={getPlanVariant(profile?.plan || 'starter')}>
+            <Badge className={
+              profile?.plan === 'enterprise' ? 'bg-purple-500' :
+              profile?.plan === 'studio' ? 'bg-blue-500' :
+              profile?.plan === 'pro' ? 'bg-green-500' :
+              'bg-orange-500'
+            }>
               {getPlanLabel(profile?.plan || 'starter')}
             </Badge>
           </div>

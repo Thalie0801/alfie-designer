@@ -49,22 +49,22 @@ export default function Admin() {
     }
   };
 
-  const getPlanBadgeVariant = (plan: string) => {
+  const getPlanBadgeColor = (plan: string) => {
     switch (plan) {
-      case 'starter': return 'secondary';
-      case 'pro': return 'default';
-      case 'business': return 'default';
-      case 'enterprise': return 'default';
-      default: return 'secondary';
+      case 'starter': return 'bg-orange-500';
+      case 'pro': return 'bg-green-500';
+      case 'studio': return 'bg-blue-500';
+      case 'enterprise': return 'bg-purple-500';
+      default: return 'bg-gray-500';
     }
   };
 
-  const getStatusBadgeVariant = (status: string) => {
+  const getStatusBadgeColor = (status: string) => {
     switch (status) {
-      case 'active': return 'default';
-      case 'pending': return 'secondary';
-      case 'paid': return 'default';
-      default: return 'secondary';
+      case 'active': return 'bg-green-500';
+      case 'pending': return 'bg-yellow-500';
+      case 'paid': return 'bg-blue-500';
+      default: return 'bg-gray-500';
     }
   };
 
@@ -159,7 +159,7 @@ export default function Admin() {
                         <p className="text-sm text-muted-foreground">{user.email}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant={getPlanBadgeVariant(user.plan)}>
+                        <Badge className={getPlanBadgeColor(user.plan)}>
                           {user.plan}
                         </Badge>
                         <span className="text-sm text-muted-foreground">
@@ -241,7 +241,7 @@ export default function Admin() {
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant={getStatusBadgeVariant(conversion.status)}>
+                        <Badge className={getStatusBadgeColor(conversion.status)}>
                           {conversion.status}
                         </Badge>
                         <span className="font-medium">{conversion.amount}€</span>
@@ -280,7 +280,7 @@ export default function Admin() {
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
-                        <Badge variant={getStatusBadgeVariant(payout.status)}>
+                        <Badge className={getStatusBadgeColor(payout.status)}>
                           {payout.status}
                         </Badge>
                         <span className="font-bold">{payout.amount}€</span>
