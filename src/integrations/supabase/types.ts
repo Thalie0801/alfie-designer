@@ -463,6 +463,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      has_active_plan: {
+        Args: { user_id_param: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

@@ -5,10 +5,11 @@ import { useEffect, useState } from 'react';
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requireAdmin?: boolean;
+  requirePlan?: boolean;
 }
 
-export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRouteProps) {
-  const { user, isAdmin, loading, refreshProfile } = useAuth();
+export function ProtectedRoute({ children, requireAdmin = false, requirePlan = false }: ProtectedRouteProps) {
+  const { user, isAdmin, hasActivePlan, loading, refreshProfile } = useAuth();
   const [checkingAdmin, setCheckingAdmin] = useState(false);
 
   useEffect(() => {
@@ -30,6 +31,10 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
 
   if (!user) {
     return <Navigate to="/auth" replace />;
+  }
+
+  if (requirePlan && !hasActivePlan && !isAdmin) {
+    return <Navigate to="/billing" replace />;
   }
 
   if (requireAdmin && !isAdmin) {

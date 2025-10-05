@@ -1,39 +1,82 @@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Check, CreditCard } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Check, CreditCard, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { useState } from 'react';
 
 const plans = [
   {
     name: 'Starter',
+    key: 'starter',
     price: '29€',
+    quota_brands: 1,
+    quota_visuals: 20,
     features: ['1 marque', '20 visuels/mois', '2 templates', 'Support email'],
     popular: false
   },
   {
     name: 'Pro',
+    key: 'pro',
     price: '79€',
+    quota_brands: 3,
+    quota_visuals: 100,
     features: ['3 marques', '100 visuels/mois', '4 templates + Reels', 'Support prioritaire'],
     popular: true
   },
   {
     name: 'Studio',
+    key: 'studio',
     price: '149€',
-    features: ['Multi-marques', 'Visuels illimités', 'Reels avancés', 'Analytics'],
+    quota_brands: 5,
+    quota_visuals: 1000,
+    features: ['Multi-marques', '1000 visuels/mois', 'Reels avancés', 'Analytics'],
     popular: false
   },
   {
     name: 'Enterprise',
+    key: 'enterprise',
     price: '299€',
+    quota_brands: 999,
+    quota_visuals: 9999,
     features: ['Tout illimité', 'API & SSO', 'White-label', 'Support dédié'],
     popular: false
   }
 ];
 
 export default function Billing() {
-  const { profile } = useAuth();
-  const currentPlan = profile?.plan || 'starter';
+  const { profile, user, refreshProfile } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const currentPlan = profile?.plan || null;
+  const hasActivePlan = currentPlan && currentPlan !== 'none';
+
+  const handleSelectPlan = async (plan: typeof plans[0]) => {
+    if (!user) return;
+    
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          plan: plan.key,
+          quota_brands: plan.quota_brands,
+          quota_visuals_per_month: plan.quota_visuals
+        })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      await refreshProfile();
+      toast.success(`Plan ${plan.name} activé avec succès !`);
+    } catch (error: any) {
+      toast.error('Erreur lors de l\'activation du plan: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -46,36 +89,42 @@ export default function Billing() {
         </p>
       </div>
 
+      {!hasActivePlan && (
+        <Alert className="border-orange-500/50 bg-orange-50 dark:bg-orange-900/20">
+          <AlertCircle className="h-4 w-4 text-orange-600" />
+          <AlertDescription className="text-orange-700 dark:text-orange-300">
+            Vous n'avez pas de plan actif. Choisissez un plan ci-dessous pour accéder à Alfie Designer.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Current Plan */}
-      <Card className="border-primary/30 shadow-medium gradient-subtle">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Badge className="bg-gradient-to-r from-primary to-secondary text-white px-4 py-1 text-base">
-              Plan actuel: {currentPlan}
-            </Badge>
-          </CardTitle>
-          <CardDescription>
-            Profitez de tous les avantages de votre abonnement
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="bg-card/50">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-              <span className="font-medium text-blue-700 dark:text-blue-300">📊 Visuels ce mois:</span>
-              <span className="text-blue-600 dark:text-blue-400 font-bold">0 / {profile?.quota_visuals_per_month || 20}</span>
+      {hasActivePlan && (
+        <Card className="border-primary/30 shadow-medium gradient-subtle">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Badge className="bg-gradient-to-r from-primary to-secondary text-white px-4 py-1 text-base">
+                Plan actuel: {currentPlan}
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              Profitez de tous les avantages de votre abonnement
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="bg-card/50">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                <span className="font-medium text-blue-700 dark:text-blue-300">📊 Visuels ce mois:</span>
+                <span className="text-blue-600 dark:text-blue-400 font-bold">0 / {profile?.quota_visuals_per_month || 0}</span>
+              </div>
+              <div className="flex items-center justify-between p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
+                <span className="font-medium text-purple-700 dark:text-purple-300">🎨 Marques:</span>
+                <span className="text-purple-600 dark:text-purple-400 font-bold">0 / {profile?.quota_brands || 0}</span>
+              </div>
             </div>
-            <div className="flex items-center justify-between p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
-              <span className="font-medium text-purple-700 dark:text-purple-300">🎨 Marques:</span>
-              <span className="text-purple-600 dark:text-purple-400 font-bold">0 / {profile?.quota_brands || 1}</span>
-            </div>
-          </div>
-        </CardContent>
-        <CardFooter>
-          <Button variant="outline" className="w-full hover:scale-105 transition-transform">
-            💳 Gérer ma facturation
-          </Button>
-        </CardFooter>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Plans */}
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -86,6 +135,8 @@ export default function Billing() {
             'Studio': 'from-blue-500 to-purple-500',
             'Enterprise': 'from-purple-500 to-pink-500'
           }[plan.name] || 'from-gray-500 to-gray-600';
+          
+          const isCurrentPlan = currentPlan === plan.key;
           
           return (
             <Card
@@ -100,7 +151,7 @@ export default function Billing() {
                   {plan.popular && <Badge className="bg-gradient-to-r from-primary to-secondary text-white">⭐ Populaire</Badge>}
                 </div>
               <CardDescription>
-                <span className="text-3xl font-extrabold text-slate-900">{plan.price}</span>
+                <span className="text-3xl font-extrabold text-slate-900 dark:text-slate-100">{plan.price}</span>
                 <span className="text-muted-foreground"> / mois</span>
               </CardDescription>
             </CardHeader>
@@ -118,9 +169,10 @@ export default function Billing() {
               <Button
                 className={`w-full ${plan.popular ? 'gradient-hero text-white shadow-medium' : ''}`}
                 variant={plan.popular ? 'default' : 'outline'}
-                disabled={currentPlan === plan.name.toLowerCase()}
+                disabled={isCurrentPlan || loading}
+                onClick={() => handleSelectPlan(plan)}
               >
-                {currentPlan === plan.name.toLowerCase() ? '✓ Plan actuel' : `Choisir ${plan.name}`}
+                {isCurrentPlan ? '✓ Plan actuel' : loading ? 'Chargement...' : `Choisir ${plan.name}`}
               </Button>
             </CardFooter>
           </Card>

@@ -9,6 +9,7 @@ interface AuthContextType {
   profile: any | null;
   roles: string[];
   isAdmin: boolean;
+  hasActivePlan: boolean;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: any }>;
@@ -114,6 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profile,
     roles,
     isAdmin: roles.includes('admin'),
+    hasActivePlan: profile?.plan && profile?.plan !== 'none',
     loading,
     signIn,
     signUp,

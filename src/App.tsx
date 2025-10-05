@@ -36,7 +36,7 @@ const App = () => (
             <Route
               path="/app"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requirePlan>
                   <AppLayoutWithSidebar>
                     <Creator />
                   </AppLayoutWithSidebar>
@@ -46,7 +46,7 @@ const App = () => (
             <Route
               path="/dashboard"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requirePlan>
                   <AppLayoutWithSidebar>
                     <Dashboard />
                   </AppLayoutWithSidebar>
@@ -56,7 +56,7 @@ const App = () => (
             <Route
               path="/affiliate"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requirePlan>
                   <AppLayoutWithSidebar>
                     <Affiliate />
                   </AppLayoutWithSidebar>
