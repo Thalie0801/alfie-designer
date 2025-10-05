@@ -21,7 +21,7 @@ export default function DevenirPartenaire() {
             <Button variant="outline" onClick={() => window.location.href = '/'}>
               Retour
             </Button>
-            <Button onClick={() => window.location.href = '/billing'}>
+            <Button onClick={() => window.location.href = '/auth'}>
               Devenir Partenaire
             </Button>
           </div>
@@ -40,7 +40,7 @@ export default function DevenirPartenaire() {
           <p className="text-xl text-slate-600 mb-8">
             Transforme ta passion pour la création en revenus récurrents. Recommande Alfie, accompagne des créateurs, et construis ton réseau rémunéré.
           </p>
-          <Button size="lg" className="gradient-hero text-white shadow-medium gap-2" onClick={() => window.location.href = '/billing'}>
+          <Button size="lg" className="gradient-hero text-white shadow-medium gap-2" onClick={() => window.location.href = '/auth'}>
             Commencer maintenant <ArrowRight className="h-5 w-5" />
           </Button>
         </div>

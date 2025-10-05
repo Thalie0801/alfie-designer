@@ -46,7 +46,7 @@ export default function AlfieLanding() {
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <Button onClick={() => window.location.href = '/billing'}>Ouvrir l'app</Button>
+            <Button onClick={() => window.location.href = '/auth'}>Ouvrir l'app</Button>
           </div>
         </div>
       </header>
@@ -59,7 +59,7 @@ export default function AlfieLanding() {
           </h1>
           <p className="mt-4 text-lg text-slate-600 animate-fade-in">Alfie est ton agent de création et planification. Demande-lui ce que tu souhaites et hop, ton design arrive directement dans ton Canva !</p>
               <div className="mt-6 flex flex-wrap gap-3 animate-fade-in">
-                <Button size="lg" className="gradient-hero text-white shadow-medium hover:shadow-strong" onClick={() => window.location.href = '/billing'}>
+                <Button size="lg" className="gradient-hero text-white shadow-medium hover:shadow-strong" onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })}>
                   Commencer ✨
                 </Button>
                 <Button size="lg" variant="outline" className="hover:scale-105 transition-transform" onClick={() => window.location.href = '/auth'}>
@@ -143,7 +143,7 @@ export default function AlfieLanding() {
       </section>
 
       {/* Pricing */}
-      <section className="max-w-6xl mx-auto px-4 py-14">
+      <section id="pricing" className="max-w-6xl mx-auto px-4 py-14">
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold mb-4 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
             Tarifs clairs, évolutifs
@@ -229,7 +229,7 @@ export default function AlfieLanding() {
           </h3>
           <p className="mt-2 text-slate-600">Crée ton compte, connecte ton Canva et génère tes premiers visuels en moins d&apos;une minute.</p>
           <div className="mt-6 flex justify-center">
-            <Button size="lg" className="gradient-hero text-white shadow-medium" onClick={() => window.location.href = '/billing'}>
+            <Button size="lg" className="gradient-hero text-white shadow-medium" onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })}>
               Commencer maintenant 🚀
             </Button>
           </div>

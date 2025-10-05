@@ -66,11 +66,12 @@ export default function Auth() {
     }
   };
 
-  // Redirect if already logged in
-  if (user) {
-    navigate('/app');
-    return null;
-  }
+  // Redirect if already logged in (will be handled by ProtectedRoute)
+  useEffect(() => {
+    if (user && !verifyingPayment) {
+      navigate('/app');
+    }
+  }, [user, verifyingPayment, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,7 +106,9 @@ export default function Auth() {
             toast.error(error.message);
           }
         } else {
-          toast.success('Compte créé ! Vérifiez vos emails.');
+          toast.success('Compte créé !');
+          // After signup, redirect will be handled by auth state change
+          // User will go to /app if they have a plan, or /billing if not
         }
       }
     } catch (error) {
