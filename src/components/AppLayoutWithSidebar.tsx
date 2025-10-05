@@ -9,12 +9,12 @@ interface AppLayoutWithSidebarProps {
 export function AppLayoutWithSidebar({ children }: AppLayoutWithSidebarProps) {
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-slate-50">
+      <div className="min-h-screen flex w-full bg-background">
         <AppSidebar />
         
         <div className="flex-1 flex flex-col">
           {/* Header avec trigger pour mobile */}
-          <header className="sticky top-0 z-10 flex items-center gap-4 border-b bg-white/70 backdrop-blur px-4 py-3 lg:hidden">
+          <header className="sticky top-0 z-10 flex items-center gap-4 border-b bg-card/70 backdrop-blur px-4 py-3 lg:hidden">
             <SidebarTrigger />
             <h1 className="font-semibold">Alfie Designer</h1>
           </header>

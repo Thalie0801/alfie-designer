@@ -45,7 +45,7 @@ export function AppSidebar() {
 
   const isActive = (path: string) => location.pathname === path;
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
-    isActive ? "bg-primary text-primary-foreground font-medium" : "hover:bg-muted";
+    isActive ? "bg-primary text-primary-foreground font-medium" : "text-foreground hover:bg-muted hover:text-foreground";
 
   const handleSignOut = async () => {
     await signOut();
