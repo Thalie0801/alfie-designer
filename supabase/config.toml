@@ -3,5 +3,8 @@ project_id = "itsjonazifiiikozengd"
 [functions.alfie-generate]
 verify_jwt = false
 
+[functions.alfie-chat]
+verify_jwt = false
+
 [functions.canva-oauth]
 verify_jwt = false
