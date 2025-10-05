@@ -52,6 +52,51 @@ export type Database = {
           },
         ]
       }
+      affiliate_commissions: {
+        Row: {
+          affiliate_id: string
+          amount: number
+          commission_rate: number
+          conversion_id: string
+          created_at: string | null
+          id: string
+          level: number
+        }
+        Insert: {
+          affiliate_id: string
+          amount: number
+          commission_rate: number
+          conversion_id: string
+          created_at?: string | null
+          id?: string
+          level: number
+        }
+        Update: {
+          affiliate_id?: string
+          amount?: number
+          commission_rate?: number
+          conversion_id?: string
+          created_at?: string | null
+          id?: string
+          level?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "affiliate_commissions_affiliate_id_fkey"
+            columns: ["affiliate_id"]
+            isOneToOne: false
+            referencedRelation: "affiliates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "affiliate_commissions_conversion_id_fkey"
+            columns: ["conversion_id"]
+            isOneToOne: false
+            referencedRelation: "affiliate_conversions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       affiliate_conversions: {
         Row: {
           affiliate_id: string
@@ -130,30 +175,53 @@ export type Database = {
       }
       affiliates: {
         Row: {
+          active_direct_referrals: number | null
+          affiliate_status: string | null
           created_at: string | null
           email: string
           id: string
           name: string
+          parent_id: string | null
           payout_method: string | null
           status: string | null
+          total_referrals_level_2: number | null
+          total_referrals_level_3: number | null
         }
         Insert: {
+          active_direct_referrals?: number | null
+          affiliate_status?: string | null
           created_at?: string | null
           email: string
           id?: string
           name: string
+          parent_id?: string | null
           payout_method?: string | null
           status?: string | null
+          total_referrals_level_2?: number | null
+          total_referrals_level_3?: number | null
         }
         Update: {
+          active_direct_referrals?: number | null
+          affiliate_status?: string | null
           created_at?: string | null
           email?: string
           id?: string
           name?: string
+          parent_id?: string | null
           payout_method?: string | null
           status?: string | null
+          total_referrals_level_2?: number | null
+          total_referrals_level_3?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "affiliates_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "affiliates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       brands: {
         Row: {
@@ -387,12 +455,24 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      calculate_mlm_commissions: {
+        Args: {
+          conversion_amount: number
+          conversion_id_param: string
+          direct_affiliate_id: string
+        }
+        Returns: undefined
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean
+      }
+      update_affiliate_status: {
+        Args: { affiliate_id_param: string }
+        Returns: undefined
       }
     }
     Enums: {
