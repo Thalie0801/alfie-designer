@@ -19,7 +19,15 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, profile, isAdmin, signOut } = useAuth();
+  const { user, profile, isAdmin, roles, signOut } = useAuth();
+
+  // Debug pour vérifier le rôle admin
+  console.log('🔐 AppLayout Debug:', { 
+    isAdmin, 
+    roles, 
+    userId: user?.id,
+    email: user?.email 
+  });
 
   const handleSignOut = async () => {
     await signOut();

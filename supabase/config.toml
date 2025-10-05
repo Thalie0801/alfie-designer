@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.canva-oauth]
 verify_jwt = false
+
+[functions.generate-alfie-variant]
+verify_jwt = false
