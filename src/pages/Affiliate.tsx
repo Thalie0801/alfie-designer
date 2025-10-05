@@ -400,15 +400,21 @@ export default function Affiliate() {
           ) : (
             <div className="space-y-2">
               {commissions.slice(0, 10).map((commission) => {
-                const levelColor = commission.level === 1 ? 'green' : commission.level === 2 ? 'blue' : 'purple';
+                const levelStyles = 
+                  commission.level === 1 
+                    ? { border: 'border-green-500/20', bg: 'bg-green-50/10', badge: 'bg-green-500', text: 'text-green-600' }
+                    : commission.level === 2 
+                    ? { border: 'border-blue-500/20', bg: 'bg-blue-50/10', badge: 'bg-blue-500', text: 'text-blue-600' }
+                    : { border: 'border-purple-500/20', bg: 'bg-purple-50/10', badge: 'bg-purple-500', text: 'text-purple-600' };
+                
                 return (
                   <div
                     key={commission.id}
-                    className={`flex items-center justify-between p-4 rounded-lg border border-${levelColor}-500/20 bg-${levelColor}-50/10`}
+                    className={`flex items-center justify-between p-4 rounded-lg border ${levelStyles.border} ${levelStyles.bg}`}
                   >
                     <div>
                       <div className="flex items-center gap-2">
-                        <Badge className={`bg-${levelColor}-500`}>Niveau {commission.level}</Badge>
+                        <Badge className={levelStyles.badge}>Niveau {commission.level}</Badge>
                         <span className="text-sm text-muted-foreground">
                           ({(commission.commission_rate * 100).toFixed(0)}%)
                         </span>
@@ -417,7 +423,7 @@ export default function Affiliate() {
                         {new Date(commission.created_at).toLocaleDateString()}
                       </p>
                     </div>
-                    <span className={`font-bold text-lg text-${levelColor}-600`}>
+                    <span className={`font-bold text-lg ${levelStyles.text}`}>
                       +{Number(commission.amount).toFixed(2)}€
                     </span>
                   </div>
