@@ -2,7 +2,7 @@ import { AppLayout } from '@/components/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlfieChat } from '@/components/AlfieChat';
 import { Sparkles } from 'lucide-react';
-import alfieSticker from '@/assets/alfie-sticker.jpeg';
+import alfieMain from '@/assets/alfie-main.png';
 
 export default function App() {
   return (
@@ -20,7 +20,7 @@ export default function App() {
             </p>
           </div>
           <img 
-            src={alfieSticker} 
+            src={alfieMain} 
             alt="Alfie" 
             className="w-24 h-24 object-contain animate-float"
           />

@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Check, Sparkles, Palette, CalendarClock, Film, BarChart3, Layers, Share2, ChevronRight, Shield } from "lucide-react";
-import alfieSticker from "@/assets/alfie-sticker.jpeg";
+import alfieMain from "@/assets/alfie-main.png";
 
 // --- Hooks to simulate actions (replace with Lovable actions / API calls) ---
 const useAlfieActions = () => {
@@ -59,7 +59,7 @@ export default function AlfieLanding() {
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent rounded-full blur-2xl opacity-60 animate-pulse-soft"></div>
               <div className="relative rounded-full border-4 border-white shadow-strong overflow-hidden w-32 h-32 bg-gradient-to-br from-primary/20 to-secondary/20">
-                <img src={alfieSticker} alt="Alfie" className="w-full h-full object-cover" />
+                <img src={alfieMain} alt="Alfie" className="w-full h-full object-cover" />
               </div>
               <div className="absolute -bottom-2 -right-2 bg-secondary text-white rounded-full px-3 py-1 text-xs font-bold shadow-medium">
                 👋 Alfie

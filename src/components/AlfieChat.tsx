@@ -6,7 +6,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar } from '@/components/ui/avatar';
 import { Send, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
-import alfieSticker from '@/assets/alfie-sticker.jpeg';
+import alfieMain from '@/assets/alfie-main.png';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -180,7 +180,7 @@ export function AlfieChat() {
             >
               {message.role === 'assistant' && (
                 <Avatar className="h-8 w-8 flex-shrink-0">
-                  <img src={alfieSticker} alt="Alfie" className="object-cover" />
+                  <img src={alfieMain} alt="Alfie" className="object-cover" />
                 </Avatar>
               )}
               <Card
@@ -202,10 +202,10 @@ export function AlfieChat() {
             </div>
           ))}
           {isLoading && (
-            <div className="flex gap-3 justify-start">
-              <Avatar className="h-8 w-8 flex-shrink-0">
-                <img src={alfieSticker} alt="Alfie" className="object-cover" />
-              </Avatar>
+          <div className="flex gap-3 justify-start">
+            <Avatar className="h-8 w-8 flex-shrink-0">
+              <img src={alfieMain} alt="Alfie" className="object-cover" />
+            </Avatar>
               <Card className="p-4 bg-muted">
                 <div className="flex gap-1">
                   <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
