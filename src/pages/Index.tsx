@@ -44,10 +44,10 @@ export default function AlfieLanding() {
             Ton directeur artistique IA, <span className="bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent">intégré à Canva</span>.
           </h1>
           <p className="mt-4 text-lg text-slate-600">Parle-lui, et Alfie te rend des visuels Hero, Carrousels, Stats et Reels, déjà à ta marque — prêts à planifier dans Canva.</p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Button size="lg" onClick={connectCanva}>Commencer (Connecter Canva)</Button>
-            <Button size="lg" variant="outline">Voir une démo</Button>
-          </div>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Button size="lg" onClick={() => window.location.href = '/auth'}>Commencer (Connecter Canva)</Button>
+                <Button size="lg" variant="outline" onClick={() => window.location.href = '/auth'}>Voir une démo</Button>
+              </div>
           <div className="mt-6 flex items-center gap-4 text-slate-500 text-sm">
             <div className="flex items-center gap-2"><Shield className="h-4 w-4"/> Client maître : aucune publication auto</div>
             <div className="flex items-center gap-2"><Palette className="h-4 w-4"/> Brand Kit appliqué</div>
@@ -105,10 +105,10 @@ export default function AlfieLanding() {
         <div className="rounded-3xl border border-slate-200 bg-white p-6 md:p-10 text-center shadow-sm">
           <h3 className="text-2xl md:text-3xl font-bold">Commence dès aujourd'hui</h3>
           <p className="mt-2 text-slate-600">Connecte ton Canva, choisis ton style et génère tes premiers visuels en moins d'une minute.</p>
-          <div className="mt-6 flex flex-col md:flex-row gap-3 justify-center">
-            <Input placeholder="Ton e-mail" value={email} onChange={(e)=>setEmail(e.target.value)} className="md:w-80"/>
-            <Button size="lg" onClick={connectCanva}>Connecter Canva</Button>
-          </div>
+              <div className="mt-6 flex flex-col md:flex-row gap-3 justify-center">
+                <Input placeholder="Ton e-mail" value={email} onChange={(e)=>setEmail(e.target.value)} className="md:w-80"/>
+                <Button size="lg" onClick={() => window.location.href = '/auth'}>Connecter Canva</Button>
+              </div>
           <p className="mt-3 text-xs text-slate-500 flex items-center justify-center gap-1"><Shield className="h-3 w-3"/> Aucune publication automatique — tu restes maître.</p>
         </div>
       </section>
