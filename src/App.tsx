@@ -14,6 +14,7 @@ import Billing from "./pages/Billing";
 import Admin from "./pages/Admin";
 import Affiliate from "./pages/Affiliate";
 import NotFound from "./pages/NotFound";
+import { AppLayoutWithSidebar } from "./components/AppLayoutWithSidebar";
 
 const queryClient = new QueryClient();
 
@@ -32,7 +33,9 @@ const App = () => (
               path="/app"
               element={
                 <ProtectedRoute>
-                  <Creator />
+                  <AppLayoutWithSidebar>
+                    <Creator />
+                  </AppLayoutWithSidebar>
                 </ProtectedRoute>
               }
             />
@@ -40,23 +43,9 @@ const App = () => (
               path="/dashboard"
               element={
                 <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/billing"
-              element={
-                <ProtectedRoute>
-                  <Billing />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin"
-              element={
-                <ProtectedRoute requireAdmin>
-                  <Admin />
+                  <AppLayoutWithSidebar>
+                    <Dashboard />
+                  </AppLayoutWithSidebar>
                 </ProtectedRoute>
               }
             />
@@ -64,7 +53,29 @@ const App = () => (
               path="/affiliate"
               element={
                 <ProtectedRoute>
-                  <Affiliate />
+                  <AppLayoutWithSidebar>
+                    <Affiliate />
+                  </AppLayoutWithSidebar>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/billing"
+              element={
+                <ProtectedRoute>
+                  <AppLayoutWithSidebar>
+                    <Billing />
+                  </AppLayoutWithSidebar>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute requireAdmin>
+                  <AppLayoutWithSidebar>
+                    <Admin />
+                  </AppLayoutWithSidebar>
                 </ProtectedRoute>
               }
             />
