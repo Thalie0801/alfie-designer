@@ -4,9 +4,8 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Check, CreditCard, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
+import { useStripeCheckout } from '@/hooks/useStripeCheckout';
 import { toast } from 'sonner';
-import { useState } from 'react';
 
 const plans = [
   {
@@ -48,34 +47,18 @@ const plans = [
 ];
 
 export default function Billing() {
-  const { profile, user, refreshProfile } = useAuth();
-  const [loading, setLoading] = useState(false);
+  const { profile, user } = useAuth();
+  const { createCheckout, loading } = useStripeCheckout();
   const currentPlan = profile?.plan || null;
   const hasActivePlan = currentPlan && currentPlan !== 'none';
 
   const handleSelectPlan = async (plan: typeof plans[0]) => {
-    if (!user) return;
-    
-    setLoading(true);
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          plan: plan.key,
-          quota_brands: plan.quota_brands,
-          quota_visuals_per_month: plan.quota_visuals
-        })
-        .eq('id', user.id);
-
-      if (error) throw error;
-
-      await refreshProfile();
-      toast.success(`Plan ${plan.name} activé avec succès !`);
-    } catch (error: any) {
-      toast.error('Erreur lors de l\'activation du plan: ' + error.message);
-    } finally {
-      setLoading(false);
+    if (!user) {
+      toast.error('Vous devez être connecté pour souscrire à un abonnement');
+      return;
     }
+    
+    await createCheckout(plan.key as 'starter' | 'pro' | 'studio' | 'enterprise');
   };
 
   return (
