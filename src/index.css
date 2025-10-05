@@ -42,6 +42,16 @@ All colors MUST be HSL.
     --input: 240 10% 88%;
     --ring: 220 70% 50%;
 
+    /* Sidebar Theme */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 240 20% 15%;
+    --sidebar-primary: 210 100% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 5% 94%;
+    --sidebar-accent-foreground: 240 20% 15%;
+    --sidebar-border: 240 10% 88%;
+    --sidebar-ring: 220 70% 50%;
+
     --radius: 0.75rem;
 
     /* Gradients */
@@ -89,6 +99,16 @@ All colors MUST be HSL.
     --border: 240 15% 18%;
     --input: 240 15% 18%;
     --ring: 220 80% 60%;
+
+    /* Sidebar Theme (dark) */
+    --sidebar-background: 240 18% 12%;
+    --sidebar-foreground: 240 5% 96%;
+    --sidebar-primary: 210 100% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 15% 15%;
+    --sidebar-accent-foreground: 240 5% 96%;
+    --sidebar-border: 240 15% 18%;
+    --sidebar-ring: 220 80% 60%;
 
     --shadow-soft: 0 2px 8px hsl(0 0% 0% / 0.15);
     --shadow-medium: 0 4px 16px hsl(0 0% 0% / 0.25);
