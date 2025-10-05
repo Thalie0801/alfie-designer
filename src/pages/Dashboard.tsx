@@ -108,12 +108,9 @@ export default function Dashboard() {
                 Chargement...
               </p>
             ) : brands.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-muted-foreground mb-4">
-                  Aucune marque configurée
-                </p>
-                <BrandDialog onSuccess={loadData} />
-              </div>
+              <p className="text-sm text-muted-foreground text-center py-8">
+                Aucune marque configurée. Cliquez sur "Ajouter" ci-dessus pour créer votre première marque.
+              </p>
             ) : (
               <div className="grid md:grid-cols-2 gap-4">
                 {brands.map((brand) => (
