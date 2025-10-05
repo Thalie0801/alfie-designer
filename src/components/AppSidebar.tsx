@@ -45,7 +45,7 @@ export function AppSidebar() {
 
   const isActive = (path: string) => location.pathname === path;
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
-    isActive ? "bg-primary text-primary-foreground font-medium" : "text-foreground hover:bg-muted hover:text-foreground";
+    isActive ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground";
 
   const handleSignOut = async () => {
     await signOut();
@@ -101,7 +101,7 @@ export function AppSidebar() {
             <SidebarMenu>
               {navItems.map((item) => (
                 <SidebarMenuItem key={item.path}>
-                  <SidebarMenuButton asChild>
+                  <SidebarMenuButton asChild isActive={location.pathname === item.path}>
                     <NavLink to={item.path} end className={getNavCls}>
                       <item.icon className={open ? "mr-2" : "mx-auto"} size={20} />
                       {open && <span>{item.label}</span>}
