@@ -20,6 +20,17 @@ const useAlfieActions = () => {
 export default function AlfieLanding() {
   const { connectCanva, createHero, createCarousel, createInsight, createReel } = useAlfieActions();
   const [email, setEmail] = useState("");
+  const [isAnnual, setIsAnnual] = useState(false);
+
+  const calculatePrice = (monthlyPrice: number) => {
+    if (isAnnual) {
+      const annualPrice = monthlyPrice * 12 * 0.8; // -20%
+      return `${Math.round(annualPrice)}€`;
+    }
+    return `${monthlyPrice}€`;
+  };
+
+  const getPriceLabel = () => isAnnual ? " / an" : " / mois";
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-slate-50 text-slate-900">
@@ -129,23 +140,82 @@ export default function AlfieLanding() {
 
       {/* Pricing */}
       <section className="max-w-6xl mx-auto px-4 py-14">
-        <h2 className="text-2xl font-bold mb-8">Tarifs clairs, évolutifs</h2>
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-bold mb-4 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
+            Tarifs clairs, évolutifs
+          </h2>
+          
+          {/* Toggle Mensuel/Annuel */}
+          <div className="flex items-center justify-center gap-4 mt-6">
+            <span className={`font-medium ${!isAnnual ? 'text-primary' : 'text-muted-foreground'}`}>
+              Mensuel
+            </span>
+            <button
+              onClick={() => setIsAnnual(!isAnnual)}
+              className={`relative w-16 h-8 rounded-full transition-colors ${
+                isAnnual ? 'bg-gradient-to-r from-primary to-secondary' : 'bg-slate-300'
+              }`}
+            >
+              <div
+                className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-transform ${
+                  isAnnual ? 'translate-x-9' : 'translate-x-1'
+                }`}
+              />
+            </button>
+            <span className={`font-medium ${isAnnual ? 'text-primary' : 'text-muted-foreground'}`}>
+              Annuel
+            </span>
+            {isAnnual && (
+              <Badge className="bg-green-500 text-white animate-fade-in">-20% 🎉</Badge>
+            )}
+          </div>
+        </div>
+
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
-          <PriceCard title="Starter" price="29€" bullets={["1 marque","20 visuels/mois","2 templates"]} cta="Essayer Starter"/>
-          <PriceCard title="Pro" price="79€" highlight bullets={["3 marques","100 visuels/mois","4 templates + Reels simples"]} cta="Choisir Pro"/>
-          <PriceCard title="Studio" price="149€" bullets={["Multi-marques","Reels avancés","Analytics"]} cta="Passer Studio"/>
-          <PriceCard title="Enterprise" price="299€" bullets={["Illimité","API & SSO","Support prioritaire"]} cta="Demander un devis"/>
+          <PriceCard 
+            title="Starter" 
+            price={calculatePrice(29)} 
+            priceLabel={getPriceLabel()}
+            bullets={["1 marque","20 visuels/mois","2 templates"]} 
+            cta="Essayer Starter"
+          />
+          <PriceCard 
+            title="Pro" 
+            price={calculatePrice(79)} 
+            priceLabel={getPriceLabel()}
+            highlight 
+            bullets={["3 marques","100 visuels/mois","4 templates + Reels simples"]} 
+            cta="Choisir Pro"
+          />
+          <PriceCard 
+            title="Studio" 
+            price={calculatePrice(149)} 
+            priceLabel={getPriceLabel()}
+            bullets={["Multi-marques","Reels avancés","Analytics"]} 
+            cta="Passer Studio"
+          />
+          <PriceCard 
+            title="Enterprise" 
+            price={calculatePrice(299)} 
+            priceLabel={getPriceLabel()}
+            bullets={["Illimité","API & SSO","Support prioritaire"]} 
+            cta="Demander un devis"
+          />
         </div>
       </section>
 
       {/* CTA + Email capture */}
       <section className="max-w-4xl mx-auto px-4 py-12">
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 md:p-10 text-center shadow-sm">
-          <h3 className="text-2xl md:text-3xl font-bold">Commence dès aujourd'hui</h3>
-          <p className="mt-2 text-slate-600">Crée ton compte, connecte ton Canva et génère tes premiers visuels en moins d'une minute.</p>
+        <div className="rounded-3xl border-2 border-primary/20 bg-gradient-subtle p-6 md:p-10 text-center shadow-strong">
+          <h3 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+            Prêt à transformer tes idées en visuels ?
+          </h3>
+          <p className="mt-2 text-slate-600">Crée ton compte, connecte ton Canva et génère tes premiers visuels en moins d&apos;une minute.</p>
               <div className="mt-6 flex flex-col md:flex-row gap-3 justify-center">
-                <Input placeholder="Ton e-mail" value={email} onChange={(e)=>setEmail(e.target.value)} className="md:w-80"/>
-                <Button size="lg" onClick={() => window.location.href = '/auth'}>Commencer gratuitement</Button>
+                <Input placeholder="Ton e-mail" value={email} onChange={(e)=>setEmail(e.target.value)} className="md:w-80 border-primary/30"/>
+                <Button size="lg" className="gradient-hero text-white shadow-medium" onClick={() => window.location.href = '/auth'}>
+                  Commencer maintenant 🚀
+                </Button>
               </div>
           <p className="mt-3 text-xs text-slate-500 flex items-center justify-center gap-1"><Shield className="h-3 w-3"/> Aucune publication automatique — tu restes maître.</p>
         </div>
@@ -223,17 +293,17 @@ function TemplateCard({ title, subtitle, ratios, onCreate }: { title: string; su
   );
 }
 
-function PriceCard({ title, price, bullets, cta, highlight }: { title: string; price: string; bullets: string[]; cta: string; highlight?: boolean }) {
+function PriceCard({ title, price, priceLabel, bullets, cta, highlight }: { title: string; price: string; priceLabel: string; bullets: string[]; cta: string; highlight?: boolean }) {
   return (
-    <Card className={`rounded-3xl ${highlight ? "border-slate-900 shadow-lg" : ""}`}>
+    <Card className={`rounded-3xl hover:scale-105 transition-transform ${highlight ? "border-primary border-2 shadow-strong" : "shadow-medium"}`}>
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           {title}
-          {highlight && <Badge>Populaire</Badge>}
+          {highlight && <Badge className="bg-gradient-to-r from-primary to-secondary text-white">⭐ Populaire</Badge>}
         </CardTitle>
         <CardDescription>
-          <span className="text-3xl font-extrabold text-slate-900">{price}</span>
-          <span className="text-slate-500"> / mois</span>
+          <span className="text-3xl font-extrabold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">{price}</span>
+          <span className="text-slate-500">{priceLabel}</span>
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -244,7 +314,7 @@ function PriceCard({ title, price, bullets, cta, highlight }: { title: string; p
         </ul>
       </CardContent>
       <CardFooter>
-        <Button className="w-full" variant={highlight ? "default" : "outline"}>{cta}</Button>
+        <Button className={`w-full ${highlight ? 'gradient-hero text-white shadow-medium' : ''}`} variant={highlight ? "default" : "outline"}>{cta}</Button>
       </CardFooter>
     </Card>
   );
