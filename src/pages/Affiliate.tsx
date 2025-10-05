@@ -5,12 +5,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Copy, DollarSign, MousePointerClick, TrendingUp, Users, Award, Target, Crown } from 'lucide-react';
+import { Copy, DollarSign, MousePointerClick, TrendingUp, Users, Award, Target, Crown, CreditCard, CheckCircle2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Progress } from '@/components/ui/progress';
+import { useStripeConnect } from '@/hooks/useStripeConnect';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function Affiliate() {
   const { user } = useAuth();
+  const { createConnectAccount, createOnboardingLink, createDashboardLink, syncAccountStatus, loading: connectLoading } = useStripeConnect();
   const [affiliate, setAffiliate] = useState<any>(null);
   const [clicks, setClicks] = useState<any[]>([]);
   const [conversions, setConversions] = useState<any[]>([]);
@@ -30,7 +33,38 @@ export default function Affiliate() {
 
   useEffect(() => {
     loadAffiliateData();
+    
+    // Check for onboarding success
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('onboarding') === 'success') {
+      handleOnboardingSuccess();
+    }
   }, [user]);
+
+  const handleOnboardingSuccess = async () => {
+    try {
+      await syncAccountStatus();
+      await loadAffiliateData();
+      toast.success('Configuration Stripe Connect terminée !');
+    } catch (error) {
+      console.error('Error syncing account:', error);
+    }
+  };
+
+  const handleSetupStripeConnect = async () => {
+    try {
+      // Check if account exists
+      if (!affiliate?.stripe_connect_account_id) {
+        await createConnectAccount();
+        await loadAffiliateData();
+      }
+      
+      // Start onboarding
+      await createOnboardingLink();
+    } catch (error) {
+      console.error('Error setting up Stripe Connect:', error);
+    }
+  };
 
   const loadAffiliateData = async () => {
     if (!user) return;
@@ -195,6 +229,79 @@ export default function Affiliate() {
           <span className="font-bold text-lg">{statusInfo.label}</span>
         </div>
       </div>
+
+      {/* Stripe Connect Configuration */}
+      <Card className="border-primary/20 shadow-medium">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CreditCard className="h-5 w-5 text-primary" />
+            Configuration des paiements (Stripe Connect)
+          </CardTitle>
+          <CardDescription>
+            Configurez votre compte pour recevoir vos commissions automatiquement
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!affiliate?.stripe_connect_account_id ? (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Vous devez configurer votre compte Stripe Connect pour recevoir vos paiements.
+              </AlertDescription>
+            </Alert>
+          ) : affiliate?.stripe_connect_onboarding_complete ? (
+            <Alert className="border-green-500/50 bg-green-50/10">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <AlertDescription className="text-green-600">
+                Votre compte Stripe Connect est configuré et actif. Vous pouvez recevoir des paiements.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <Alert className="border-orange-500/50 bg-orange-50/10">
+              <AlertCircle className="h-4 w-4 text-orange-600" />
+              <AlertDescription className="text-orange-600">
+                Configuration incomplète. Finalisez votre onboarding pour activer les paiements.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <div className="flex gap-3">
+            {!affiliate?.stripe_connect_account_id || !affiliate?.stripe_connect_onboarding_complete ? (
+              <Button 
+                onClick={handleSetupStripeConnect}
+                disabled={connectLoading}
+                className="gradient-hero text-white"
+              >
+                {affiliate?.stripe_connect_account_id 
+                  ? 'Continuer la configuration' 
+                  : 'Configurer Stripe Connect'}
+              </Button>
+            ) : (
+              <Button 
+                onClick={createDashboardLink}
+                disabled={connectLoading}
+                variant="outline"
+              >
+                Accéder au dashboard Stripe
+              </Button>
+            )}
+            
+            {affiliate?.stripe_connect_account_id && (
+              <Button 
+                onClick={async () => {
+                  await syncAccountStatus();
+                  await loadAffiliateData();
+                  toast.success('Statut synchronisé');
+                }}
+                variant="outline"
+                disabled={connectLoading}
+              >
+                Rafraîchir le statut
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Status Progress Card */}
       {nextStatus && (

@@ -21,3 +21,18 @@ verify_jwt = false
 [functions.send-confirmation-email]
 verify_jwt = false
 
+[functions.create-connect-account]
+verify_jwt = false
+
+[functions.create-connect-onboarding-link]
+verify_jwt = false
+
+[functions.create-connect-dashboard-link]
+verify_jwt = false
+
+[functions.process-affiliate-payout]
+verify_jwt = false
+
+[functions.sync-connect-account-status]
+verify_jwt = false
+

@@ -184,6 +184,10 @@ export type Database = {
           parent_id: string | null
           payout_method: string | null
           status: string | null
+          stripe_connect_account_id: string | null
+          stripe_connect_charges_enabled: boolean | null
+          stripe_connect_onboarding_complete: boolean | null
+          stripe_connect_payouts_enabled: boolean | null
           total_referrals_level_2: number | null
           total_referrals_level_3: number | null
         }
@@ -197,6 +201,10 @@ export type Database = {
           parent_id?: string | null
           payout_method?: string | null
           status?: string | null
+          stripe_connect_account_id?: string | null
+          stripe_connect_charges_enabled?: boolean | null
+          stripe_connect_onboarding_complete?: boolean | null
+          stripe_connect_payouts_enabled?: boolean | null
           total_referrals_level_2?: number | null
           total_referrals_level_3?: number | null
         }
@@ -210,6 +218,10 @@ export type Database = {
           parent_id?: string | null
           payout_method?: string | null
           status?: string | null
+          stripe_connect_account_id?: string | null
+          stripe_connect_charges_enabled?: boolean | null
+          stripe_connect_onboarding_complete?: boolean | null
+          stripe_connect_payouts_enabled?: boolean | null
           total_referrals_level_2?: number | null
           total_referrals_level_3?: number | null
         }
