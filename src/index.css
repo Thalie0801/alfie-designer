@@ -18,21 +18,21 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 240 20% 15%;
 
-    /* Primary - Friendly Sky Blue */
-    --primary: 200 95% 45%;
+    /* Primary - Vibrant Blue */
+    --primary: 210 100% 50%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 200 100% 75%;
+    --primary-glow: 210 100% 70%;
 
-    /* Secondary - Soft Purple */
-    --secondary: 280 85% 65%;
+    /* Secondary - Bold Orange */
+    --secondary: 25 100% 55%;
     --secondary-foreground: 0 0% 100%;
 
     /* Muted - Soft Neutrals */
     --muted: 240 5% 94%;
     --muted-foreground: 240 8% 45%;
 
-    /* Accent - Warm Peach */
-    --accent: 35 100% 60%;
+    /* Accent - Bright Coral */
+    --accent: 15 100% 60%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84.2% 60.2%;
@@ -45,9 +45,9 @@ All colors MUST be HSL.
     --radius: 0.75rem;
 
     /* Gradients */
-    --gradient-hero: linear-gradient(135deg, hsl(200 95% 45%), hsl(280 85% 65%));
-    --gradient-warm: linear-gradient(135deg, hsl(35 100% 60%), hsl(45 100% 55%));
-    --gradient-subtle: linear-gradient(180deg, hsl(240 10% 98%), hsl(240 8% 96%));
+    --gradient-hero: linear-gradient(135deg, hsl(210 100% 50%), hsl(25 100% 55%));
+    --gradient-warm: linear-gradient(135deg, hsl(25 100% 55%), hsl(35 100% 60%));
+    --gradient-subtle: linear-gradient(180deg, hsl(210 100% 98%), hsl(25 100% 98%));
 
     /* Shadows */
     --shadow-soft: 0 2px 8px hsl(240 20% 15% / 0.06);
@@ -70,17 +70,17 @@ All colors MUST be HSL.
     --popover: 240 18% 12%;
     --popover-foreground: 240 5% 96%;
 
-    --primary: 200 95% 50%;
+    --primary: 210 100% 55%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 200 100% 75%;
+    --primary-glow: 210 100% 75%;
 
-    --secondary: 280 85% 70%;
+    --secondary: 25 100% 60%;
     --secondary-foreground: 0 0% 100%;
 
     --muted: 240 15% 15%;
     --muted-foreground: 240 8% 60%;
 
-    --accent: 35 100% 65%;
+    --accent: 15 100% 65%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84.2% 60.2%;

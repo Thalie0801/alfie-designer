@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Check, Sparkles, Palette, CalendarClock, Film, BarChart3, Layers, Share2, ChevronRight, Shield } from "lucide-react";
+import alfieSticker from "@/assets/alfie-sticker.jpeg";
 
 // --- Hooks to simulate actions (replace with Lovable actions / API calls) ---
 const useAlfieActions = () => {
@@ -53,6 +54,19 @@ export default function AlfieLanding() {
           </div>
         </div>
         <div className="relative">
+          {/* Alfie Sticker Flottant */}
+          <div className="absolute -top-12 -left-8 z-10 animate-float">
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent rounded-full blur-2xl opacity-60 animate-pulse-soft"></div>
+              <div className="relative rounded-full border-4 border-white shadow-strong overflow-hidden w-32 h-32 bg-gradient-to-br from-primary/20 to-secondary/20">
+                <img src={alfieSticker} alt="Alfie" className="w-full h-full object-cover" />
+              </div>
+              <div className="absolute -bottom-2 -right-2 bg-secondary text-white rounded-full px-3 py-1 text-xs font-bold shadow-medium">
+                👋 Alfie
+              </div>
+            </div>
+          </div>
+
           <div className="rounded-3xl border border-slate-100 bg-white shadow-xl p-6">
             <div className="grid grid-cols-2 gap-4">
               <MiniCard icon={<Sparkles className="h-5 w-5"/>} title="Hero / Announcement" subtitle="1:1 • 16:9" onClick={createHero}/>
@@ -60,8 +74,8 @@ export default function AlfieLanding() {
               <MiniCard icon={<BarChart3 className="h-5 w-5"/>} title="Insight / Stats" subtitle="1:1 • 4:5" onClick={createInsight}/>
               <MiniCard icon={<Film className="h-5 w-5"/>} title="Reel / Short" subtitle="9:16" onClick={createReel}/>
             </div>
-            <div className="mt-6 rounded-2xl bg-slate-50 p-4">
-              <p className="text-sm text-slate-600">Brief rapide</p>
+            <div className="mt-6 rounded-2xl bg-gradient-to-br from-primary/5 to-secondary/5 p-4 border border-primary/10">
+              <p className="text-sm font-semibold text-slate-700">Brief rapide</p>
               <div className="mt-3 grid gap-3">
                 <Input placeholder="Thème / idée (ex: Lancement Q4, Témoignage, Tuto)"/>
                 <div className="grid md:grid-cols-2 gap-3">
@@ -69,7 +83,7 @@ export default function AlfieLanding() {
                   <Input placeholder="Canaux (IG, LinkedIn…)"/>
                 </div>
                 <Textarea placeholder="Notes (ton, CTA, hashtags)…"/>
-                <Button className="w-full">Générer mes visuels</Button>
+                <Button className="w-full shadow-medium">Générer mes visuels</Button>
               </div>
             </div>
           </div>
