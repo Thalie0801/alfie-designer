@@ -69,32 +69,6 @@ export function AppSidebar() {
 
         <Separator />
 
-        {/* Admin Toggle */}
-        {canSeeAdminToggle && open && (
-          <div className="px-3 py-2">
-            <div className="flex gap-1 p-1 rounded-lg bg-muted">
-              <NavLink to="/app" className="flex-1">
-                <Button 
-                  variant={location.pathname === '/app' ? 'default' : 'ghost'} 
-                  size="sm"
-                  className="w-full text-xs"
-                >
-                  👤 Client
-                </Button>
-              </NavLink>
-              <NavLink to="/admin" className="flex-1">
-                <Button 
-                  variant={location.pathname === '/admin' ? 'default' : 'ghost'} 
-                  size="sm"
-                  className="w-full text-xs"
-                >
-                  ⚙️ Admin
-                </Button>
-              </NavLink>
-            </div>
-          </div>
-        )}
-
         {/* Navigation */}
         <SidebarGroup>
           {open && <SidebarGroupLabel>Navigation</SidebarGroupLabel>}
