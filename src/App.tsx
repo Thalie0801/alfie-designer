@@ -13,6 +13,7 @@ import Dashboard from "./pages/Dashboard";
 import Billing from "./pages/Billing";
 import Admin from "./pages/Admin";
 import Affiliate from "./pages/Affiliate";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 import { AppLayoutWithSidebar } from "./components/AppLayoutWithSidebar";
 
@@ -55,6 +56,16 @@ const App = () => (
                 <ProtectedRoute>
                   <AppLayoutWithSidebar>
                     <Affiliate />
+                  </AppLayoutWithSidebar>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <AppLayoutWithSidebar>
+                    <Profile />
                   </AppLayoutWithSidebar>
                 </ProtectedRoute>
               }

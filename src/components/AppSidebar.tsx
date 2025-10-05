@@ -35,8 +35,9 @@ export function AppSidebar() {
   const navItems = [
     { path: '/app', label: 'Créer', icon: Sparkles },
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/affiliate', label: 'Affiliation', icon: TrendingUp },
+    { path: '/profile', label: 'Profil', icon: UserCircle },
     { path: '/billing', label: 'Abonnement', icon: CreditCard },
+    { path: '/affiliate', label: 'Affiliation', icon: TrendingUp },
   ];
 
   if (canSeeAdminToggle) {
