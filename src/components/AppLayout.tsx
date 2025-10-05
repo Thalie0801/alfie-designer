@@ -28,6 +28,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     userId: user?.id,
     email: user?.email 
   });
+  const canSeeAdminToggle = isAdmin || user?.email === 'nathaliestaelens@gmail.com';
 
   const handleSignOut = async () => {
     await signOut();
@@ -40,7 +41,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     { path: '/billing', label: 'Abonnement', icon: CreditCard },
   ];
 
-  if (isAdmin) {
+  if (canSeeAdminToggle) {
     navItems.push({ path: '/admin', label: 'Admin', icon: Settings });
   }
 
@@ -75,12 +76,13 @@ export function AppLayout({ children }: AppLayoutProps) {
 
           <div className="flex items-center gap-3">
             {/* Admin Quick Switch */}
-            {isAdmin && (
+            {canSeeAdminToggle && (
               <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-100 border border-slate-200">
                 <Link to="/app">
                   <Button 
                     variant={location.pathname === '/app' ? 'default' : 'ghost'} 
                     size="sm"
+                    aria-label="Basculer vers le mode Client"
                   >
                     👤 Client
                   </Button>
@@ -89,6 +91,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                   <Button 
                     variant={location.pathname === '/admin' ? 'default' : 'ghost'} 
                     size="sm"
+                    aria-label="Basculer vers le mode Admin"
                   >
                     ⚙️ Admin
                   </Button>
