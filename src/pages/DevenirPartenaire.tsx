@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Check, Users, Award, Crown, Target, TrendingUp, Sparkles, ArrowRight } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function DevenirPartenaire() {
   return (
@@ -16,10 +17,11 @@ export default function DevenirPartenaire() {
             <span className="font-semibold">Alfie Designer</span>
           </div>
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             <Button variant="outline" onClick={() => window.location.href = '/'}>
               Retour
             </Button>
-            <Button onClick={() => window.location.href = '/auth'}>
+            <Button onClick={() => window.location.href = '/billing'}>
               Devenir Partenaire
             </Button>
           </div>
@@ -38,7 +40,7 @@ export default function DevenirPartenaire() {
           <p className="text-xl text-slate-600 mb-8">
             Transforme ta passion pour la création en revenus récurrents. Recommande Alfie, accompagne des créateurs, et construis ton réseau rémunéré.
           </p>
-          <Button size="lg" className="gradient-hero text-white shadow-medium gap-2" onClick={() => window.location.href = '/auth'}>
+          <Button size="lg" className="gradient-hero text-white shadow-medium gap-2" onClick={() => window.location.href = '/billing'}>
             Commencer maintenant <ArrowRight className="h-5 w-5" />
           </Button>
         </div>

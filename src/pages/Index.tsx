@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Check, Sparkles, Palette, CalendarClock, Film, BarChart3, Layers, Share2, ChevronRight, Shield } from "lucide-react";
 import alfieMain from "@/assets/alfie-main.png";
 import { useStripeCheckout } from "@/hooks/useStripeCheckout";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 // --- Hooks to simulate actions (replace with Lovable actions / API calls) ---
 const useAlfieActions = () => {
@@ -44,7 +45,8 @@ export default function AlfieLanding() {
             <span className="font-semibold">Alfie Designer</span>
           </div>
           <div className="flex items-center gap-2">
-            <Button onClick={() => window.location.href = '/auth'}>Ouvrir l'app</Button>
+            <ThemeToggle />
+            <Button onClick={() => window.location.href = '/billing'}>Ouvrir l'app</Button>
           </div>
         </div>
       </header>
@@ -57,7 +59,7 @@ export default function AlfieLanding() {
           </h1>
           <p className="mt-4 text-lg text-slate-600 animate-fade-in">Alfie est ton agent de création et planification. Demande-lui ce que tu souhaites et hop, ton design arrive directement dans ton Canva !</p>
               <div className="mt-6 flex flex-wrap gap-3 animate-fade-in">
-                <Button size="lg" className="gradient-hero text-white shadow-medium hover:shadow-strong" onClick={() => window.location.href = '/auth'}>
+                <Button size="lg" className="gradient-hero text-white shadow-medium hover:shadow-strong" onClick={() => window.location.href = '/billing'}>
                   Commencer ✨
                 </Button>
                 <Button size="lg" variant="outline" className="hover:scale-105 transition-transform" onClick={() => window.location.href = '/auth'}>
@@ -227,7 +229,7 @@ export default function AlfieLanding() {
           </h3>
           <p className="mt-2 text-slate-600">Crée ton compte, connecte ton Canva et génère tes premiers visuels en moins d&apos;une minute.</p>
           <div className="mt-6 flex justify-center">
-            <Button size="lg" className="gradient-hero text-white shadow-medium" onClick={() => window.location.href = '/auth'}>
+            <Button size="lg" className="gradient-hero text-white shadow-medium" onClick={() => window.location.href = '/billing'}>
               Commencer maintenant 🚀
             </Button>
           </div>
