@@ -5,7 +5,20 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { ExternalLink, Plus } from 'lucide-react';
+import { ExternalLink, Trash2, Edit } from 'lucide-react';
+import { BrandDialog } from '@/components/BrandDialog';
+import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -32,6 +45,7 @@ export default function Dashboard() {
           .from('brands')
           .select('*')
           .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
       ]);
 
       setPosts(postsRes.data || []);
@@ -40,6 +54,24 @@ export default function Dashboard() {
       console.error('Error loading dashboard:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteBrand = async (brandId: string) => {
+    try {
+      const { error } = await supabase
+        .from('brands')
+        .delete()
+        .eq('id', brandId)
+        .eq('user_id', user!.id);
+
+      if (error) throw error;
+
+      toast.success('Marque supprimée');
+      loadData();
+    } catch (error: any) {
+      console.error('Error deleting brand:', error);
+      toast.error('Erreur lors de la suppression');
     }
   };
 
@@ -67,28 +99,77 @@ export default function Dashboard() {
                 <CardTitle>Mes marques</CardTitle>
                 <CardDescription>Gérez vos Brand Kits</CardDescription>
               </div>
-              <Button size="sm" className="gap-2">
-                <Plus className="h-4 w-4" />
-                Ajouter
-              </Button>
+              <BrandDialog onSuccess={loadData} />
             </div>
           </CardHeader>
           <CardContent>
-            {brands.length === 0 ? (
+            {loading ? (
               <p className="text-sm text-muted-foreground text-center py-4">
-                Aucune marque configurée
+                Chargement...
               </p>
+            ) : brands.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground mb-4">
+                  Aucune marque configurée
+                </p>
+                <BrandDialog onSuccess={loadData} />
+              </div>
             ) : (
               <div className="grid md:grid-cols-2 gap-4">
                 {brands.map((brand) => (
-                  <Card key={brand.id}>
+                  <Card key={brand.id} className="group hover:shadow-md transition-shadow">
                     <CardHeader>
-                      <CardTitle className="text-lg">{brand.name}</CardTitle>
-                      <CardDescription>
-                        <Badge variant={brand.canva_connected ? 'default' : 'secondary'}>
-                          {brand.canva_connected ? 'Connecté' : 'Non connecté'}
-                        </Badge>
-                      </CardDescription>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            {brand.logo_url && (
+                              <img 
+                                src={brand.logo_url} 
+                                alt={brand.name}
+                                className="w-8 h-8 object-contain rounded"
+                              />
+                            )}
+                            <CardTitle className="text-lg">{brand.name}</CardTitle>
+                          </div>
+                          <div className="space-y-2">
+                            <Badge variant={brand.canva_connected ? 'default' : 'secondary'}>
+                              {brand.canva_connected ? 'Canva connecté' : 'Non connecté'}
+                            </Badge>
+                            {brand.voice && (
+                              <p className="text-sm text-muted-foreground line-clamp-2">
+                                {brand.voice}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <BrandDialog brand={brand} onSuccess={loadData} />
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Supprimer la marque ?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Cette action est irréversible. La marque "{brand.name}" sera définitivement supprimée.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Annuler</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDeleteBrand(brand.id)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Supprimer
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </div>
                     </CardHeader>
                   </Card>
                 ))}
