@@ -66,7 +66,7 @@ const App = () => (
             <Route
               path="/profile"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requirePlan>
                   <AppLayoutWithSidebar>
                     <Profile />
                   </AppLayoutWithSidebar>
