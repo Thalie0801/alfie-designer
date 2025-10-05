@@ -18,21 +18,21 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 240 20% 15%;
 
-    /* Primary - Deep Blue (Trust & Creativity) */
-    --primary: 220 70% 50%;
+    /* Primary - Friendly Sky Blue */
+    --primary: 200 95% 45%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 220 85% 65%;
+    --primary-glow: 200 100% 75%;
 
-    /* Secondary - Warm Orange (Alfie's Energy) */
-    --secondary: 25 95% 60%;
-    --secondary-foreground: 240 20% 15%;
+    /* Secondary - Soft Purple */
+    --secondary: 280 85% 65%;
+    --secondary-foreground: 0 0% 100%;
 
     /* Muted - Soft Neutrals */
     --muted: 240 5% 94%;
     --muted-foreground: 240 8% 45%;
 
-    /* Accent - Vibrant Purple */
-    --accent: 270 65% 60%;
+    /* Accent - Warm Peach */
+    --accent: 35 100% 60%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84.2% 60.2%;
@@ -45,8 +45,8 @@ All colors MUST be HSL.
     --radius: 0.75rem;
 
     /* Gradients */
-    --gradient-hero: linear-gradient(135deg, hsl(220 70% 50%), hsl(270 65% 60%));
-    --gradient-warm: linear-gradient(135deg, hsl(25 95% 60%), hsl(35 95% 55%));
+    --gradient-hero: linear-gradient(135deg, hsl(200 95% 45%), hsl(280 85% 65%));
+    --gradient-warm: linear-gradient(135deg, hsl(35 100% 60%), hsl(45 100% 55%));
     --gradient-subtle: linear-gradient(180deg, hsl(240 10% 98%), hsl(240 8% 96%));
 
     /* Shadows */
@@ -70,18 +70,18 @@ All colors MUST be HSL.
     --popover: 240 18% 12%;
     --popover-foreground: 240 5% 96%;
 
-    --primary: 220 80% 60%;
-    --primary-foreground: 240 20% 8%;
-    --primary-glow: 220 90% 70%;
+    --primary: 200 95% 50%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 200 100% 75%;
 
-    --secondary: 25 95% 55%;
-    --secondary-foreground: 240 20% 8%;
+    --secondary: 280 85% 70%;
+    --secondary-foreground: 0 0% 100%;
 
     --muted: 240 15% 15%;
     --muted-foreground: 240 8% 60%;
 
-    --accent: 270 70% 65%;
-    --accent-foreground: 240 20% 8%;
+    --accent: 35 100% 65%;
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 100%;

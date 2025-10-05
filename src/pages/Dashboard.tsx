@@ -46,11 +46,17 @@ export default function Dashboard() {
   return (
     <AppLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
-          <p className="text-muted-foreground">
-            Retrouvez vos créations et gérez vos marques
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
+            <p className="text-muted-foreground">
+              Retrouvez vos créations et gérez vos marques
+            </p>
+          </div>
+          <Button className="gap-2" onClick={() => alert('OAuth Canva → Coming soon')}>
+            <ExternalLink className="h-4 w-4" />
+            Connecter Canva
+          </Button>
         </div>
 
         {/* Brands */}

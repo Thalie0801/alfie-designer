@@ -26,13 +26,11 @@ export default function AlfieLanding() {
       <header className="sticky top-0 z-20 backdrop-blur bg-white/70 border-b border-slate-100">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm"><Sparkles className="h-5 w-5"/></span>
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-primary text-white shadow-sm"><Sparkles className="h-5 w-5"/></span>
             <span className="font-semibold">Alfie Designer</span>
-            <Badge variant="secondary" className="ml-2">Compatible Canva Connect</Badge>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={connectCanva}>Connecter Canva</Button>
-            <Button>Ouvrir l'app</Button>
+            <Button onClick={() => window.location.href = '/auth'}>Ouvrir l'app</Button>
           </div>
         </div>
       </header>
@@ -41,11 +39,11 @@ export default function AlfieLanding() {
       <section className="max-w-6xl mx-auto px-4 py-14 grid md:grid-cols-2 gap-10 items-center">
         <div>
           <h1 className="text-4xl md:text-5xl font-extrabold leading-tight tracking-tight">
-            Ton directeur artistique IA, <span className="bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent">intégré à Canva</span>.
+            Ton agent de création <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">via Canva</span> 👋
           </h1>
-          <p className="mt-4 text-lg text-slate-600">Parle-lui, et Alfie te rend des visuels Hero, Carrousels, Stats et Reels, déjà à ta marque — prêts à planifier dans Canva.</p>
+          <p className="mt-4 text-lg text-slate-600">Alfie est ton agent de création et planification. Demande-lui ce que tu souhaites et hop, ton design arrive directement dans ton Canva !</p>
               <div className="mt-6 flex flex-wrap gap-3">
-                <Button size="lg" onClick={() => window.location.href = '/auth'}>Commencer (Connecter Canva)</Button>
+                <Button size="lg" onClick={() => window.location.href = '/auth'}>Commencer</Button>
                 <Button size="lg" variant="outline" onClick={() => window.location.href = '/auth'}>Voir une démo</Button>
               </div>
           <div className="mt-6 flex items-center gap-4 text-slate-500 text-sm">
@@ -78,6 +76,28 @@ export default function AlfieLanding() {
         </div>
       </section>
 
+      {/* How it works */}
+      <section className="max-w-6xl mx-auto px-4 py-12">
+        <h2 className="text-3xl font-bold mb-8 text-center">Comment ça marche ?</h2>
+        <div className="grid md:grid-cols-3 gap-8">
+          <div className="text-center">
+            <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-primary text-white text-2xl font-bold mb-4">1</div>
+            <h3 className="text-xl font-semibold mb-2">Connecte ton Canva</h3>
+            <p className="text-slate-600">Lie ton compte Canva en un clic pour permettre à Alfie de créer directement dans ton espace.</p>
+          </div>
+          <div className="text-center">
+            <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-primary text-white text-2xl font-bold mb-4">2</div>
+            <h3 className="text-xl font-semibold mb-2">Donne ton brief à Alfie</h3>
+            <p className="text-slate-600">Dis-lui simplement ce que tu veux : un post hero, un carrousel, une stat... Alfie comprend.</p>
+          </div>
+          <div className="text-center">
+            <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-primary text-white text-2xl font-bold mb-4">3</div>
+            <h3 className="text-xl font-semibold mb-2">Tout arrive sur ton Canva</h3>
+            <p className="text-slate-600">Alfie crée le design avec ta marque et l'envoie directement dans ton Canva. Plus qu'à finaliser !</p>
+          </div>
+        </div>
+      </section>
+
       {/* Cards — Create Visuals */}
       <section className="max-w-6xl mx-auto px-4 py-8">
         <h2 className="text-2xl font-bold mb-6">Créer des visuels en 1 clic</h2>
@@ -104,10 +124,10 @@ export default function AlfieLanding() {
       <section className="max-w-4xl mx-auto px-4 py-12">
         <div className="rounded-3xl border border-slate-200 bg-white p-6 md:p-10 text-center shadow-sm">
           <h3 className="text-2xl md:text-3xl font-bold">Commence dès aujourd'hui</h3>
-          <p className="mt-2 text-slate-600">Connecte ton Canva, choisis ton style et génère tes premiers visuels en moins d'une minute.</p>
+          <p className="mt-2 text-slate-600">Crée ton compte, connecte ton Canva et génère tes premiers visuels en moins d'une minute.</p>
               <div className="mt-6 flex flex-col md:flex-row gap-3 justify-center">
                 <Input placeholder="Ton e-mail" value={email} onChange={(e)=>setEmail(e.target.value)} className="md:w-80"/>
-                <Button size="lg" onClick={() => window.location.href = '/auth'}>Connecter Canva</Button>
+                <Button size="lg" onClick={() => window.location.href = '/auth'}>Commencer gratuitement</Button>
               </div>
           <p className="mt-3 text-xs text-slate-500 flex items-center justify-center gap-1"><Shield className="h-3 w-3"/> Aucune publication automatique — tu restes maître.</p>
         </div>
@@ -118,7 +138,7 @@ export default function AlfieLanding() {
         <div className="max-w-6xl mx-auto px-4 py-8 grid md:grid-cols-3 gap-6 text-sm text-slate-600">
           <div>
             <div className="font-semibold mb-2">Alfie Designer</div>
-            <p>Compatible Canva via Connect API. Tes visuels restent stockés dans ton compte Canva.</p>
+            <p>Agent de création IA. Tes visuels restent stockés dans ton compte Canva.</p>
           </div>
           <div>
             <div className="font-semibold mb-2">Ressources</div>
