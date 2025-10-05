@@ -11,3 +11,13 @@ verify_jwt = false
 
 [functions.generate-alfie-variant]
 verify_jwt = false
+
+[functions.create-checkout]
+verify_jwt = false
+
+[functions.verify-payment]
+verify_jwt = false
+
+[functions.send-confirmation-email]
+verify_jwt = false
+

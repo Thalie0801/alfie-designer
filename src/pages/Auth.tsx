@@ -1,12 +1,14 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Sparkles } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Sparkles, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
+import { supabase } from '@/integrations/supabase/client';
 
 const authSchema = z.object({
   email: z.string().email({ message: "Email invalide" }),
@@ -16,12 +18,53 @@ const authSchema = z.object({
 
 export default function Auth() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { signIn, signUp, user } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [verifyingPayment, setVerifyingPayment] = useState(false);
+
+  // Check for payment success
+  useEffect(() => {
+    const paymentStatus = searchParams.get('payment');
+    const sessionId = searchParams.get('session_id');
+
+    if (paymentStatus === 'success' && sessionId) {
+      setVerifyingPayment(true);
+      verifyPayment(sessionId);
+    }
+  }, [searchParams]);
+
+  const verifyPayment = async (sessionId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-payment', {
+        body: { session_id: sessionId },
+      });
+
+      if (error) throw error;
+
+      toast.success(`Paiement confirmé ! Plan ${data.plan} activé.`);
+      
+      // Redirect to signup if not logged in
+      if (!user) {
+        setMode('signup');
+        if (data.email) {
+          setEmail(data.email);
+        }
+      } else {
+        // Already logged in, redirect to app
+        navigate('/app');
+      }
+    } catch (error: any) {
+      console.error('Payment verification error:', error);
+      toast.error('Erreur lors de la vérification du paiement');
+    } finally {
+      setVerifyingPayment(false);
+    }
+  };
 
   // Redirect if already logged in
   if (user) {
@@ -95,6 +138,15 @@ export default function Auth() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {verifyingPayment && (
+            <Alert className="mb-4 border-green-500/50 bg-green-50 dark:bg-green-900/20">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <AlertDescription className="text-green-700 dark:text-green-300">
+                Vérification de votre paiement en cours...
+              </AlertDescription>
+            </Alert>
+          )}
+          
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'signup' && (
               <div>

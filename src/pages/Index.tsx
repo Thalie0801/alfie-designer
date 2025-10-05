@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Check, Sparkles, Palette, CalendarClock, Film, BarChart3, Layers, Share2, ChevronRight, Shield } from "lucide-react";
 import alfieMain from "@/assets/alfie-main.png";
+import { useStripeCheckout } from "@/hooks/useStripeCheckout";
 
 // --- Hooks to simulate actions (replace with Lovable actions / API calls) ---
 const useAlfieActions = () => {
@@ -21,6 +22,7 @@ export default function AlfieLanding() {
   const { connectCanva, createHero, createCarousel, createInsight, createReel } = useAlfieActions();
   const [email, setEmail] = useState("");
   const [isAnnual, setIsAnnual] = useState(false);
+  const { createCheckout, loading: checkoutLoading } = useStripeCheckout();
 
   const calculatePrice = (monthlyPrice: number) => {
     if (isAnnual) {
@@ -171,36 +173,48 @@ export default function AlfieLanding() {
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
           <PriceCard 
             title="Starter" 
+            planKey="starter"
             price={calculatePrice(29)} 
             priceLabel={getPriceLabel()}
             isAnnual={isAnnual}
             bullets={["1 marque","20 visuels/mois","2 templates"]} 
             cta="Essayer Starter"
+            onSelect={() => createCheckout('starter')}
+            loading={checkoutLoading}
           />
           <PriceCard 
             title="Pro" 
+            planKey="pro"
             price={calculatePrice(79)} 
             priceLabel={getPriceLabel()}
             isAnnual={isAnnual}
             highlight 
             bullets={["3 marques","100 visuels/mois","4 templates + Reels simples"]} 
             cta="Choisir Pro"
+            onSelect={() => createCheckout('pro')}
+            loading={checkoutLoading}
           />
           <PriceCard 
             title="Studio" 
+            planKey="studio"
             price={calculatePrice(149)} 
             priceLabel={getPriceLabel()}
             isAnnual={isAnnual}
             bullets={["Multi-marques","Reels avancés","Analytics"]} 
             cta="Passer Studio"
+            onSelect={() => createCheckout('studio')}
+            loading={checkoutLoading}
           />
           <PriceCard 
             title="Enterprise" 
+            planKey="enterprise"
             price={calculatePrice(299)} 
             priceLabel={getPriceLabel()}
             isAnnual={isAnnual}
             bullets={["Illimité","API & SSO","Support prioritaire"]} 
             cta="Demander un devis"
+            onSelect={() => createCheckout('enterprise')}
+            loading={checkoutLoading}
           />
         </div>
       </section>
@@ -390,7 +404,29 @@ function TemplateCard({ title, subtitle, ratios, onCreate }: { title: string; su
   );
 }
 
-function PriceCard({ title, price, priceLabel, bullets, cta, highlight, isAnnual }: { title: string; price: string; priceLabel: string; bullets: string[]; cta: string; highlight?: boolean; isAnnual?: boolean }) {
+function PriceCard({ 
+  title, 
+  planKey,
+  price, 
+  priceLabel, 
+  bullets, 
+  cta, 
+  highlight, 
+  isAnnual,
+  onSelect,
+  loading
+}: { 
+  title: string; 
+  planKey: string;
+  price: string; 
+  priceLabel: string; 
+  bullets: string[]; 
+  cta: string; 
+  highlight?: boolean; 
+  isAnnual?: boolean;
+  onSelect: () => void;
+  loading?: boolean;
+}) {
   return (
     <Card className={`rounded-3xl hover:scale-105 transition-transform ${highlight ? "border-primary border-2 shadow-strong" : "shadow-medium"}`}>
       <CardHeader>
@@ -409,14 +445,21 @@ function PriceCard({ title, price, priceLabel, bullets, cta, highlight, isAnnual
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ul className="space-y-2 text-sm text-slate-700">
+        <ul className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
           {bullets.map((b, i) => (
             <li key={i} className="flex items-center gap-2"><Check className="h-4 w-4"/> {b}</li>
           ))}
         </ul>
       </CardContent>
       <CardFooter>
-        <Button className={`w-full ${highlight ? 'gradient-hero text-white shadow-medium' : ''}`} variant={highlight ? "default" : "outline"}>{cta}</Button>
+        <Button 
+          className={`w-full ${highlight ? 'gradient-hero text-white shadow-medium' : ''}`} 
+          variant={highlight ? "default" : "outline"}
+          onClick={onSelect}
+          disabled={loading}
+        >
+          {loading ? 'Chargement...' : cta}
+        </Button>
       </CardFooter>
     </Card>
   );

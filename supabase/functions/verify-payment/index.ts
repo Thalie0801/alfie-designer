@@ -1,0 +1,115 @@
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import Stripe from "https://esm.sh/stripe@18.5.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+const PLAN_CONFIG = {
+  starter: { quota_brands: 1, quota_visuals: 20 },
+  pro: { quota_brands: 3, quota_visuals: 100 },
+  studio: { quota_brands: 5, quota_visuals: 1000 },
+  enterprise: { quota_brands: 999, quota_visuals: 9999 },
+};
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  const supabaseClient = createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+  );
+
+  try {
+    const { session_id } = await req.json();
+    
+    if (!session_id) {
+      throw new Error("Session ID required");
+    }
+
+    const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
+      apiVersion: "2025-08-27.basil",
+    });
+
+    // Get checkout session details
+    const session = await stripe.checkout.sessions.retrieve(session_id);
+    
+    if (session.payment_status !== "paid") {
+      throw new Error("Payment not completed");
+    }
+
+    const plan = session.metadata?.plan;
+    const userId = session.metadata?.user_id;
+    const customerEmail = session.customer_details?.email;
+
+    if (!plan || !PLAN_CONFIG[plan as keyof typeof PLAN_CONFIG]) {
+      throw new Error("Invalid plan in session metadata");
+    }
+
+    const planConfig = PLAN_CONFIG[plan as keyof typeof PLAN_CONFIG];
+
+    // Update or create user profile
+    if (userId) {
+      // User was authenticated during checkout
+      const { error } = await supabaseClient
+        .from("profiles")
+        .update({
+          plan,
+          quota_brands: planConfig.quota_brands,
+          quota_visuals_per_month: planConfig.quota_visuals,
+          stripe_customer_id: session.customer as string,
+          stripe_subscription_id: session.subscription as string,
+        })
+        .eq("id", userId);
+
+      if (error) throw error;
+    } else if (customerEmail) {
+      // Guest checkout - find or update profile by email
+      const { data: existingProfile } = await supabaseClient
+        .from("profiles")
+        .select("id")
+        .eq("email", customerEmail)
+        .single();
+
+      if (existingProfile) {
+        await supabaseClient
+          .from("profiles")
+          .update({
+            plan,
+            quota_brands: planConfig.quota_brands,
+            quota_visuals_per_month: planConfig.quota_visuals,
+            stripe_customer_id: session.customer as string,
+            stripe_subscription_id: session.subscription as string,
+          })
+          .eq("email", customerEmail);
+      }
+    }
+
+    // Send confirmation email
+    await supabaseClient.functions.invoke("send-confirmation-email", {
+      body: {
+        email: customerEmail,
+        plan,
+        session_id,
+      },
+    });
+
+    return new Response(
+      JSON.stringify({ success: true, plan, email: customerEmail }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      }
+    );
+  } catch (error: any) {
+    console.error("Error in verify-payment:", error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500,
+    });
+  }
+});
