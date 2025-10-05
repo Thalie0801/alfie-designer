@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, FileText, DollarSign, Activity } from 'lucide-react';
+import { Users, FileText, DollarSign, Activity, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Admin() {
+  const navigate = useNavigate();
   const [users, setUsers] = useState<any[]>([]);
   const [affiliates, setAffiliates] = useState<any[]>([]);
   const [conversions, setConversions] = useState<any[]>([]);
@@ -67,11 +70,17 @@ export default function Admin() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Admin Panel</h1>
-        <p className="text-muted-foreground">
-          Gérez les utilisateurs, affiliés et paiements
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Admin Panel</h1>
+          <p className="text-muted-foreground">
+            Gérez les utilisateurs, affiliés et paiements
+          </p>
+        </div>
+        <Button variant="outline" onClick={() => navigate('/app')} className="gap-2">
+          <ArrowLeft className="h-4 w-4" />
+          Retour Client
+        </Button>
       </div>
 
       {/* Stats Cards */}
