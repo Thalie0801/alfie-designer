@@ -66,6 +66,27 @@ export function AppLayout({ children }: AppLayoutProps) {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Admin Quick Switch */}
+            {isAdmin && (
+              <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-100 border border-slate-200">
+                <Link to="/app">
+                  <Button 
+                    variant={location.pathname === '/app' ? 'default' : 'ghost'} 
+                    size="sm"
+                  >
+                    👤 Client
+                  </Button>
+                </Link>
+                <Link to="/admin">
+                  <Button 
+                    variant={location.pathname === '/admin' ? 'default' : 'ghost'} 
+                    size="sm"
+                  >
+                    ⚙️ Admin
+                  </Button>
+                </Link>
+              </div>
+            )}
             <Badge variant="secondary">{profile?.plan || 'starter'}</Badge>
             <Button variant="ghost" size="icon">
               <UserCircle className="h-5 w-5" />
