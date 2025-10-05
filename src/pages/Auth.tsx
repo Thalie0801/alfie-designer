@@ -123,6 +123,15 @@ export default function Auth() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
+              {mode === 'login' && (
+                <button
+                  type="button"
+                  onClick={() => toast.info('Fonctionnalité bientôt disponible')}
+                  className="text-xs text-primary hover:underline mt-1 block text-right"
+                >
+                  Mot de passe oublié ?
+                </button>
+              )}
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Chargement...' : mode === 'login' ? 'Se connecter' : 'Créer mon compte'}

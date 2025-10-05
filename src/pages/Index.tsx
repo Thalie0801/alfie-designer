@@ -163,11 +163,8 @@ export default function AlfieLanding() {
               />
             </button>
             <span className={`font-medium ${isAnnual ? 'text-primary' : 'text-muted-foreground'}`}>
-              Annuel
+              Annuel <span className="text-green-600 font-semibold">-20%</span>
             </span>
-            {isAnnual && (
-              <Badge className="bg-green-500 text-white animate-fade-in">-20% 🎉</Badge>
-            )}
           </div>
         </div>
 
@@ -176,6 +173,7 @@ export default function AlfieLanding() {
             title="Starter" 
             price={calculatePrice(29)} 
             priceLabel={getPriceLabel()}
+            isAnnual={isAnnual}
             bullets={["1 marque","20 visuels/mois","2 templates"]} 
             cta="Essayer Starter"
           />
@@ -183,6 +181,7 @@ export default function AlfieLanding() {
             title="Pro" 
             price={calculatePrice(79)} 
             priceLabel={getPriceLabel()}
+            isAnnual={isAnnual}
             highlight 
             bullets={["3 marques","100 visuels/mois","4 templates + Reels simples"]} 
             cta="Choisir Pro"
@@ -191,6 +190,7 @@ export default function AlfieLanding() {
             title="Studio" 
             price={calculatePrice(149)} 
             priceLabel={getPriceLabel()}
+            isAnnual={isAnnual}
             bullets={["Multi-marques","Reels avancés","Analytics"]} 
             cta="Passer Studio"
           />
@@ -198,25 +198,25 @@ export default function AlfieLanding() {
             title="Enterprise" 
             price={calculatePrice(299)} 
             priceLabel={getPriceLabel()}
+            isAnnual={isAnnual}
             bullets={["Illimité","API & SSO","Support prioritaire"]} 
             cta="Demander un devis"
           />
         </div>
       </section>
 
-      {/* CTA + Email capture */}
+      {/* CTA */}
       <section className="max-w-4xl mx-auto px-4 py-12">
         <div className="rounded-3xl border-2 border-primary/20 bg-gradient-subtle p-6 md:p-10 text-center shadow-strong">
           <h3 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
             Prêt à transformer tes idées en visuels ?
           </h3>
           <p className="mt-2 text-slate-600">Crée ton compte, connecte ton Canva et génère tes premiers visuels en moins d&apos;une minute.</p>
-              <div className="mt-6 flex flex-col md:flex-row gap-3 justify-center">
-                <Input placeholder="Ton e-mail" value={email} onChange={(e)=>setEmail(e.target.value)} className="md:w-80 border-primary/30"/>
-                <Button size="lg" className="gradient-hero text-white shadow-medium" onClick={() => window.location.href = '/auth'}>
-                  Commencer maintenant 🚀
-                </Button>
-              </div>
+          <div className="mt-6 flex justify-center">
+            <Button size="lg" className="gradient-hero text-white shadow-medium" onClick={() => window.location.href = '/auth'}>
+              Commencer maintenant 🚀
+            </Button>
+          </div>
           <p className="mt-3 text-xs text-slate-500 flex items-center justify-center gap-1"><Shield className="h-3 w-3"/> Aucune publication automatique — tu restes maître.</p>
         </div>
       </section>
@@ -390,7 +390,7 @@ function TemplateCard({ title, subtitle, ratios, onCreate }: { title: string; su
   );
 }
 
-function PriceCard({ title, price, priceLabel, bullets, cta, highlight }: { title: string; price: string; priceLabel: string; bullets: string[]; cta: string; highlight?: boolean }) {
+function PriceCard({ title, price, priceLabel, bullets, cta, highlight, isAnnual }: { title: string; price: string; priceLabel: string; bullets: string[]; cta: string; highlight?: boolean; isAnnual?: boolean }) {
   return (
     <Card className={`rounded-3xl hover:scale-105 transition-transform ${highlight ? "border-primary border-2 shadow-strong" : "shadow-medium"}`}>
       <CardHeader>
@@ -399,8 +399,13 @@ function PriceCard({ title, price, priceLabel, bullets, cta, highlight }: { titl
           {highlight && <Badge className="bg-gradient-to-r from-primary to-secondary text-white">⭐ Populaire</Badge>}
         </CardTitle>
         <CardDescription>
-          <span className="text-3xl font-extrabold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">{price}</span>
-          <span className="text-slate-500">{priceLabel}</span>
+          <div className="flex items-baseline gap-2">
+            <span className="text-3xl font-extrabold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">{price}</span>
+            <span className="text-slate-500">{priceLabel}</span>
+          </div>
+          {isAnnual && (
+            <Badge className="bg-green-500 text-white mt-2">-20%</Badge>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent>
