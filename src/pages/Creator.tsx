@@ -2,9 +2,14 @@ import { AppLayoutWithSidebar } from '@/components/AppLayoutWithSidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlfieChat } from '@/components/AlfieChat';
 import { BrandKitManager } from '@/components/BrandKitManager';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Zap, Palette } from 'lucide-react';
+import { useAlfieCredits } from '@/hooks/useAlfieCredits';
+import { useBrandKit } from '@/hooks/useBrandKit';
 
 export default function App() {
+  const { credits } = useAlfieCredits();
+  const { brandKit } = useBrandKit();
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -24,7 +29,38 @@ export default function App() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Chat Interface - Takes 2 columns */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-4">
+          {/* Quick Stats */}
+          <div className="grid grid-cols-2 gap-4">
+            <Card className="border-primary/20">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="bg-primary/10 p-3 rounded-lg">
+                    <Zap className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{credits}</p>
+                    <p className="text-xs text-muted-foreground">Crédits IA restants</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-secondary/20">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="bg-secondary/10 p-3 rounded-lg">
+                    <Palette className="h-6 w-6 text-secondary" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{brandKit ? '✓' : '○'}</p>
+                    <p className="text-xs text-muted-foreground">Brand Kit {brandKit ? 'actif' : 'à configurer'}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+          
+          {/* Chat Interface */}
           <Card className="shadow-strong border-2 border-primary/20">
             <CardHeader className="border-b bg-gradient-subtle">
               <CardTitle className="flex items-center gap-2">

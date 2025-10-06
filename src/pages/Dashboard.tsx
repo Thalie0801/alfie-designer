@@ -4,9 +4,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { ExternalLink, Trash2, Palette, Sparkles } from 'lucide-react';
+import { ExternalLink, Trash2, Palette, Sparkles, Zap, MessageSquare } from 'lucide-react';
 import { BrandDialog } from '@/components/BrandDialog';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
+import { useAlfieCredits } from '@/hooks/useAlfieCredits';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +23,8 @@ import {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const { credits } = useAlfieCredits();
   const [posts, setPosts] = useState<any[]>([]);
   const [brands, setBrands] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -90,6 +94,61 @@ export default function Dashboard() {
           Connecter Canva
         </Button>
       </div>
+
+      {/* Alfie Designer Card */}
+      <Card className="border-primary/30 shadow-strong bg-gradient-subtle">
+        <CardHeader className="bg-gradient-to-br from-primary/10 to-secondary/10">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="bg-gradient-to-br from-primary to-secondary p-3 rounded-xl shadow-glow">
+                <Sparkles className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <CardTitle className="text-xl">Alfie Designer</CardTitle>
+                <CardDescription>Ton assistant créatif IA</CardDescription>
+              </div>
+            </div>
+            <Button 
+              onClick={() => navigate('/app')}
+              className="gap-2 bg-gradient-to-r from-primary to-secondary text-white hover:opacity-90"
+            >
+              <MessageSquare className="h-4 w-4" />
+              Ouvrir le chat
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="flex items-center gap-3 p-4 rounded-lg border-2 border-primary/20 bg-background/50">
+              <Zap className="h-8 w-8 text-primary" />
+              <div>
+                <p className="text-2xl font-bold">{credits}</p>
+                <p className="text-sm text-muted-foreground">Crédits IA</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-4 rounded-lg border-2 border-secondary/20 bg-background/50">
+              <Palette className="h-8 w-8 text-secondary" />
+              <div>
+                <p className="text-2xl font-bold">{brands.length}</p>
+                <p className="text-sm text-muted-foreground">Brand Kits</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-4 rounded-lg border-2 border-accent/20 bg-background/50">
+              <Sparkles className="h-8 w-8 text-accent" />
+              <div>
+                <p className="text-2xl font-bold">{posts.length}</p>
+                <p className="text-sm text-muted-foreground">Créations</p>
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 p-4 rounded-lg bg-primary/5 border border-primary/10">
+            <p className="text-sm text-muted-foreground">
+              💡 <strong>Astuce :</strong> Discute avec Alfie pour trouver des templates Canva, les adapter à ton style, 
+              ou générer des versions IA personnalisées. Chaque génération IA coûte 1 crédit.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Brands */}
       <Card className="border-primary/20 shadow-medium">
