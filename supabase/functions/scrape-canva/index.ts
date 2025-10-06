@@ -52,9 +52,12 @@ serve(async (req) => {
     let imageUrl = (ogImageMatch?.[1] || twitterImageMatch?.[1] || '').trim();
     let description = (descriptionMatch?.[1] || '').trim();
 
-    // Normalize protocol-relative URLs
+    // Normalize protocol-relative and root-relative URLs
     if (imageUrl.startsWith('//')) {
       imageUrl = 'https:' + imageUrl;
+    }
+    if (imageUrl.startsWith('/')) {
+      imageUrl = 'https://www.canva.com' + imageUrl;
     }
 
     if (!imageUrl) {
@@ -62,7 +65,7 @@ serve(async (req) => {
       if (FIRECRAWL_API_KEY) {
         try {
           console.log('Using Firecrawl fallback for', url);
-          const fr = await fetch('https://api.firecrawl.dev/v1/scrape', {
+          const fr = await fetch('https://api.firecrawl.dev/v2/scrape', {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${FIRECRAWL_API_KEY}`,
@@ -70,7 +73,13 @@ serve(async (req) => {
             },
             body: JSON.stringify({ url, formats: ['html','markdown','links','screenshot','extract'] }),
           });
-          const frJson = await fr.json();
+
+          if (!fr.ok) {
+            const txt = await fr.text();
+            console.error('Firecrawl response not ok:', fr.status, txt);
+          }
+
+          const frJson = await fr.json().catch(() => ({} as any));
 
           // Try structured metadata first
           const meta = frJson?.data?.metadata || frJson?.metadata || {};
@@ -78,6 +87,7 @@ serve(async (req) => {
           const tw = meta?.twitter || {};
 
           const candidates = [
+            meta?.ogImage,
             og?.images?.[0]?.url,
             og?.image,
             tw?.images?.[0]?.url,
@@ -88,6 +98,9 @@ serve(async (req) => {
           if (!imageUrl && candidates.length) {
             imageUrl = String(candidates[0]).trim();
           }
+
+          if (imageUrl && imageUrl.startsWith('//')) imageUrl = 'https:' + imageUrl;
+          if (imageUrl && imageUrl.startsWith('/')) imageUrl = 'https://www.canva.com' + imageUrl;
 
           // Fallback to HTML parsing if provided
           const frHtml = frJson?.data?.html || frJson?.html || '';

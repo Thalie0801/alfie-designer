@@ -118,6 +118,9 @@ serve(async (req) => {
         if (imageUrl.startsWith('//')) {
           imageUrl = 'https:' + imageUrl;
         }
+        if (imageUrl.startsWith('/')) {
+          imageUrl = 'https://www.canva.com' + imageUrl;
+        }
 
         if (!imageUrl) {
           // Fallback via Firecrawl (renders JS to extract OG tags)
@@ -125,7 +128,7 @@ serve(async (req) => {
           if (FIRECRAWL_API_KEY) {
             try {
               console.log('Using Firecrawl fallback for', template.url);
-              const fr = await fetch('https://api.firecrawl.dev/v1/scrape', {
+              const fr = await fetch('https://api.firecrawl.dev/v2/scrape', {
                 method: 'POST',
                 headers: {
                   'Authorization': `Bearer ${FIRECRAWL_API_KEY}`,
@@ -133,13 +136,20 @@ serve(async (req) => {
                 },
                 body: JSON.stringify({ url: template.url, formats: ['html','markdown','links','screenshot','extract'] }),
               });
-              const frJson = await fr.json();
+
+              if (!fr.ok) {
+                const txt = await fr.text();
+                console.error('Firecrawl response not ok:', fr.status, txt);
+              }
+
+              const frJson = await fr.json().catch(() => ({} as any));
 
               const meta = frJson?.data?.metadata || frJson?.metadata || {};
               const og = meta?.openGraph || meta?.og || {};
               const tw = meta?.twitter || {};
 
               const candidates = [
+                meta?.ogImage,
                 og?.images?.[0]?.url,
                 og?.image,
                 tw?.images?.[0]?.url,
@@ -158,6 +168,22 @@ serve(async (req) => {
                 const frTwImg = frHtml.match(/<meta name=\"twitter:image\" content=\"([^\"]+)\"/i);
                 imageUrl = (frOgImg?.[1] || frTwImg?.[1] || '').trim();
               }
+
+              // Update title/description if empty
+              if (!title) {
+                // @ts-ignore
+                title = og?.title || meta?.title || title;
+              }
+              if (!description) {
+                const desc = og?.description || tw?.description || meta?.description;
+                if (desc) {
+                  // @ts-ignore
+                  description = String(desc);
+                }
+              }
+
+              if (imageUrl && imageUrl.startsWith('//')) imageUrl = 'https:' + imageUrl;
+              if (imageUrl && imageUrl.startsWith('/')) imageUrl = 'https://www.canva.com' + imageUrl;
 
               // Update title/description if empty
               if (!title) {
