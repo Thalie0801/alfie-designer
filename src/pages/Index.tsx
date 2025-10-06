@@ -150,7 +150,7 @@ export default function AlfieLanding() {
           <div className="text-center sm:col-span-2 md:col-span-1">
             <div className="inline-flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-primary text-white text-xl sm:text-2xl font-bold mb-3 sm:mb-4">3</div>
             <h3 className="text-lg sm:text-xl font-semibold mb-2">Tout arrive sur ton Canva</h3>
-            <p className="text-sm sm:text-base text-slate-600">Alfie crée le design avec ta marque et l'envoie directement dans ton Canva. Plus qu'à finaliser !</p>
+            <p className="text-sm sm:text-base text-slate-600">Alfie crée le design avec ta marque et l'envoie directement dans ton Canva. Planifie sur Canva !</p>
           </div>
         </div>
       </section>
