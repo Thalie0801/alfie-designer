@@ -88,10 +88,34 @@ export default function AlfieLanding() {
 
           <div className="rounded-3xl border border-slate-100 bg-white shadow-xl p-6">
             <div className="grid grid-cols-2 gap-4">
-              <MiniCard icon={<Sparkles className="h-5 w-5"/>} title="Hero / Announcement" subtitle="1:1 • 16:9" onClick={createHero}/>
-              <MiniCard icon={<Layers className="h-5 w-5"/>} title="Carousel / Educatif" subtitle="4:5" onClick={createCarousel}/>
-              <MiniCard icon={<BarChart3 className="h-5 w-5"/>} title="Insight / Stats" subtitle="1:1 • 4:5" onClick={createInsight}/>
-              <MiniCard icon={<Film className="h-5 w-5"/>} title="Reel / Short" subtitle="9:16" onClick={createReel}/>
+              <MiniCard 
+                icon={<Sparkles className="h-5 w-5"/>} 
+                title="Hero / Announcement" 
+                subtitle="1:1 • 16:9" 
+                onClick={createHero}
+                image="/images/hero-visual.jpg"
+              />
+              <MiniCard 
+                icon={<Layers className="h-5 w-5"/>} 
+                title="Carousel / Educatif" 
+                subtitle="4:5" 
+                onClick={createCarousel}
+                image="/images/carousel-visual.jpg"
+              />
+              <MiniCard 
+                icon={<BarChart3 className="h-5 w-5"/>} 
+                title="Insight / Stats" 
+                subtitle="1:1 • 4:5" 
+                onClick={createInsight}
+                image="/images/insight-card.jpg"
+              />
+              <MiniCard 
+                icon={<Film className="h-5 w-5"/>} 
+                title="Reel / Short" 
+                subtitle="9:16" 
+                onClick={createReel}
+                image="/images/reel-visual.jpg"
+              />
             </div>
             <div className="mt-6 rounded-2xl bg-gradient-to-br from-primary/5 to-secondary/5 p-4 border border-primary/10">
               <p className="text-sm font-semibold text-slate-700">Brief rapide</p>
@@ -362,18 +386,27 @@ export default function AlfieLanding() {
   );
 }
 
-function MiniCard({ icon, title, subtitle, onClick }: { icon: React.ReactNode; title: string; subtitle: string; onClick?: ()=>void }) {
+function MiniCard({ icon, title, subtitle, onClick, image }: { icon: React.ReactNode; title: string; subtitle: string; onClick?: ()=>void; image?: string }) {
   return (
-    <button onClick={onClick} className="group text-left rounded-2xl border border-slate-200 p-4 hover:shadow-md hover:border-slate-300 transition">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-white">{icon}</span>
-          <div>
-            <div className="font-semibold">{title}</div>
-            <div className="text-xs text-slate-500">{subtitle}</div>
-          </div>
+    <button onClick={onClick} className="group relative text-left rounded-2xl border border-slate-200 overflow-hidden hover:shadow-md hover:border-slate-300 transition h-32">
+      {/* Background Image */}
+      {image && (
+        <div className="absolute inset-0 opacity-30 group-hover:opacity-40 transition-opacity">
+          <img src={image} alt={title} className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-white/90 to-transparent"></div>
         </div>
-        <ChevronRight className="h-4 w-4 text-slate-400 group-hover:translate-x-0.5 transition"/>
+      )}
+      
+      {/* Content */}
+      <div className="relative h-full p-4 flex flex-col justify-between">
+        <div className="flex items-start justify-between">
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-white shadow-md">{icon}</span>
+          <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-slate-600 group-hover:translate-x-0.5 transition-all" />
+        </div>
+        <div>
+          <div className="font-semibold text-sm">{title}</div>
+          <div className="text-xs text-slate-500">{subtitle}</div>
+        </div>
       </div>
     </button>
   );

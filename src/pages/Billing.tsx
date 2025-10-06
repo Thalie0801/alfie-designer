@@ -2,9 +2,10 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Check, CreditCard, AlertCircle } from 'lucide-react';
+import { Check, CreditCard, AlertCircle, Settings } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useStripeCheckout } from '@/hooks/useStripeCheckout';
+import { useCustomerPortal } from '@/hooks/useCustomerPortal';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useState } from 'react';
@@ -94,9 +95,11 @@ const plans = [
 export default function Billing() {
   const { profile, user, refreshProfile } = useAuth();
   const { createCheckout, loading } = useStripeCheckout();
+  const { openCustomerPortal, loading: portalLoading } = useCustomerPortal();
   const [activating, setActivating] = useState(false);
   const currentPlan = profile?.plan || null;
   const hasActivePlan = currentPlan && currentPlan !== 'none';
+  const hasStripeSubscription = profile?.stripe_subscription_id;
 
   const handleSelectPlan = async (plan: typeof plans[0]) => {
     if (plan.isEnterprise) {
@@ -185,14 +188,30 @@ export default function Billing() {
         <div className="grid md:grid-cols-2 gap-4">
           <Card className="border-primary/30 shadow-medium gradient-subtle">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Badge className="bg-gradient-to-r from-primary to-secondary text-white px-4 py-1 text-base">
-                  Plan actuel: {currentPlan}
-                </Badge>
-              </CardTitle>
-              <CardDescription>
-                Profitez de tous les avantages de votre abonnement
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2 mb-2">
+                    <Badge className="bg-gradient-to-r from-primary to-secondary text-white px-4 py-1 text-base">
+                      Plan actuel: {currentPlan}
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription>
+                    Profitez de tous les avantages de votre abonnement
+                  </CardDescription>
+                </div>
+                {hasStripeSubscription && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={openCustomerPortal}
+                    disabled={portalLoading}
+                    className="gap-2"
+                  >
+                    <Settings className="h-4 w-4" />
+                    {portalLoading ? 'Chargement...' : 'Gérer'}
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="bg-card/50">
               <div className="space-y-3">
