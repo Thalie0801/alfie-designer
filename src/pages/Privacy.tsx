@@ -1,9 +1,9 @@
-import { AppLayout } from "@/components/AppLayout";
+import { SimpleLegalLayout } from "@/components/SimpleLegalLayout";
 
 export default function Privacy() {
   return (
-    <AppLayout>
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
+    <SimpleLegalLayout>
+      <div className="max-w-4xl mx-auto">
         <h1 className="text-4xl font-bold mb-8 text-foreground">
           Politique de confidentialité — Alfie Designer
         </h1>
@@ -110,6 +110,6 @@ export default function Privacy() {
           </div>
         </section>
       </div>
-    </AppLayout>
+    </SimpleLegalLayout>
   );
 }
