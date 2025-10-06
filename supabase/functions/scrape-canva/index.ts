@@ -23,18 +23,39 @@ serve(async (req) => {
 
     console.log('Scraping Canva URL:', url);
 
-    // Fetch the Canva page
-    const response = await fetch(url);
+    // Fetch the Canva page with realistic headers (improves success rate)
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9,fr;q=0.8',
+      },
+    });
     const html = await response.text();
 
-    // Extract Open Graph metadata
-    const titleMatch = html.match(/<meta property="og:title" content="([^"]+)"/);
-    const imageMatch = html.match(/<meta property="og:image" content="([^"]+)"/);
-    const descriptionMatch = html.match(/<meta property="og:description" content="([^"]+)"/);
-    
-    const title = titleMatch ? titleMatch[1] : 'Untitled Design';
-    const imageUrl = imageMatch ? imageMatch[1] : '';
-    const description = descriptionMatch ? descriptionMatch[1] : '';
+    // Extract metadata with multiple fallbacks
+    const titleMatch =
+      html.match(/<meta property="og:title" content="([^"]+)"/i) ||
+      html.match(/<meta name="twitter:title" content="([^"]+)"/i) ||
+      html.match(/<title>([^<]+)<\/title>/i);
+
+    const ogImageMatch = html.match(/<meta property="og:image(?::secure_url)?" content="([^"]+)"/i);
+    const twitterImageMatch = html.match(/<meta name="twitter:image" content="([^"]+)"/i);
+
+    const descriptionMatch =
+      html.match(/<meta property="og:description" content="([^"]+)"/i) ||
+      html.match(/<meta name="description" content="([^"]+)"/i) ||
+      html.match(/<meta name="twitter:description" content="([^"]+)"/i);
+
+    let title = titleMatch ? titleMatch[1] : 'Untitled Design';
+    let imageUrl = (ogImageMatch?.[1] || twitterImageMatch?.[1] || '').trim();
+    const description = (descriptionMatch?.[1] || '').trim();
+
+    // Normalize protocol-relative URLs
+    if (imageUrl.startsWith('//')) {
+      imageUrl = 'https:' + imageUrl;
+    }
 
     if (!imageUrl) {
       return new Response(

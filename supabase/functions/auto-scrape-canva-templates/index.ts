@@ -86,18 +86,38 @@ serve(async (req) => {
           continue;
         }
 
-        // Fetch le template Canva
-        const response = await fetch(template.url);
+        // Fetch le template Canva avec des headers réalistes
+        const response = await fetch(template.url, {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
+          },
+        });
         const html = await response.text();
 
-        // Extraire les métadonnées Open Graph
-        const titleMatch = html.match(/<meta property="og:title" content="([^"]+)"/);
-        const imageMatch = html.match(/<meta property="og:image" content="([^"]+)"/);
-        const descriptionMatch = html.match(/<meta property="og:description" content="([^"]+)"/);
+        // Extraire les métadonnées avec plusieurs fallbacks
+        const titleMatch =
+          html.match(/<meta property="og:title" content="([^"]+)"/i) ||
+          html.match(/<meta name="twitter:title" content="([^"]+)"/i) ||
+          html.match(/<title>([^<]+)<\/title>/i);
+
+        const ogImageMatch = html.match(/<meta property="og:image(?::secure_url)?" content="([^"]+)"/i);
+        const twitterImageMatch = html.match(/<meta name="twitter:image" content="([^"]+)"/i);
+
+        const descriptionMatch =
+          html.match(/<meta property="og:description" content="([^"]+)"/i) ||
+          html.match(/<meta name="description" content="([^"]+)"/i) ||
+          html.match(/<meta name="twitter:description" content="([^"]+)"/i);
         
-        const title = titleMatch ? titleMatch[1] : 'Design Canva';
-        const imageUrl = imageMatch ? imageMatch[1] : '';
-        const description = descriptionMatch ? descriptionMatch[1] : '';
+        const title = (titleMatch?.[1] || 'Design Canva').trim();
+        let imageUrl = (ogImageMatch?.[1] || twitterImageMatch?.[1] || '').trim();
+        const description = (descriptionMatch?.[1] || '').trim();
+
+        if (imageUrl.startsWith('//')) {
+          imageUrl = 'https:' + imageUrl;
+        }
 
         if (!imageUrl) {
           console.log('⚠️ No image found, skipping');
