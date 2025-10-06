@@ -12,9 +12,8 @@ export default function Privacy() {
           <div>
             <h2 className="text-2xl font-semibold mb-3 text-foreground">Préambule</h2>
             <p>
-              La présente politique décrit comment Alfie Designer, solution éditoriale automatisée développée par Kronys, 
-              traite les données personnelles de ses utilisateurs conformément au Règlement Général sur la Protection des 
-              Données (UE 2016/679) et à la loi Informatique et Libertés.
+              La présente politique décrit comment Alfie Designer traite les données personnelles de ses utilisateurs 
+              conformément au Règlement Général sur la Protection des Données (UE 2016/679) et à la loi Informatique et Libertés.
             </p>
           </div>
 
