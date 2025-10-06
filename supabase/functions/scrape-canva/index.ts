@@ -61,76 +61,55 @@ serve(async (req) => {
     }
 
     if (!imageUrl) {
-      const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
-      if (FIRECRAWL_API_KEY) {
+      const APIFY_TOKEN = Deno.env.get('APIFY_TOKEN');
+      if (APIFY_TOKEN) {
         try {
-          console.log('Using Firecrawl fallback for', url);
-          const fr = await fetch('https://api.firecrawl.dev/v2/scrape', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${FIRECRAWL_API_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ url, formats: ['html','markdown','links','screenshot','extract'] }),
-          });
-
-          if (!fr.ok) {
-            const txt = await fr.text();
-            console.error('Firecrawl response not ok:', fr.status, txt);
-          }
-
-          const frJson = await fr.json().catch(() => ({} as any));
-
-          // Try structured metadata first
-          const meta = frJson?.data?.metadata || frJson?.metadata || {};
-          const og = meta?.openGraph || meta?.og || {};
-          const tw = meta?.twitter || {};
-
-          const candidates = [
-            meta?.ogImage,
-            og?.images?.[0]?.url,
-            og?.image,
-            tw?.images?.[0]?.url,
-            tw?.image,
-            meta?.image,
-          ].filter(Boolean);
-
-          if (!imageUrl && candidates.length) {
-            imageUrl = String(candidates[0]).trim();
-          }
-
-          if (imageUrl && imageUrl.startsWith('//')) imageUrl = 'https:' + imageUrl;
-          if (imageUrl && imageUrl.startsWith('/')) imageUrl = 'https://www.canva.com' + imageUrl;
-
-          // Fallback to HTML parsing if provided
-          const frHtml = frJson?.data?.html || frJson?.html || '';
-          if (!imageUrl && frHtml) {
-            const frOgImg = frHtml.match(/<meta property=\"og:image(?::secure_url)?\" content=\"([^\"]+)\"/i);
-            const frTwImg = frHtml.match(/<meta name=\"twitter:image\" content=\"([^\"]+)\"/i);
-            imageUrl = (frOgImg?.[1] || frTwImg?.[1] || '').trim();
-          }
-
-          // Update title/description if empty
-          if (!title) {
-            // @ts-ignore
-            title = og?.title || meta?.title || title;
-          }
-          if (!description) {
-            const desc = og?.description || tw?.description || meta?.description;
-            if (desc) {
-              // @ts-ignore
-              description = String(desc);
+          console.log('Using Apify fallback for', url);
+          const apifyResponse = await fetch(
+            `https://api.apify.com/v2/acts/apify~web-scraper/run-sync-get-dataset-items?token=${APIFY_TOKEN}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                startUrls: [{ url }],
+                globs: [],
+                pseudoUrls: [],
+                pageFunction: `async function pageFunction(context) {
+                  const { page } = context;
+                  const title = await page.title().catch(() => '');
+                  const ogImage = await page.$eval('meta[property="og:image"]', el => el.content).catch(() => null);
+                  const twitterImage = await page.$eval('meta[name="twitter:image"]', el => el.content).catch(() => null);
+                  const description = await page.$eval('meta[property="og:description"]', el => el.content).catch(() => 
+                    page.$eval('meta[name="description"]', el => el.content).catch(() => null)
+                  );
+                  return { title, imageUrl: ogImage || twitterImage, description };
+                }`
+              })
             }
-          }
+          );
 
-          if (imageUrl && imageUrl.startsWith('//')) {
-            imageUrl = 'https:' + imageUrl;
+          if (apifyResponse.ok) {
+            const apifyData = await apifyResponse.json();
+            console.log('Apify response:', apifyData);
+            if (apifyData && apifyData.length > 0) {
+              const result = apifyData[0];
+              if (result.title && !title) title = result.title;
+              if (result.description && !description) description = result.description;
+              if (result.imageUrl) {
+                imageUrl = result.imageUrl.trim();
+                if (imageUrl.startsWith('//')) imageUrl = 'https:' + imageUrl;
+                if (imageUrl.startsWith('/')) imageUrl = 'https://www.canva.com' + imageUrl;
+              }
+            }
+          } else {
+            const errorText = await apifyResponse.text();
+            console.error('Apify response not ok:', apifyResponse.status, errorText);
           }
         } catch (e) {
-          console.error('Firecrawl fallback error:', e);
+          console.error('Apify fallback error:', e);
         }
       } else {
-        console.warn('FIRECRAWL_API_KEY not set');
+        console.warn('APIFY_TOKEN not set');
       }
 
       if (!imageUrl) {
