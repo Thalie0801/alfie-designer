@@ -6,6 +6,8 @@ import { Check, CreditCard, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useStripeCheckout } from '@/hooks/useStripeCheckout';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useState } from 'react';
 
 const plans = [
   {
@@ -47,8 +49,9 @@ const plans = [
 ];
 
 export default function Billing() {
-  const { profile, user } = useAuth();
+  const { profile, user, refreshProfile } = useAuth();
   const { createCheckout, loading } = useStripeCheckout();
+  const [activating, setActivating] = useState(false);
   const currentPlan = profile?.plan || null;
   const hasActivePlan = currentPlan && currentPlan !== 'none';
 
@@ -61,6 +64,32 @@ export default function Billing() {
     await createCheckout(plan.key as 'starter' | 'pro' | 'studio' | 'enterprise');
   };
 
+  const handleActivateFreeStudio = async () => {
+    if (!user) return;
+    
+    setActivating(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          plan: 'studio',
+          quota_brands: 5,
+          quota_visuals_per_month: 1000
+        })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      toast.success('Plan Studio activé gratuitement !');
+      await refreshProfile();
+    } catch (error) {
+      console.error('Error activating free studio:', error);
+      toast.error('Erreur lors de l\'activation du plan');
+    } finally {
+      setActivating(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -70,7 +99,29 @@ export default function Billing() {
         <p className="text-muted-foreground">
           Gérez votre plan et votre facturation
         </p>
+        {user?.email && (
+          <p className="text-sm text-muted-foreground mt-1">
+            Connecté en tant que: <span className="font-medium">{user.email}</span>
+          </p>
+        )}
       </div>
+
+      {user?.email === 'nathaliestaelens@gmail.com' && currentPlan !== 'studio' && (
+        <Alert className="border-green-500/50 bg-green-50 dark:bg-green-900/20">
+          <AlertDescription className="flex items-center justify-between">
+            <span className="text-green-700 dark:text-green-300">
+              Activez le plan Studio gratuitement pour tester l'application
+            </span>
+            <Button
+              onClick={handleActivateFreeStudio}
+              disabled={activating}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {activating ? 'Activation...' : 'Activer Studio (gratuit)'}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {!hasActivePlan && (
         <Alert className="border-orange-500/50 bg-orange-50 dark:bg-orange-900/20">
