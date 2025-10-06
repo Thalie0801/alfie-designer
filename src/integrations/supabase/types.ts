@@ -235,6 +235,36 @@ export type Database = {
           },
         ]
       }
+      alfie_cache: {
+        Row: {
+          created_at: string | null
+          id: string
+          prompt_hash: string
+          prompt_type: string
+          response: Json
+          updated_at: string | null
+          usage_count: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          prompt_hash: string
+          prompt_type: string
+          response: Json
+          updated_at?: string | null
+          usage_count?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          prompt_hash?: string
+          prompt_type?: string
+          response?: Json
+          updated_at?: string | null
+          usage_count?: number | null
+        }
+        Relationships: []
+      }
       brands: {
         Row: {
           canva_access_token: string | null
@@ -472,6 +502,8 @@ export type Database = {
           ai_credits_from_affiliation: number | null
           ai_credits_monthly: number | null
           ai_credits_purchased: number | null
+          alfie_requests_reset_date: string | null
+          alfie_requests_this_month: number | null
           avatar_url: string | null
           created_at: string | null
           credits_reset_date: string | null
@@ -489,6 +521,8 @@ export type Database = {
           ai_credits_from_affiliation?: number | null
           ai_credits_monthly?: number | null
           ai_credits_purchased?: number | null
+          alfie_requests_reset_date?: string | null
+          alfie_requests_this_month?: number | null
           avatar_url?: string | null
           created_at?: string | null
           credits_reset_date?: string | null
@@ -506,6 +540,8 @@ export type Database = {
           ai_credits_from_affiliation?: number | null
           ai_credits_monthly?: number | null
           ai_credits_purchased?: number | null
+          alfie_requests_reset_date?: string | null
+          alfie_requests_this_month?: number | null
           avatar_url?: string | null
           created_at?: string | null
           credits_reset_date?: string | null
@@ -595,6 +631,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      increment_alfie_requests: {
+        Args: { user_id_param: string }
+        Returns: number
       }
       update_affiliate_status: {
         Args: { affiliate_id_param: string }

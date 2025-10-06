@@ -5,6 +5,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Configuration flexible du modèle IA (facile à changer)
+const AI_CONFIG = {
+  model: Deno.env.get("ALFIE_AI_MODEL") || "google/gemini-2.5-flash",
+  endpoint: "https://ai.gateway.lovable.dev/v1/chat/completions"
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -145,14 +151,14 @@ Tu es Alfie : créatif, joyeux, et toujours là pour aider avec le cœur 💛`;
       }
     ];
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch(AI_CONFIG.endpoint, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: AI_CONFIG.model, // Modèle configurable via env variable
         messages: [
           { role: "system", content: systemPrompt },
           ...messages
