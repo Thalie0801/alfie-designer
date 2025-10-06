@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 interface AppLayoutWithSidebarProps {
   children: ReactNode;
@@ -14,14 +15,18 @@ export function AppLayoutWithSidebar({ children }: AppLayoutWithSidebarProps) {
         
         <div className="flex-1 flex flex-col">
           {/* Header avec trigger pour mobile */}
-          <header className="sticky top-0 z-10 flex items-center gap-4 border-b bg-card/70 backdrop-blur px-4 py-3 lg:hidden">
-            <SidebarTrigger />
-            <h1 className="font-semibold">Alfie Designer</h1>
+          <header className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b bg-card/70 backdrop-blur px-4 py-3 lg:hidden">
+            <div className="flex items-center gap-4">
+              <SidebarTrigger />
+              <h1 className="font-semibold">Alfie Designer</h1>
+            </div>
+            <ThemeToggle />
           </header>
 
-          {/* Trigger pour desktop (toujours visible) */}
-          <div className="hidden lg:block p-2">
+          {/* Header desktop */}
+          <div className="hidden lg:flex items-center justify-between p-2 border-b">
             <SidebarTrigger />
+            <ThemeToggle />
           </div>
 
           {/* Contenu principal */}
