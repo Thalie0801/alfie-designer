@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
-import { AppLayoutWithSidebar } from '@/components/AppLayoutWithSidebar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
-import { ExternalLink, Plus, Sparkles } from 'lucide-react';
+import { toast } from 'sonner';
+import { ExternalLink, Sparkles, Filter } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useAuth } from '@/hooks/useAuth';
 
 interface CanvaDesign {
   id: string;
@@ -19,12 +18,10 @@ interface CanvaDesign {
 }
 
 export default function Templates() {
+  const { profile } = useAuth();
   const [designs, setDesigns] = useState<CanvaDesign[]>([]);
   const [loading, setLoading] = useState(true);
-  const [scraping, setScraping] = useState(false);
-  const [newUrl, setNewUrl] = useState('');
-  const [category, setCategory] = useState('');
-  const { toast } = useToast();
+  const [categoryFilter, setCategoryFilter] = useState('all');
 
   useEffect(() => {
     loadDesigns();
@@ -32,115 +29,70 @@ export default function Templates() {
 
   const loadDesigns = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('canva_designs')
         .select('*')
         .order('created_at', { ascending: false });
+
+      if (categoryFilter !== 'all') {
+        query = query.eq('category', categoryFilter);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setDesigns(data || []);
     } catch (error) {
       console.error('Error loading designs:', error);
-      toast({
-        title: 'Erreur',
-        description: 'Impossible de charger les designs',
-        variant: 'destructive',
-      });
+      toast.error('Impossible de charger les designs');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleScrape = async () => {
-    if (!newUrl.trim()) {
-      toast({
-        title: 'URL requise',
-        description: 'Veuillez entrer une URL Canva',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setScraping(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('scrape-canva', {
-        body: { url: newUrl, category },
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: 'Design ajouté',
-        description: 'Le design a été ajouté au catalogue',
-      });
-
-      setNewUrl('');
-      setCategory('');
-      loadDesigns();
-    } catch (error) {
-      console.error('Scraping error:', error);
-      toast({
-        title: 'Erreur',
-        description: 'Impossible de scraper ce design',
-        variant: 'destructive',
-      });
-    } finally {
-      setScraping(false);
-    }
-  };
+  useEffect(() => {
+    loadDesigns();
+  }, [categoryFilter]);
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="gradient-subtle rounded-2xl p-6 border-2 border-primary/20 shadow-medium">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="bg-gradient-to-br from-primary to-secondary p-3 rounded-xl shadow-glow">
-            <Sparkles className="h-8 w-8 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-            Catalogue Canva
-          </h1>
-        </div>
-        <p className="text-muted-foreground">
-          Collection de designs Canva pour t'inspirer 🎨
-        </p>
-      </div>
-
-      {/* Add Design Form */}
-      <Card className="shadow-strong border-2 border-primary/20">
-        <CardContent className="pt-6">
-          <div className="flex flex-col gap-4">
-            <div className="flex gap-2">
-              <Input
-                placeholder="URL Canva (https://www.canva.com/design/...)"
-                value={newUrl}
-                onChange={(e) => setNewUrl(e.target.value)}
-                className="flex-1"
-              />
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Catégorie" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="hero">Hero</SelectItem>
-                  <SelectItem value="carousel">Carousel</SelectItem>
-                  <SelectItem value="insight">Insight</SelectItem>
-                  <SelectItem value="reel">Reel</SelectItem>
-                  <SelectItem value="story">Story</SelectItem>
-                  <SelectItem value="post">Post</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button onClick={handleScrape} disabled={scraping}>
-                <Plus className="h-4 w-4 mr-2" />
-                {scraping ? 'Ajout...' : 'Ajouter'}
-              </Button>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-3">
+            <div className="bg-gradient-to-br from-primary to-secondary p-3 rounded-xl shadow-glow">
+              <Sparkles className="h-8 w-8 text-white" />
             </div>
-            <p className="text-sm text-muted-foreground">
-              Ajoute l'URL publique d'un design Canva pour l'ajouter au catalogue
-            </p>
+            <div>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                Catalogue Canva
+              </h1>
+              <p className="text-muted-foreground">
+                Designs inspirants pour tes créations 🎨
+              </p>
+            </div>
           </div>
-        </CardContent>
-      </Card>
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger className="w-[200px]">
+              <Filter className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Filtrer par niche" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toutes les niches</SelectItem>
+              <SelectItem value="e-commerce">E-commerce</SelectItem>
+              <SelectItem value="coaching">Coaching</SelectItem>
+              <SelectItem value="immobilier">Immobilier</SelectItem>
+              <SelectItem value="restauration">Restauration</SelectItem>
+              <SelectItem value="mode">Mode & Beauté</SelectItem>
+              <SelectItem value="tech">Tech & SaaS</SelectItem>
+              <SelectItem value="sport">Sport & Fitness</SelectItem>
+              <SelectItem value="sante">Santé & Bien-être</SelectItem>
+              <SelectItem value="education">Éducation</SelectItem>
+              <SelectItem value="general">Général</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
       {/* Designs Grid */}
       {loading ? (
