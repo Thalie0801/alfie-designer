@@ -66,15 +66,26 @@ export default function Admin() {
   };
 
   const handleScrape = async () => {
-    if (!newUrl.trim()) {
+    const raw = newUrl.trim();
+    if (!raw) {
       toast.error('URL requise', { description: 'Veuillez entrer une URL Canva' });
+      return;
+    }
+
+    // Normaliser et valider l'URL
+    let normalized = raw;
+    if (normalized.startsWith('www.')) {
+      normalized = 'https://' + normalized;
+    }
+    if (!normalized.includes('canva.com')) {
+      toast.error('URL invalide', { description: 'Veuillez coller une URL Canva valide (canva.com)' });
       return;
     }
 
     setScraping(true);
     try {
       const { data, error } = await supabase.functions.invoke('scrape-canva', {
-        body: { url: newUrl, category },
+        body: { url: normalized, category },
       });
 
       if (error) throw error;
@@ -83,9 +94,12 @@ export default function Admin() {
       setNewUrl('');
       setCategory('');
       loadAdminData();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Scraping error:', error);
-      toast.error('Erreur', { description: 'Impossible de scraper ce design' });
+      const description = (error?.message || '').includes('Valid Canva URL required')
+        ? 'URL Canva invalide. Merci de coller une URL complète canva.com.'
+        : 'Impossible de scraper ce design';
+      toast.error('Erreur', { description });
     } finally {
       setScraping(false);
     }
