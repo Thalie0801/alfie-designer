@@ -369,7 +369,7 @@ export default function AlfieLanding() {
             <div className="font-semibold mb-2">Ressources</div>
             <ul className="space-y-1">
               <li><a className="hover:underline hover:text-primary transition-colors" href="#">Guide de démarrage</a></li>
-              <li><a className="hover:underline hover:text-primary transition-colors" href="#">FAQ</a></li>
+              <li><a className="hover:underline hover:text-primary transition-colors cursor-pointer" onClick={() => window.location.href = '/faq'}>FAQ</a></li>
               <li><a className="hover:underline hover:text-primary transition-colors cursor-pointer" onClick={() => window.location.href = '/devenir-partenaire'}>Programme Partenaire 💰</a></li>
             </ul>
           </div>
