@@ -1,19 +1,22 @@
 import { BrandKit } from '@/hooks/useBrandKit';
 
 export interface CanvaLinkParams {
-  templateUrl: string;
+  templateUrl?: string;
+  generatedImageUrl?: string;
   brandKit?: BrandKit;
   customText?: string;
 }
 
 export function generateCanvaLink(params: CanvaLinkParams): string {
-  const { templateUrl } = params;
+  const { templateUrl, generatedImageUrl } = params;
   
-  // Pour l'instant, on retourne simplement l'URL du template
-  // Canva n'expose pas d'API publique pour pré-remplir les templates
-  // mais on peut ouvrir le template directement
+  // Si on a une image générée par Alfie, on utilise le lien d'import Canva
+  if (generatedImageUrl) {
+    return `https://www.canva.com/import?design_url=${encodeURIComponent(generatedImageUrl)}`;
+  }
   
-  return templateUrl;
+  // Sinon, on ouvre le template Canva directement
+  return templateUrl || '';
 }
 
 export function openInCanva(params: CanvaLinkParams) {

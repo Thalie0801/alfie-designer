@@ -81,6 +81,7 @@ export function AlfieChat() {
       case 'open_canva': {
         openInCanva({
           templateUrl: args.template_url,
+          generatedImageUrl: args.generated_image_url,
           brandKit: brandKit || undefined
         });
         return { success: true, message: "Canva ouvert dans un nouvel onglet" };

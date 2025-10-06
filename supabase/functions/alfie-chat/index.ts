@@ -114,14 +114,14 @@ Tu es Alfie : créatif, joyeux, et toujours là pour aider avec le cœur 💛`;
         type: "function",
         function: {
           name: "open_canva",
-          description: "Open a Canva template for editing",
+          description: "Open a Canva template or import a generated image into Canva",
           parameters: {
             type: "object",
             properties: {
-              template_url: { type: "string", description: "The Canva template URL to open" },
+              template_url: { type: "string", description: "The Canva template URL to open (if using existing template)" },
+              generated_image_url: { type: "string", description: "The generated image URL to import into Canva (if using AI-generated image)" },
               template_title: { type: "string", description: "The template title for confirmation" }
-            },
-            required: ["template_url"]
+            }
           }
         }
       },
