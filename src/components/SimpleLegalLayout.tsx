@@ -18,11 +18,11 @@ export function SimpleLegalLayout({ children }: SimpleLegalLayoutProps) {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate(-1)}
+              onClick={() => navigate('/')}
               className="gap-2"
             >
               <ArrowLeft className="h-4 w-4" />
-              Retour
+              Retour à l'accueil
             </Button>
             <div className="font-semibold text-lg">Alfie Designer</div>
           </div>
