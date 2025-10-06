@@ -8,9 +8,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Loader2, User, Mail, CreditCard } from 'lucide-react';
+import { useCustomerPortal } from '@/hooks/useCustomerPortal';
 
 export default function Profile() {
   const { user, profile } = useAuth();
+  const { openCustomerPortal, loading: portalLoading } = useCustomerPortal();
   const [loading, setLoading] = useState(false);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -165,13 +167,33 @@ export default function Profile() {
             </span>
           </div>
 
-          <Button 
-            variant="outline" 
-            className="w-full"
-            onClick={() => window.location.href = '/billing'}
-          >
-            Gérer mon abonnement
-          </Button>
+          <div className="flex flex-col gap-2">
+            <Button 
+              variant="outline" 
+              className="w-full"
+              onClick={() => window.location.href = '/billing'}
+            >
+              Voir les détails de facturation
+            </Button>
+            
+            {profile?.plan && profile.plan !== 'none' && (
+              <Button 
+                variant="outline" 
+                className="w-full border-red-500 text-red-500 hover:bg-red-50"
+                onClick={openCustomerPortal}
+                disabled={portalLoading}
+              >
+                {portalLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Chargement...
+                  </>
+                ) : (
+                  'Gérer mon abonnement / Se désabonner'
+                )}
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>
