@@ -14,12 +14,7 @@ const PRICE_IDS = {
   enterprise: "price_1SEtTxQvcbGhgt8S6xO8OFSj",
 };
 
-const PLAN_CONFIG = {
-  starter: { quota_brands: 1, quota_visuals: 20, ai_credits_monthly: 0 },
-  pro: { quota_brands: 3, quota_visuals: 100, ai_credits_monthly: 50 },
-  studio: { quota_brands: 5, quota_visuals: 1000, ai_credits_monthly: 150 },
-  enterprise: { quota_brands: 999, quota_visuals: 9999, ai_credits_monthly: 0 },
-};
+// Plan configuration (quotas are applied in verify-payment after successful payment)
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {

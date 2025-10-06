@@ -8,10 +8,30 @@ const corsHeaders = {
 };
 
 const PLAN_CONFIG = {
-  starter: { quota_brands: 1, quota_visuals: 20 },
-  pro: { quota_brands: 3, quota_visuals: 100 },
-  studio: { quota_brands: 5, quota_visuals: 1000 },
-  enterprise: { quota_brands: 999, quota_visuals: 9999 },
+  starter: { 
+    quota_brands: 1, 
+    quota_visuals: 20, 
+    ai_credits_monthly: 100,
+    alfie_requests: 100 
+  },
+  pro: { 
+    quota_brands: 3, 
+    quota_visuals: 100, 
+    ai_credits_monthly: 250,
+    alfie_requests: 250 
+  },
+  studio: { 
+    quota_brands: 5, 
+    quota_visuals: 1000, 
+    ai_credits_monthly: 500,
+    alfie_requests: 500 
+  },
+  enterprise: { 
+    quota_brands: 999, 
+    quota_visuals: 9999, 
+    ai_credits_monthly: 9999,
+    alfie_requests: 9999 
+  },
 };
 
 serve(async (req) => {
@@ -62,6 +82,9 @@ serve(async (req) => {
           plan,
           quota_brands: planConfig.quota_brands,
           quota_visuals_per_month: planConfig.quota_visuals,
+          ai_credits_monthly: planConfig.ai_credits_monthly,
+          alfie_requests_this_month: 0,
+          alfie_requests_reset_date: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString(),
           stripe_customer_id: session.customer as string,
           stripe_subscription_id: session.subscription as string,
         })
@@ -83,6 +106,9 @@ serve(async (req) => {
             plan,
             quota_brands: planConfig.quota_brands,
             quota_visuals_per_month: planConfig.quota_visuals,
+            ai_credits_monthly: planConfig.ai_credits_monthly,
+            alfie_requests_this_month: 0,
+            alfie_requests_reset_date: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString(),
             stripe_customer_id: session.customer as string,
             stripe_subscription_id: session.subscription as string,
           })
