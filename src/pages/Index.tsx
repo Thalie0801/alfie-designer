@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { Check, Sparkles, Palette, CalendarClock, Film, BarChart3, Layers, Share2, ChevronRight, Shield } from "lucide-react";
 import alfieMain from "@/assets/alfie-main.png";
 import { useStripeCheckout } from "@/hooks/useStripeCheckout";
-import { ThemeToggle } from "@/components/ThemeToggle";
 
 // --- Hooks to simulate actions (replace with Lovable actions / API calls) ---
 const useAlfieActions = () => {
@@ -45,7 +44,6 @@ export default function AlfieLanding() {
             <span className="font-semibold text-sm sm:text-base">Alfie Designer</span>
           </div>
           <div className="flex items-center gap-1 sm:gap-2">
-            <ThemeToggle />
             <Button size="sm" className="text-xs sm:text-sm" onClick={() => window.location.href = '/auth'}>Ouvrir l'app</Button>
           </div>
         </div>
