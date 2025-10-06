@@ -179,7 +179,7 @@ export default function AlfieLanding() {
             price={calculatePrice(29)} 
             priceLabel={getPriceLabel()}
             isAnnual={isAnnual}
-            bullets={["1 marque","20 visuels/mois","2 templates"]} 
+            bullets={["1 marque","20 visuels/mois","100 crédits IA/mois","100 requêtes Alfie/mois","2 templates"]} 
             cta="Essayer Starter"
             onSelect={() => createCheckout('starter')}
             loading={checkoutLoading}
@@ -191,7 +191,7 @@ export default function AlfieLanding() {
             priceLabel={getPriceLabel()}
             isAnnual={isAnnual}
             highlight 
-            bullets={["3 marques","100 visuels/mois","4 templates + Reels simples"]} 
+            bullets={["3 marques","100 visuels/mois","500 crédits IA/mois","500 requêtes Alfie/mois","-20% sur packs de crédits","4 templates + Reels"]} 
             cta="Choisir Pro"
             onSelect={() => createCheckout('pro')}
             loading={checkoutLoading}
@@ -202,7 +202,7 @@ export default function AlfieLanding() {
             price={calculatePrice(149)} 
             priceLabel={getPriceLabel()}
             isAnnual={isAnnual}
-            bullets={["Multi-marques","Reels avancés","Analytics"]} 
+            bullets={["Multi-marques (5 max)","1000 visuels/mois","1000 crédits IA/mois","1000 requêtes Alfie/mois","-20% sur packs de crédits","Reels avancés","Analytics"]} 
             cta="Passer Studio"
             onSelect={() => createCheckout('studio')}
             loading={checkoutLoading}
@@ -213,8 +213,8 @@ export default function AlfieLanding() {
             price={calculatePrice(299)} 
             priceLabel={getPriceLabel()}
             isAnnual={isAnnual}
-            bullets={["Illimité","API & SSO","Support prioritaire"]} 
-            cta="Demander un devis"
+            bullets={["Marques illimitées","Visuels illimités","Crédits IA sur mesure","Alfie illimité","API & SSO","White-label","Support dédié 24/7"]} 
+            cta="Nous contacter"
             onSelect={() => createCheckout('enterprise')}
             loading={checkoutLoading}
           />
