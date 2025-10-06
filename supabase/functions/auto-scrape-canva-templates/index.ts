@@ -104,7 +104,8 @@ serve(async (req) => {
           html.match(/<title>([^<]+)<\/title>/i);
 
         const ogImageMatch = html.match(/<meta property="og:image(?::secure_url)?" content="([^"]+)"/i);
-        const twitterImageMatch = html.match(/<meta name="twitter:image" content="([^"]+)"/i);
+        const twitterImageMatch = html.match(/<meta name="twitter:image(?::src)?" content="([^"]+)"/i);
+        const imageLinkMatch = html.match(/<link rel="image_src" href="([^"]+)"/i);
 
         const descriptionMatch =
           html.match(/<meta property="og:description" content="([^"]+)"/i) ||
@@ -112,7 +113,7 @@ serve(async (req) => {
           html.match(/<meta name="twitter:description" content="([^"]+)"/i);
         
         let title = (titleMatch?.[1] || 'Design Canva').trim();
-        let imageUrl = (ogImageMatch?.[1] || twitterImageMatch?.[1] || '').trim();
+        let imageUrl = (ogImageMatch?.[1] || twitterImageMatch?.[1] || imageLinkMatch?.[1] || '').trim();
         let description = (descriptionMatch?.[1] || '').trim();
 
         if (imageUrl.startsWith('//')) {
@@ -174,9 +175,73 @@ serve(async (req) => {
         }
 
         if (!imageUrl) {
-          console.log('⚠️ No image found, skipping');
-          errorCount++;
-          continue;
+          // Try Firecrawl fallback
+          const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
+          if (FIRECRAWL_API_KEY) {
+            try {
+              console.log('Using Firecrawl fallback for', template.url);
+              const fcResp = await fetch('https://api.firecrawl.dev/v2/scrape', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${FIRECRAWL_API_KEY}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  url: template.url,
+                  formats: ['html'],
+                  onlyMainContent: false,
+                  blockAds: true,
+                  proxy: 'auto',
+                  waitFor: 0
+                }),
+              });
+              if (fcResp.ok) {
+                const fcData = await fcResp.json();
+                const metadata = fcData?.data?.metadata;
+                const fcHtml = fcData?.data?.rawHtml || fcData?.data?.html || '';
+                if (metadata) {
+                  if (!title && metadata.title) title = metadata.title;
+                  if (!description && metadata.description) description = metadata.description;
+                  const ogImg = metadata['og:image'] || metadata.ogImage || metadata.twitterImage || metadata['twitter:image'];
+                  if (ogImg && typeof ogImg === 'string') {
+                    imageUrl = ogImg.trim();
+                  }
+                }
+                if (!imageUrl && fcHtml) {
+                  const ogMatch = fcHtml.match(/<meta property="og:image(?::secure_url)?" content="([^"]+)"/i);
+                  const twMatch = fcHtml.match(/<meta name="twitter:image(?::src)?" content="([^"]+)"/i);
+                  const linkImg = fcHtml.match(/<link rel="image_src" href="([^"]+)"/i);
+                  const ldJsonMatches = [...fcHtml.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)];
+                  imageUrl = (ogMatch?.[1] || twMatch?.[1] || linkImg?.[1] || '').trim();
+                  if (!imageUrl && ldJsonMatches.length) {
+                    for (const m of ldJsonMatches) {
+                      try {
+                        const obj = JSON.parse(m[1]);
+                        const img = Array.isArray(obj) ? obj.find(Boolean)?.image : (obj.image || obj.thumbnailUrl);
+                        if (typeof img === 'string' && img) { imageUrl = img.trim(); break; }
+                        if (Array.isArray(img) && img[0]) { imageUrl = String(img[0]).trim(); break; }
+                      } catch (_) { /* ignore */ }
+                    }
+                  }
+                }
+                if (imageUrl?.startsWith('//')) imageUrl = 'https:' + imageUrl;
+                if (imageUrl?.startsWith('/')) imageUrl = 'https://www.canva.com' + imageUrl;
+              } else {
+                const errText = await fcResp.text();
+                console.error('Firecrawl response not ok:', fcResp.status, errText);
+              }
+            } catch (e) {
+              console.error('Firecrawl fallback error:', e);
+            }
+          } else {
+            console.warn('FIRECRAWL_API_KEY not set');
+          }
+
+          if (!imageUrl) {
+            console.log('⚠️ No image found, skipping');
+            errorCount++;
+            continue;
+          }
         }
 
         // Sauvegarder dans la base
