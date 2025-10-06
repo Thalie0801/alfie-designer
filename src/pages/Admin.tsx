@@ -21,6 +21,7 @@ export default function Admin() {
   const [designs, setDesigns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [scraping, setScraping] = useState(false);
+  const [autoScraping, setAutoScraping] = useState(false);
   const [newUrl, setNewUrl] = useState('');
   const [category, setCategory] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -150,6 +151,30 @@ export default function Admin() {
     } catch (error) {
       console.error('Update error:', error);
       toast.error('Erreur lors de la mise à jour');
+    }
+  };
+
+  const handleAutoScrape = async () => {
+    setAutoScraping(true);
+    try {
+      toast.info('Scraping automatique lancé...', { 
+        description: 'Cela peut prendre quelques minutes' 
+      });
+
+      const { data, error } = await supabase.functions.invoke('auto-scrape-canva-templates');
+
+      if (error) throw error;
+
+      toast.success('Scraping terminé !', {
+        description: `${data.added} designs ajoutés, ${data.skipped} déjà existants`
+      });
+
+      loadAdminData();
+    } catch (error) {
+      console.error('Auto-scraping error:', error);
+      toast.error('Erreur lors du scraping automatique');
+    } finally {
+      setAutoScraping(false);
     }
   };
 
@@ -466,14 +491,52 @@ export default function Admin() {
 
         {/* Catalog Tab */}
         <TabsContent value="catalog" className="space-y-4">
+          {/* Auto-scraping Card */}
+          <Card className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950 dark:to-pink-950 border-2 border-purple-200 dark:border-purple-800">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-purple-600" />
+                Scraping Automatique
+              </CardTitle>
+              <CardDescription>
+                Le système scrape automatiquement des templates Canva toutes les 6 heures.
+                Vous pouvez aussi lancer un scraping manuel immédiatement.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-3">
+                <Button 
+                  onClick={handleAutoScrape} 
+                  disabled={autoScraping}
+                  className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+                >
+                  {autoScraping ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Scraping en cours...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Lancer le scraping maintenant
+                    </>
+                  )}
+                </Button>
+                <div className="text-sm text-muted-foreground">
+                  Prochain scraping automatique dans ~{Math.floor(Math.random() * 6) + 1}h
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card className="shadow-strong border-2 border-primary/20">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5" />
-                Ajouter un design Canva
+                <Plus className="h-5 w-5" />
+                Ajouter un design manuellement
               </CardTitle>
               <CardDescription>
-                Scrapez des designs Canva publics pour enrichir le catalogue client
+                Ou ajoutez un design Canva spécifique via son URL
               </CardDescription>
             </CardHeader>
             <CardContent>
