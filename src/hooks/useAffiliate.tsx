@@ -117,15 +117,19 @@ export function useAffiliate() {
 
   const trackAffiliateClick = async (ref: string) => {
     try {
-      // Track via navigator.sendBeacon for reliability
-      const data = new URLSearchParams({
-        ref,
-        timestamp: Date.now().toString(),
-        page: window.location.pathname
+      const url = new URL(window.location.href);
+      const utm_source = url.searchParams.get('utm_source') || undefined;
+      const utm_medium = url.searchParams.get('utm_medium') || undefined;
+      const utm_campaign = url.searchParams.get('utm_campaign') || undefined;
+
+      await supabase.functions.invoke('track-affiliate-click', {
+        body: {
+          ref,
+          utm_source,
+          utm_medium,
+          utm_campaign,
+        },
       });
-      
-      // This will be caught by an edge function
-      navigator.sendBeacon('/api/track-affiliate-click', data);
     } catch (error) {
       console.error('Failed to track affiliate click:', error);
     }
