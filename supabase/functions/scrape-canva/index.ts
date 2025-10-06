@@ -50,7 +50,7 @@ serve(async (req) => {
 
     let title = titleMatch ? titleMatch[1] : 'Untitled Design';
     let imageUrl = (ogImageMatch?.[1] || twitterImageMatch?.[1] || '').trim();
-    const description = (descriptionMatch?.[1] || '').trim();
+    let description = (descriptionMatch?.[1] || '').trim();
 
     // Normalize protocol-relative URLs
     if (imageUrl.startsWith('//')) {
@@ -61,27 +61,63 @@ serve(async (req) => {
       const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
       if (FIRECRAWL_API_KEY) {
         try {
+          console.log('Using Firecrawl fallback for', url);
           const fr = await fetch('https://api.firecrawl.dev/v1/scrape', {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${FIRECRAWL_API_KEY}`,
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ url, formats: ['html'] }),
+            body: JSON.stringify({ url, formats: ['html','markdown','links','screenshot','extract'] }),
           });
           const frJson = await fr.json();
+
+          // Try structured metadata first
+          const meta = frJson?.data?.metadata || frJson?.metadata || {};
+          const og = meta?.openGraph || meta?.og || {};
+          const tw = meta?.twitter || {};
+
+          const candidates = [
+            og?.images?.[0]?.url,
+            og?.image,
+            tw?.images?.[0]?.url,
+            tw?.image,
+            meta?.image,
+          ].filter(Boolean);
+
+          if (!imageUrl && candidates.length) {
+            imageUrl = String(candidates[0]).trim();
+          }
+
+          // Fallback to HTML parsing if provided
           const frHtml = frJson?.data?.html || frJson?.html || '';
-          if (frHtml) {
+          if (!imageUrl && frHtml) {
             const frOgImg = frHtml.match(/<meta property=\"og:image(?::secure_url)?\" content=\"([^\"]+)\"/i);
             const frTwImg = frHtml.match(/<meta name=\"twitter:image\" content=\"([^\"]+)\"/i);
             imageUrl = (frOgImg?.[1] || frTwImg?.[1] || '').trim();
-            if (imageUrl.startsWith('//')) {
-              imageUrl = 'https:' + imageUrl;
+          }
+
+          // Update title/description if empty
+          if (!title) {
+            // @ts-ignore
+            title = og?.title || meta?.title || title;
+          }
+          if (!description) {
+            const desc = og?.description || tw?.description || meta?.description;
+            if (desc) {
+              // @ts-ignore
+              description = String(desc);
             }
+          }
+
+          if (imageUrl && imageUrl.startsWith('//')) {
+            imageUrl = 'https:' + imageUrl;
           }
         } catch (e) {
           console.error('Firecrawl fallback error:', e);
         }
+      } else {
+        console.warn('FIRECRAWL_API_KEY not set');
       }
 
       if (!imageUrl) {
