@@ -17,14 +17,11 @@ export function useAffiliate() {
   const { toast } = useToast();
 
   useEffect(() => {
-    console.log('[Affiliate] useEffect running, URL:', window.location.href);
     // Check URL for ref parameter
     const urlParams = new URLSearchParams(window.location.search);
     const refParam = urlParams.get('ref');
-    console.log('[Affiliate] ref parameter:', refParam);
 
     if (refParam) {
-      console.log('[Affiliate] Found ref in URL:', refParam);
       // Store affiliate ref with timestamp
       const affiliateData: AffiliateData = {
         ref: refParam,
@@ -34,7 +31,7 @@ export function useAffiliate() {
       localStorage.removeItem(AFFILIATE_TOAST_SHOWN); // Reset toast flag for new ref
       setAffiliateRef(refParam);
 
-      // Track click (will be implemented via edge function)
+      // Track click via edge function
       trackAffiliateClick(refParam);
       
       // Show welcome toast and load affiliate name
@@ -47,38 +44,30 @@ export function useAffiliate() {
         window.history.replaceState({}, '', newUrl);
       }, 500);
     } else {
-      console.log('[Affiliate] No ref in URL, checking localStorage');
       // Check if we have a stored ref
       const stored = localStorage.getItem(AFFILIATE_STORAGE_KEY);
       if (stored) {
-        console.log('[Affiliate] Found stored ref:', stored);
         try {
           const data: AffiliateData = JSON.parse(stored);
           const daysSinceStored = (Date.now() - data.timestamp) / (1000 * 60 * 60 * 24);
           
           if (daysSinceStored < AFFILIATE_EXPIRY_DAYS) {
             setAffiliateRef(data.ref);
-            // Load affiliate name from storage or fetch it
             loadAffiliateInfo(data.ref);
           } else {
-            console.log('[Affiliate] Stored ref expired');
             localStorage.removeItem(AFFILIATE_STORAGE_KEY);
             localStorage.removeItem(AFFILIATE_TOAST_SHOWN);
           }
         } catch (e) {
-          console.error('[Affiliate] Error parsing stored data:', e);
           localStorage.removeItem(AFFILIATE_STORAGE_KEY);
           localStorage.removeItem(AFFILIATE_TOAST_SHOWN);
         }
-      } else {
-        console.log('[Affiliate] No stored ref found');
       }
     }
   }, []);
 
   const loadAffiliateInfo = async (ref: string) => {
     try {
-      console.log('[Affiliate] Loading affiliate info for', ref);
       const { data, error } = await supabase.functions.invoke('get-affiliate-public', {
         body: { ref },
       });
@@ -126,13 +115,12 @@ export function useAffiliate() {
 
   const trackAffiliateClick = async (ref: string) => {
     try {
-      console.log('[Affiliate] Tracking click for ref:', ref);
       const url = new URL(window.location.href);
       const utm_source = url.searchParams.get('utm_source') || undefined;
       const utm_medium = url.searchParams.get('utm_medium') || undefined;
       const utm_campaign = url.searchParams.get('utm_campaign') || undefined;
 
-      const { data, error } = await supabase.functions.invoke('track-affiliate-click', {
+      await supabase.functions.invoke('track-affiliate-click', {
         body: {
           ref,
           utm_source,
@@ -140,14 +128,8 @@ export function useAffiliate() {
           utm_campaign,
         },
       });
-
-      if (error) {
-        console.error('[Affiliate] Track error:', error);
-      } else {
-        console.log('[Affiliate] Click tracked successfully:', data);
-      }
     } catch (error) {
-      console.error('[Affiliate] Failed to track click:', error);
+      console.error('Failed to track affiliate click:', error);
     }
   };
 
