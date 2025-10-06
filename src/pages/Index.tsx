@@ -376,7 +376,7 @@ export default function AlfieLanding() {
           <div>
             <div className="font-semibold mb-2">Légal</div>
             <ul className="space-y-1">
-              <li><a className="hover:underline" href="#">Confidentialité</a></li>
+              <li><a className="hover:underline hover:text-primary transition-colors cursor-pointer" onClick={() => window.location.href = '/privacy'}>Confidentialité</a></li>
               <li><a className="hover:underline" href="#">Conditions</a></li>
             </ul>
           </div>

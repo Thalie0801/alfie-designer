@@ -18,6 +18,7 @@ import Admin from "./pages/Admin";
 import Affiliate from "./pages/Affiliate";
 import Profile from "./pages/Profile";
 import DevenirPartenaire from "./pages/DevenirPartenaire";
+import Privacy from "./pages/Privacy";
 import NotFound from "./pages/NotFound";
 import Templates from "./pages/Templates";
 import { AppLayoutWithSidebar } from "./components/AppLayoutWithSidebar";
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/devenir-partenaire" element={<DevenirPartenaire />} />
+            <Route path="/privacy" element={<Privacy />} />
             <Route
               path="/app"
               element={
