@@ -89,7 +89,11 @@ export default function Dashboard() {
             Retrouvez vos créations et gérez vos marques
           </p>
         </div>
-        <Button className="gap-2 gradient-hero text-white shadow-medium hover:shadow-strong" onClick={() => alert('OAuth Canva → Coming soon')}>
+        <Button 
+          disabled 
+          className="gap-2 gradient-hero text-white shadow-medium opacity-50 cursor-not-allowed"
+          title="En attente de la réponse de l'API Canva"
+        >
           <ExternalLink className="h-4 w-4" />
           Connecter Canva
         </Button>
