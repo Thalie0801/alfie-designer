@@ -30,11 +30,8 @@ export function BrandKitManager() {
   };
 
   const handleSave = () => {
-    updateBrandKit({
-      palette: colors.filter(c => c),
-      logo_url: logoUrl || undefined,
-    });
-    toast.success('Brand Kit sauvegardé ! 🎨');
+    // Deprecated - use BrandManager instead
+    toast.info('Utilise le nouveau Brand Manager pour gérer tes marques ! 🎨');
   };
 
   return (

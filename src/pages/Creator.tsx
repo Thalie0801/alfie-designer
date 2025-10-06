@@ -1,14 +1,14 @@
 import { AppLayoutWithSidebar } from '@/components/AppLayoutWithSidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlfieChat } from '@/components/AlfieChat';
-import { BrandKitManager } from '@/components/BrandKitManager';
+import { BrandManager } from '@/components/BrandManager';
 import { Sparkles, Zap, Palette } from 'lucide-react';
 import { useAlfieCredits } from '@/hooks/useAlfieCredits';
 import { useBrandKit } from '@/hooks/useBrandKit';
 
 export default function App() {
   const { totalCredits } = useAlfieCredits();
-  const { brandKit } = useBrandKit();
+  const { totalBrands, quotaBrands } = useBrandKit();
 
   return (
     <div className="space-y-6">
@@ -52,8 +52,8 @@ export default function App() {
                     <Palette className="h-6 w-6 text-secondary" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">{brandKit ? '✓' : '○'}</p>
-                    <p className="text-xs text-muted-foreground">Brand Kit {brandKit ? 'actif' : 'à configurer'}</p>
+                    <p className="text-2xl font-bold">{totalBrands}/{quotaBrands}</p>
+                    <p className="text-xs text-muted-foreground">Marques créées</p>
                   </div>
                 </div>
               </CardContent>
@@ -77,9 +77,9 @@ export default function App() {
           </Card>
         </div>
 
-        {/* Brand Kit Manager - Takes 1 column */}
+        {/* Brand Manager - Takes 1 column */}
         <div className="lg:col-span-1">
-          <BrandKitManager />
+          <BrandManager />
         </div>
       </div>
     </div>

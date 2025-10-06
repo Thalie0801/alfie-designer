@@ -12,9 +12,10 @@ import { useAuth } from '@/hooks/useAuth';
 interface BrandDialogProps {
   brand?: any;
   onSuccess: () => void;
+  children?: React.ReactNode;
 }
 
-export function BrandDialog({ brand, onSuccess }: BrandDialogProps) {
+export function BrandDialog({ brand, onSuccess, children }: BrandDialogProps) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -51,6 +52,26 @@ export function BrandDialog({ brand, onSuccess }: BrandDialogProps) {
         if (error) throw error;
         toast.success('Marque mise à jour !');
       } else {
+        // CHECK QUOTA BEFORE CREATING
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('quota_brands')
+          .eq('id', user.id)
+          .single();
+
+        const { count: currentBrands } = await supabase
+          .from('brands')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id);
+
+        const quotaBrands = profile?.quota_brands || 0;
+        
+        if ((currentBrands || 0) >= quotaBrands) {
+          toast.error(`Limite atteinte (${quotaBrands} marques max pour ton plan)`);
+          setLoading(false);
+          return;
+        }
+
         // Create new brand
         const { error } = await supabase
           .from('brands')
@@ -58,7 +79,8 @@ export function BrandDialog({ brand, onSuccess }: BrandDialogProps) {
             user_id: user.id,
             name: formData.name,
             logo_url: formData.logo_url || null,
-            voice: formData.voice || null
+            voice: formData.voice || null,
+            palette: []
           });
 
         if (error) throw error;
@@ -79,7 +101,7 @@ export function BrandDialog({ brand, onSuccess }: BrandDialogProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        {brand ? (
+        {children ? children : brand ? (
           <Button variant="outline" size="sm">
             Modifier
           </Button>

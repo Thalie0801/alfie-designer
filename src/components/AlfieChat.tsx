@@ -138,7 +138,8 @@ export function AlfieChat() {
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({
-          messages: [...messages, { role: 'user', content: userMessage }]
+          messages: [...messages, { role: 'user', content: userMessage }],
+          brandId: brandKit?.id // Pass active brand ID
         }),
       });
 

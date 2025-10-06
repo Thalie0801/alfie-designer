@@ -535,6 +535,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          active_brand_id: string | null
           ai_credits_from_affiliation: number | null
           ai_credits_monthly: number | null
           ai_credits_purchased: number | null
@@ -554,6 +555,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          active_brand_id?: string | null
           ai_credits_from_affiliation?: number | null
           ai_credits_monthly?: number | null
           ai_credits_purchased?: number | null
@@ -573,6 +575,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          active_brand_id?: string | null
           ai_credits_from_affiliation?: number | null
           ai_credits_monthly?: number | null
           ai_credits_purchased?: number | null
@@ -591,7 +594,15 @@ export type Database = {
           stripe_subscription_id?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_active_brand_id_fkey"
+            columns: ["active_brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       templates: {
         Row: {
