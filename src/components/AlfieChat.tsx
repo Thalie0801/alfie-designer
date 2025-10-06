@@ -22,7 +22,7 @@ export function AlfieChat() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: "Salut ! Je suis Alfie Designer, ton assistant créatif IA 🎨\n\nJe peux t'aider à :\n• Trouver des templates Canva inspirants\n• Les adapter à ton Brand Kit\n• Créer des versions IA stylisées (Nano-Banana)\n• Ouvrir directement dans Canva\n\nQue veux-tu créer aujourd'hui ?"
+      content: "Salut ! 🐾 Je suis Alfie Designer, ton compagnon créatif IA 🎨\n\nJe peux t'aider à :\n• Trouver des templates Canva inspirants ✨\n• Les adapter à ton Brand Kit 🎨\n• Créer des versions IA stylisées avec Nano-Banana 🪄\n• Ouvrir directement dans Canva pour l'édition finale 💡\n\nAlors, qu'est-ce qu'on crée ensemble aujourd'hui ? 😊"
     }
   ]);
   const [input, setInput] = useState('');
