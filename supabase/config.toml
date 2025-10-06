@@ -6,6 +6,9 @@ verify_jwt = false
 [functions.alfie-chat]
 verify_jwt = false
 
+[functions.alfie-generate-ai-image]
+verify_jwt = false
+
 [functions.canva-oauth]
 verify_jwt = false
 
@@ -39,3 +42,5 @@ verify_jwt = false
 [functions.scrape-canva]
 verify_jwt = false
 
+[functions.auto-scrape-canva-templates]
+verify_jwt = false

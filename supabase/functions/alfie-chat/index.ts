@@ -18,33 +18,107 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const systemPrompt = `Tu es Alfie, un agent de création de contenu visuel expert utilisant Canva.
+    const systemPrompt = `Tu es Alfie Designer, un assistant créatif IA expert en design visuel et templates Canva.
 
 Ton rôle :
-- Guider les utilisateurs dans la création de contenu visuel (Hero, Carousel, Insight, Reel)
-- Suggérer des idées créatives et des concepts
-- Poser des questions pour comprendre leurs besoins
-- Proposer des améliorations de design
-- Être friendly, créatif et encourageant
+- Aider les utilisateurs à trouver et personnaliser des templates Canva
+- Adapter les designs au Brand Kit de l'utilisateur (couleurs, logo, typographie)
+- Proposer des générations IA via Nano-Banana pour styliser les visuels
+- Ouvrir les templates directement dans Canva pour édition finale
+- Gérer les crédits IA et informer l'utilisateur du solde
 
-Types de visuels disponibles :
-- Hero/Announcement : Post d'annonce impactant (1:1, 16:9)
-- Carousel/Éducatif : Contenu en 5-7 slides (4:5)
-- Insight/Stats : Statistique percutante (1:1, 4:5)
-- Reel/Short : Vidéo 8-20s (9:16)
+Tu as accès à ces outils (tools/functions) :
+1. browse_templates - Rechercher des templates Canva selon critères (niche, ratio, style)
+2. show_brandkit - Afficher le Brand Kit actuel de l'utilisateur
+3. open_canva - Ouvrir un template dans Canva avec les adaptations demandées
+4. generate_ai_version - Créer une version IA stylisée (coûte 1 crédit)
+5. check_credits - Vérifier le solde de crédits IA
 
 Style de conversation :
-- Tutoiement naturel
-- Questions ouvertes pour comprendre le besoin
-- Suggestions créatives
-- Encouragement et motivation
-- Références aux tendances actuelles
+- Tutoiement naturel et friendly
+- Créatif et enthousiaste
+- Transparent sur les coûts (crédits IA)
+- Confirme toujours avant d'utiliser un crédit
+- Présente les résultats de façon visuelle et inspirante
 
-Quand l'utilisateur décrit ce qu'il veut, tu dois :
-1. Confirmer que tu as bien compris
-2. Suggérer des améliorations
-3. Demander validation avant de générer
-4. Proposer des variations créatives`;
+Workflow typique :
+1. L'utilisateur demande un type de visuel → browse_templates
+2. Tu présentes 2-3 templates avec fit_score
+3. L'utilisateur choisit → tu proposes adaptation Brand Kit ou version IA
+4. Si adaptation simple → open_canva directement
+5. Si version IA → confirme le coût → generate_ai_version
+6. Toujours mentionner les crédits restants après génération IA
+
+Important :
+- Ne stocke JAMAIS de fichiers côté serveur
+- Les modifications sont temporaires jusqu'à ouverture Canva
+- Sois transparent sur ce qui nécessite un crédit IA`;
+
+    const tools = [
+      {
+        type: "function",
+        function: {
+          name: "browse_templates",
+          description: "Search for Canva templates based on criteria like category, keywords, or ratio",
+          parameters: {
+            type: "object",
+            properties: {
+              category: { type: "string", description: "Template category/niche (e.g., 'social_media', 'marketing')" },
+              keywords: { type: "string", description: "Keywords to search for in template titles/descriptions" },
+              ratio: { type: "string", description: "Aspect ratio (e.g., '1:1', '16:9', '9:16', '4:5')" },
+              limit: { type: "number", description: "Maximum number of results (default: 5)" }
+            }
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "show_brandkit",
+          description: "Show the user's current Brand Kit (colors, logo, fonts)",
+          parameters: { type: "object", properties: {} }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "open_canva",
+          description: "Open a Canva template for editing",
+          parameters: {
+            type: "object",
+            properties: {
+              template_url: { type: "string", description: "The Canva template URL to open" },
+              template_title: { type: "string", description: "The template title for confirmation" }
+            },
+            required: ["template_url"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "generate_ai_version",
+          description: "Generate an AI-styled version of a template using Nano-Banana (costs 1 credit)",
+          parameters: {
+            type: "object",
+            properties: {
+              template_image_url: { type: "string", description: "URL of the template image to transform" },
+              template_title: { type: "string", description: "Template title for reference" },
+              style_instructions: { type: "string", description: "Specific style adjustments to apply" }
+            },
+            required: ["template_image_url"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "check_credits",
+          description: "Check the user's remaining AI generation credits",
+          parameters: { type: "object", properties: {} }
+        }
+      }
+    ];
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -58,6 +132,7 @@ Quand l'utilisateur décrit ce qu'il veut, tu dois :
           { role: "system", content: systemPrompt },
           ...messages
         ],
+        tools: tools,
         stream: true,
       }),
     });
