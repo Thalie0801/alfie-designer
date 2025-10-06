@@ -7,8 +7,8 @@ import { toast } from 'sonner';
 const MONTHLY_QUOTAS = {
   none: 10,      // Plan gratuit: 10 requêtes/mois
   starter: 100,  // Plan Starter
-  studio: 300,   // Plan Studio
-  pro: 500,      // Plan Pro
+  pro: 250,      // Plan Pro
+  studio: 500,   // Plan Studio
 };
 
 interface CacheEntry {

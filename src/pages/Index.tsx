@@ -191,7 +191,7 @@ export default function AlfieLanding() {
             priceLabel={getPriceLabel()}
             isAnnual={isAnnual}
             highlight 
-            bullets={["3 marques","100 visuels/mois","500 crédits IA/mois","500 requêtes Alfie/mois","-20% sur packs de crédits","4 templates + Reels"]} 
+            bullets={["3 marques","100 visuels/mois","250 crédits IA/mois","250 requêtes Alfie/mois","-20% sur packs de crédits","4 templates + Reels"]} 
             cta="Choisir Pro"
             onSelect={() => createCheckout('pro')}
             loading={checkoutLoading}
@@ -202,7 +202,7 @@ export default function AlfieLanding() {
             price={calculatePrice(149)} 
             priceLabel={getPriceLabel()}
             isAnnual={isAnnual}
-            bullets={["Multi-marques (5 max)","1000 visuels/mois","1000 crédits IA/mois","1000 requêtes Alfie/mois","-20% sur packs de crédits","Reels avancés","Analytics"]} 
+            bullets={["Multi-marques (5 max)","1000 visuels/mois","500 crédits IA/mois","500 requêtes Alfie/mois","-20% sur packs de crédits","Reels avancés","Analytics"]} 
             cta="Passer Studio"
             onSelect={() => createCheckout('studio')}
             loading={checkoutLoading}
@@ -210,9 +210,9 @@ export default function AlfieLanding() {
           <PriceCard 
             title="Enterprise" 
             planKey="enterprise"
-            price={calculatePrice(299)} 
-            priceLabel={getPriceLabel()}
-            isAnnual={isAnnual}
+            price="299€"
+            priceLabel="/mois"
+            isAnnual={false}
             bullets={["Marques illimitées","Visuels illimités","Crédits IA sur mesure","Alfie illimité","API & SSO","White-label","Support dédié 24/7"]} 
             cta="Nous contacter"
             onSelect={() => createCheckout('enterprise')}
