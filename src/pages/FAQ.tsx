@@ -83,16 +83,6 @@ export default function FAQ() {
             </AccordionContent>
           </AccordionItem>
 
-          <AccordionItem value="item-6" className="border rounded-lg px-6">
-            <AccordionTrigger className="text-lg font-semibold">
-              Puis-je essayer Alfie gratuitement ?
-            </AccordionTrigger>
-            <AccordionContent className="text-muted-foreground">
-              Oui, nous proposons une période d'essai pour que vous puissiez tester Alfie Designer avant 
-              de vous engager. Contactez-nous pour en savoir plus sur les modalités.
-            </AccordionContent>
-          </AccordionItem>
-
           <AccordionItem value="item-7" className="border rounded-lg px-6">
             <AccordionTrigger className="text-lg font-semibold">
               Mes données sont-elles sécurisées ?
