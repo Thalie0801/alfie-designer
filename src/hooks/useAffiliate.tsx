@@ -17,11 +17,14 @@ export function useAffiliate() {
   const { toast } = useToast();
 
   useEffect(() => {
+    console.log('[Affiliate] useEffect running, URL:', window.location.href);
     // Check URL for ref parameter
     const urlParams = new URLSearchParams(window.location.search);
     const refParam = urlParams.get('ref');
+    console.log('[Affiliate] ref parameter:', refParam);
 
     if (refParam) {
+      console.log('[Affiliate] Found ref in URL:', refParam);
       // Store affiliate ref with timestamp
       const affiliateData: AffiliateData = {
         ref: refParam,
@@ -37,14 +40,18 @@ export function useAffiliate() {
       // Show welcome toast and load affiliate name
       loadAffiliateInfo(refParam);
       
-      // Clean URL
-      urlParams.delete('ref');
-      const newUrl = `${window.location.pathname}${urlParams.toString() ? '?' + urlParams.toString() : ''}`;
-      window.history.replaceState({}, '', newUrl);
+      // Clean URL after a small delay to ensure tracking happens
+      setTimeout(() => {
+        urlParams.delete('ref');
+        const newUrl = `${window.location.pathname}${urlParams.toString() ? '?' + urlParams.toString() : ''}`;
+        window.history.replaceState({}, '', newUrl);
+      }, 500);
     } else {
+      console.log('[Affiliate] No ref in URL, checking localStorage');
       // Check if we have a stored ref
       const stored = localStorage.getItem(AFFILIATE_STORAGE_KEY);
       if (stored) {
+        console.log('[Affiliate] Found stored ref:', stored);
         try {
           const data: AffiliateData = JSON.parse(stored);
           const daysSinceStored = (Date.now() - data.timestamp) / (1000 * 60 * 60 * 24);
@@ -54,13 +61,17 @@ export function useAffiliate() {
             // Load affiliate name from storage or fetch it
             loadAffiliateInfo(data.ref);
           } else {
+            console.log('[Affiliate] Stored ref expired');
             localStorage.removeItem(AFFILIATE_STORAGE_KEY);
             localStorage.removeItem(AFFILIATE_TOAST_SHOWN);
           }
         } catch (e) {
+          console.error('[Affiliate] Error parsing stored data:', e);
           localStorage.removeItem(AFFILIATE_STORAGE_KEY);
           localStorage.removeItem(AFFILIATE_TOAST_SHOWN);
         }
+      } else {
+        console.log('[Affiliate] No stored ref found');
       }
     }
   }, []);
