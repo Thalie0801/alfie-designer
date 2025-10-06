@@ -324,6 +324,71 @@ export type Database = {
         }
         Relationships: []
       }
+      credit_packs: {
+        Row: {
+          created_at: string | null
+          credits: number
+          discount_percentage: number | null
+          id: string
+          name: string
+          price_cents: number
+          stripe_price_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          credits: number
+          discount_percentage?: number | null
+          id?: string
+          name: string
+          price_cents: number
+          stripe_price_id: string
+        }
+        Update: {
+          created_at?: string | null
+          credits?: number
+          discount_percentage?: number | null
+          id?: string
+          name?: string
+          price_cents?: number
+          stripe_price_id?: string
+        }
+        Relationships: []
+      }
+      credit_transactions: {
+        Row: {
+          action: string | null
+          amount: number
+          created_at: string | null
+          id: string
+          transaction_type: string
+          user_id: string
+        }
+        Insert: {
+          action?: string | null
+          amount: number
+          created_at?: string | null
+          id?: string
+          transaction_type: string
+          user_id: string
+        }
+        Update: {
+          action?: string | null
+          amount?: number
+          created_at?: string | null
+          id?: string
+          transaction_type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_transactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jobs: {
         Row: {
           completed_at: string | null
@@ -404,8 +469,12 @@ export type Database = {
       }
       profiles: {
         Row: {
+          ai_credits_from_affiliation: number | null
+          ai_credits_monthly: number | null
+          ai_credits_purchased: number | null
           avatar_url: string | null
           created_at: string | null
+          credits_reset_date: string | null
           email: string
           full_name: string | null
           id: string
@@ -417,8 +486,12 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          ai_credits_from_affiliation?: number | null
+          ai_credits_monthly?: number | null
+          ai_credits_purchased?: number | null
           avatar_url?: string | null
           created_at?: string | null
+          credits_reset_date?: string | null
           email: string
           full_name?: string | null
           id: string
@@ -430,8 +503,12 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          ai_credits_from_affiliation?: number | null
+          ai_credits_monthly?: number | null
+          ai_credits_purchased?: number | null
           avatar_url?: string | null
           created_at?: string | null
+          credits_reset_date?: string | null
           email?: string
           full_name?: string | null
           id?: string

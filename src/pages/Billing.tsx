@@ -8,6 +8,7 @@ import { useStripeCheckout } from '@/hooks/useStripeCheckout';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useState } from 'react';
+import { CreditBalance } from '@/components/CreditBalance';
 
 const plans = [
   {
@@ -134,30 +135,34 @@ export default function Billing() {
 
       {/* Current Plan */}
       {hasActivePlan && (
-        <Card className="border-primary/30 shadow-medium gradient-subtle">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Badge className="bg-gradient-to-r from-primary to-secondary text-white px-4 py-1 text-base">
-                Plan actuel: {currentPlan}
-              </Badge>
-            </CardTitle>
-            <CardDescription>
-              Profitez de tous les avantages de votre abonnement
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="bg-card/50">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-                <span className="font-medium text-blue-700 dark:text-blue-300">📊 Visuels ce mois:</span>
-                <span className="text-blue-600 dark:text-blue-400 font-bold">0 / {profile?.quota_visuals_per_month || 0}</span>
+        <div className="grid md:grid-cols-2 gap-4">
+          <Card className="border-primary/30 shadow-medium gradient-subtle">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Badge className="bg-gradient-to-r from-primary to-secondary text-white px-4 py-1 text-base">
+                  Plan actuel: {currentPlan}
+                </Badge>
+              </CardTitle>
+              <CardDescription>
+                Profitez de tous les avantages de votre abonnement
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="bg-card/50">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                  <span className="font-medium text-blue-700 dark:text-blue-300">📊 Visuels ce mois:</span>
+                  <span className="text-blue-600 dark:text-blue-400 font-bold">0 / {profile?.quota_visuals_per_month || 0}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
+                  <span className="font-medium text-purple-700 dark:text-purple-300">🎨 Marques:</span>
+                  <span className="text-purple-600 dark:text-purple-400 font-bold">0 / {profile?.quota_brands || 0}</span>
+                </div>
               </div>
-              <div className="flex items-center justify-between p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
-                <span className="font-medium text-purple-700 dark:text-purple-300">🎨 Marques:</span>
-                <span className="text-purple-600 dark:text-purple-400 font-bold">0 / {profile?.quota_brands || 0}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          <CreditBalance />
+        </div>
       )}
 
       {/* Plans */}

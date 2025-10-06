@@ -44,3 +44,9 @@ verify_jwt = false
 
 [functions.auto-scrape-canva-templates]
 verify_jwt = false
+
+[functions.purchase-credit-pack]
+verify_jwt = false
+
+[functions.verify-credit-purchase]
+verify_jwt = false

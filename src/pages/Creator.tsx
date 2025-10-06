@@ -7,7 +7,7 @@ import { useAlfieCredits } from '@/hooks/useAlfieCredits';
 import { useBrandKit } from '@/hooks/useBrandKit';
 
 export default function App() {
-  const { credits } = useAlfieCredits();
+  const { totalCredits } = useAlfieCredits();
   const { brandKit } = useBrandKit();
 
   return (
@@ -39,7 +39,7 @@ export default function App() {
                     <Zap className="h-6 w-6 text-primary" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">{credits}</p>
+                    <p className="text-2xl font-bold">{totalCredits}</p>
                     <p className="text-xs text-muted-foreground">Crédits IA restants</p>
                   </div>
                 </div>

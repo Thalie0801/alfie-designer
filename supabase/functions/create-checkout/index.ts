@@ -15,10 +15,10 @@ const PRICE_IDS = {
 };
 
 const PLAN_CONFIG = {
-  starter: { quota_brands: 1, quota_visuals: 20 },
-  pro: { quota_brands: 3, quota_visuals: 100 },
-  studio: { quota_brands: 5, quota_visuals: 1000 },
-  enterprise: { quota_brands: 999, quota_visuals: 9999 },
+  starter: { quota_brands: 1, quota_visuals: 20, ai_credits_monthly: 0 },
+  pro: { quota_brands: 3, quota_visuals: 100, ai_credits_monthly: 50 },
+  studio: { quota_brands: 5, quota_visuals: 1000, ai_credits_monthly: 150 },
+  enterprise: { quota_brands: 999, quota_visuals: 9999, ai_credits_monthly: 0 },
 };
 
 serve(async (req) => {

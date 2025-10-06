@@ -24,7 +24,7 @@ import {
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { credits } = useAlfieCredits();
+  const { totalCredits } = useAlfieCredits();
   const [posts, setPosts] = useState<any[]>([]);
   const [brands, setBrands] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,7 +122,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-3 p-4 rounded-lg border-2 border-primary/20 bg-background/50">
               <Zap className="h-8 w-8 text-primary" />
               <div>
-                <p className="text-2xl font-bold">{credits}</p>
+                <p className="text-2xl font-bold">{totalCredits}</p>
                 <p className="text-sm text-muted-foreground">Crédits IA</p>
               </div>
             </div>

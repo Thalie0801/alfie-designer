@@ -12,6 +12,7 @@ import Auth from "./pages/Auth";
 import Creator from "./pages/Creator";
 import Dashboard from "./pages/Dashboard";
 import Billing from "./pages/Billing";
+import CreditPurchaseSuccess from "./pages/CreditPurchaseSuccess";
 import Admin from "./pages/Admin";
 import Affiliate from "./pages/Affiliate";
 import Profile from "./pages/Profile";
@@ -90,6 +91,16 @@ const App = () => (
                 <ProtectedRoute>
                   <AppLayoutWithSidebar>
                     <Billing />
+                  </AppLayoutWithSidebar>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/credit-purchase-success"
+              element={
+                <ProtectedRoute>
+                  <AppLayoutWithSidebar>
+                    <CreditPurchaseSuccess />
                   </AppLayoutWithSidebar>
                 </ProtectedRoute>
               }

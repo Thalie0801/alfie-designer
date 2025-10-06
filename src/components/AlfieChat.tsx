@@ -30,7 +30,7 @@ export function AlfieChat() {
   const scrollRef = useRef<HTMLDivElement>(null);
   
   const { brandKit } = useBrandKit();
-  const { credits, decrementCredit } = useAlfieCredits();
+  const { totalCredits, decrementCredits, hasCredits } = useAlfieCredits();
   const { searchTemplates } = useTemplateLibrary();
 
   useEffect(() => {
@@ -75,7 +75,9 @@ export function AlfieChat() {
       }
       
       case 'generate_ai_version': {
-        if (credits <= 0) {
+        const creditCost = 1; // Adaptation IA coûte 1 crédit
+        
+        if (!hasCredits(creditCost)) {
           return { error: "Crédits insuffisants", credits: 0 };
         }
         
@@ -90,11 +92,13 @@ export function AlfieChat() {
           
           if (error) throw error;
           
-          const newCredits = decrementCredit();
+          await decrementCredits(creditCost, 'ai_adaptation');
+          const remainingCredits = totalCredits - creditCost;
+          
           return {
             success: true,
             imageUrl: data.imageUrl,
-            creditsRemaining: newCredits
+            creditsRemaining: remainingCredits
           };
         } catch (error: any) {
           console.error('AI generation error:', error);
@@ -103,7 +107,7 @@ export function AlfieChat() {
       }
       
       case 'check_credits': {
-        return { credits };
+        return { credits: totalCredits };
       }
       
       default:
@@ -275,7 +279,7 @@ export function AlfieChat() {
         <div className="flex items-center gap-4 text-sm">
           <div className="flex items-center gap-2">
             <Zap className="h-4 w-4 text-primary" />
-            <span className="font-medium">{credits}</span>
+            <span className="font-medium">{totalCredits}</span>
             <span className="text-muted-foreground">crédits IA</span>
           </div>
           
