@@ -37,7 +37,7 @@ export default function Legal() {
             <h3 className="text-xl font-semibold mb-3 text-foreground">Propriété intellectuelle</h3>
             <p>
               L'ensemble des contenus, marques, visuels et textes du site alfie-designer.com sont la propriété 
-              exclusive de Kronys. Toute reproduction, distribution ou modification sans autorisation est interdite.
+              exclusive d'Alfie Designer. Toute reproduction, distribution ou modification sans autorisation est interdite.
             </p>
           </div>
         </section>
@@ -61,7 +61,7 @@ export default function Legal() {
               et à ne pas partager son accès.
             </p>
             <p>
-              Kronys se réserve le droit de suspendre un compte en cas d'usage abusif, non-conforme ou frauduleux.
+              Alfie Designer se réserve le droit de suspendre un compte en cas d'usage abusif, non-conforme ou frauduleux.
             </p>
           </div>
 
@@ -74,7 +74,7 @@ export default function Legal() {
               Le service inclut des intégrations externes (Canva, Supabase, OpenAI).
             </p>
             <p>
-              Kronys ne saurait être tenue responsable des dysfonctionnements imputables à ces services tiers.
+              Alfie Designer ne saurait être tenue responsable des dysfonctionnements imputables à ces services tiers.
             </p>
           </div>
 
@@ -84,7 +84,7 @@ export default function Legal() {
               L'utilisateur demeure seul responsable des contenus créés et diffusés via la plateforme.
             </p>
             <p>
-              Kronys ne garantit pas la disponibilité continue du service mais s'engage à corriger tout incident 
+              Alfie Designer ne garantit pas la disponibilité continue du service mais s'engage à corriger tout incident 
               dans les meilleurs délais.
             </p>
           </div>
@@ -96,7 +96,7 @@ export default function Legal() {
               des droits des tiers.
             </p>
             <p>
-              Les modèles, gabarits et codes source demeurent la propriété de Kronys.
+              Les modèles, gabarits et codes source demeurent la propriété d'Alfie Designer.
             </p>
           </div>
 
@@ -106,7 +106,7 @@ export default function Legal() {
               L'utilisateur peut résilier son compte à tout moment.
             </p>
             <p>
-              Kronys peut suspendre ou clôturer un compte en cas de non-respect des présentes CGU.
+              Alfie Designer peut suspendre ou clôturer un compte en cas de non-respect des présentes CGU.
             </p>
           </div>
 
