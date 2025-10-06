@@ -58,10 +58,38 @@ serve(async (req) => {
     }
 
     if (!imageUrl) {
-      return new Response(
-        JSON.stringify({ error: 'Could not extract design preview' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
+      if (FIRECRAWL_API_KEY) {
+        try {
+          const fr = await fetch('https://api.firecrawl.dev/v1/scrape', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${FIRECRAWL_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ url, formats: ['html'] }),
+          });
+          const frJson = await fr.json();
+          const frHtml = frJson?.data?.html || frJson?.html || '';
+          if (frHtml) {
+            const frOgImg = frHtml.match(/<meta property=\"og:image(?::secure_url)?\" content=\"([^\"]+)\"/i);
+            const frTwImg = frHtml.match(/<meta name=\"twitter:image\" content=\"([^\"]+)\"/i);
+            imageUrl = (frOgImg?.[1] || frTwImg?.[1] || '').trim();
+            if (imageUrl.startsWith('//')) {
+              imageUrl = 'https:' + imageUrl;
+            }
+          }
+        } catch (e) {
+          console.error('Firecrawl fallback error:', e);
+        }
+      }
+
+      if (!imageUrl) {
+        return new Response(
+          JSON.stringify({ error: 'Could not extract design preview' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     // Save to database
