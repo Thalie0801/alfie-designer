@@ -36,3 +36,6 @@ verify_jwt = false
 [functions.sync-connect-account-status]
 verify_jwt = false
 
+[functions.scrape-canva]
+verify_jwt = false
+

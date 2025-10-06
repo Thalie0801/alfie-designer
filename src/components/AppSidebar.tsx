@@ -7,7 +7,8 @@ import {
   TrendingUp,
   Settings,
   LogOut,
-  UserCircle
+  UserCircle,
+  Layers
 } from 'lucide-react';
 import {
   Sidebar,
@@ -34,6 +35,7 @@ export function AppSidebar() {
 
   const navItems = [
     { path: '/app', label: 'Créer', icon: Sparkles },
+    { path: '/templates', label: 'Catalogue', icon: Layers },
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/profile', label: 'Profil', icon: UserCircle },
     { path: '/billing', label: 'Abonnement', icon: CreditCard },

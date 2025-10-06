@@ -17,6 +17,7 @@ import Affiliate from "./pages/Affiliate";
 import Profile from "./pages/Profile";
 import DevenirPartenaire from "./pages/DevenirPartenaire";
 import NotFound from "./pages/NotFound";
+import Templates from "./pages/Templates";
 import { AppLayoutWithSidebar } from "./components/AppLayoutWithSidebar";
 
 const queryClient = new QueryClient();
@@ -39,6 +40,16 @@ const App = () => (
                 <ProtectedRoute requirePlan>
                   <AppLayoutWithSidebar>
                     <Creator />
+                  </AppLayoutWithSidebar>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/templates"
+              element={
+                <ProtectedRoute requirePlan>
+                  <AppLayoutWithSidebar>
+                    <Templates />
                   </AppLayoutWithSidebar>
                 </ProtectedRoute>
               }
