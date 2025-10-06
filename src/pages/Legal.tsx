@@ -14,9 +14,12 @@ export default function Legal() {
           
           <div>
             <h3 className="text-xl font-semibold mb-3 text-foreground">Éditeur du site</h3>
-            <p>Kronys – (En cours)</p>
-            <p>Siège social : Rue roger Salengro 62000 Arras</p>
+            <p>Staelens Nathalie – Entrepreneure individuelle</p>
+            <p>Nom commercial : Alfie Designer</p>
+            <p>Adresse professionnelle : Rue roger Salengro 62000 Arras</p>
             <p>Email : contact@kronys.fr</p>
+            <p className="mt-2">Numéro SIREN / SIRET : En cours</p>
+            <p>TVA intracommunautaire : En cours</p>
           </div>
 
           <div>
