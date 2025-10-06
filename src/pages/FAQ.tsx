@@ -67,12 +67,19 @@ export default function FAQ() {
               Combien coûte Alfie Designer ?
             </AccordionTrigger>
             <AccordionContent className="text-muted-foreground">
-              Nous proposons deux formules :
+              Nous proposons plusieurs formules adaptées à vos besoins :
               <ul className="list-disc pl-6 mt-2 space-y-2">
-                <li><strong>Découverte</strong> : 29€/mois (20 visuels/mois)</li>
-                <li><strong>Illimité</strong> : 79€/mois (visuels illimités + fonctionnalités avancées)</li>
+                <li><strong>Starter</strong> : 29€/mois (20 visuels/mois)</li>
+                <li><strong>Pro</strong> : 79€/mois (100 visuels/mois + fonctionnalités avancées)</li>
+                <li><strong>Studio</strong> : 149€/mois (1000 visuels/mois + analytics)</li>
+                <li><strong>Enterprise</strong> : Sur mesure (visuels illimités + support dédié)</li>
               </ul>
-              <p className="mt-2">Une réduction de 20% est appliquée sur l'abonnement annuel.</p>
+              <p className="mt-3">Une réduction de 20% est appliquée sur tous les abonnements annuels.</p>
+              <p className="mt-3">
+                <a href="/#pricing" className="text-primary hover:underline font-medium">
+                  Voir tous les détails des forfaits →
+                </a>
+              </p>
             </AccordionContent>
           </AccordionItem>
 
