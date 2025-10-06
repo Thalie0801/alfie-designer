@@ -12,6 +12,7 @@ import Auth from "./pages/Auth";
 import Creator from "./pages/Creator";
 import Dashboard from "./pages/Dashboard";
 import Billing from "./pages/Billing";
+import Contact from "./pages/Contact";
 import CreditPurchaseSuccess from "./pages/CreditPurchaseSuccess";
 import Admin from "./pages/Admin";
 import Affiliate from "./pages/Affiliate";
@@ -34,6 +35,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/contact" element={<Contact />} />
             <Route path="/devenir-partenaire" element={<DevenirPartenaire />} />
             <Route
               path="/app"

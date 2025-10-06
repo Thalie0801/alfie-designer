@@ -100,7 +100,7 @@ export default function Billing() {
 
   const handleSelectPlan = async (plan: typeof plans[0]) => {
     if (plan.isEnterprise) {
-      window.open('https://tally.so/r/wMZPJL', '_blank');
+      window.location.href = '/contact';
       return;
     }
 
