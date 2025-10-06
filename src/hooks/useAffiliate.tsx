@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 const AFFILIATE_STORAGE_KEY = 'alfie_ref';
-const AFFILIATE_EXPIRY_DAYS = 30;
+const AFFILIATE_EXPIRY_DAYS = 365;
 const AFFILIATE_TOAST_SHOWN = 'alfie_ref_toast_shown';
 
 interface AffiliateData {

@@ -238,7 +238,15 @@ export default function Affiliate() {
             Configuration des paiements (Stripe Connect)
           </CardTitle>
           <CardDescription>
-            Configurez votre compte pour recevoir vos commissions automatiquement
+            Configurez votre compte pour recevoir vos commissions automatiquement via{' '}
+            <a 
+              href="https://stripe.com/connect" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              Stripe Connect
+            </a>
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
