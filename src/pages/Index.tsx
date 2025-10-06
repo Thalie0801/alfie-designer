@@ -210,13 +210,13 @@ export default function AlfieLanding() {
           <PriceCard 
             title="Enterprise" 
             planKey="enterprise"
-            price="299€"
-            priceLabel="/mois"
+            price="Sur mesure"
+            priceLabel=""
             isAnnual={false}
             bullets={["Marques illimitées","Visuels illimités","Crédits IA sur mesure","Alfie illimité","API & SSO","White-label","Support dédié 24/7"]} 
             cta="Nous contacter"
-            onSelect={() => createCheckout('enterprise')}
-            loading={checkoutLoading}
+            onSelect={() => window.location.href = '/contact'}
+            loading={false}
           />
         </div>
       </section>

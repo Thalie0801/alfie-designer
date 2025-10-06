@@ -71,7 +71,7 @@ const plans = [
   {
     name: 'Enterprise',
     key: 'enterprise',
-    price: '299€',
+    price: null,
     quota_brands: 999,
     quota_visuals: 9999,
     ai_credits: 'custom',
