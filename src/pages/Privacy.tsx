@@ -62,7 +62,7 @@ export default function Privacy() {
             <h2 className="text-2xl font-semibold mb-3 text-foreground">Destinataires</h2>
             <p className="mb-3">Les données sont traitées exclusivement par :</p>
             <ul className="list-disc pl-6 space-y-2">
-              <li>L'équipe Kronys (France).</li>
+              <li>L'Equipe Alfie Designer.</li>
               <li>
                 Nos sous-traitants techniques conformes RGPD : Supabase (hébergement UE), Lovable (infrastructure web), 
                 OpenAI - GEMINI, Mistral, Anthropic (génération de contenu).
