@@ -110,9 +110,11 @@ export default function Templates() {
       ) : designs.length === 0 ? (
         <Card className="p-12 text-center">
           <Sparkles className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold mb-2">Aucun design pour le moment</h3>
+          <h3 className="text-lg font-semibold mb-2">Aucun design dans cette catégorie</h3>
           <p className="text-muted-foreground">
-            Ajoute ta première URL Canva pour commencer le catalogue
+            {categoryFilter === 'all' 
+              ? 'Le catalogue se remplit automatiquement. Revenez bientôt !' 
+              : 'Essayez une autre niche ou sélectionnez "Toutes les niches"'}
           </p>
         </Card>
       ) : (
@@ -120,36 +122,38 @@ export default function Templates() {
           {designs.map((design) => (
             <Card
               key={design.id}
-              className="group overflow-hidden hover:shadow-lg transition-all duration-300 border-2 border-primary/10 hover:border-primary/30"
+              className="group overflow-hidden hover:shadow-xl transition-all duration-300 border-2 border-primary/10 hover:border-primary/30 cursor-pointer"
+              onClick={() => window.open(design.canva_url, '_blank')}
             >
               <div className="relative aspect-[4/3] overflow-hidden bg-muted">
                 <img
                   src={design.image_url}
                   alt={design.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                 />
                 {design.category && (
-                  <div className="absolute top-2 right-2 bg-background/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium">
+                  <div className="absolute top-3 right-3 bg-background/95 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-medium border border-primary/20 shadow-md">
                     {design.category}
                   </div>
                 )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                  <div className="absolute bottom-4 left-4 right-4 text-white">
+                    <div className="flex items-center gap-2">
+                      <ExternalLink className="h-5 w-5" />
+                      <span className="font-semibold">Ouvrir dans Canva</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <CardContent className="p-4">
-                <h3 className="font-semibold mb-2 line-clamp-2">{design.title}</h3>
+              <CardContent className="p-5">
+                <h3 className="font-semibold mb-2 line-clamp-2 group-hover:text-primary transition-colors">
+                  {design.title}
+                </h3>
                 {design.description && (
-                  <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
+                  <p className="text-sm text-muted-foreground line-clamp-2">
                     {design.description}
                   </p>
                 )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => window.open(design.canva_url, '_blank')}
-                >
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Ouvrir dans Canva
-                </Button>
               </CardContent>
             </Card>
           ))}
