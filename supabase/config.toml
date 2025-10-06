@@ -53,3 +53,6 @@ verify_jwt = false
 
 [functions.track-affiliate-click]
 verify_jwt = false
+
+[functions.get-affiliate-public]
+verify_jwt = false

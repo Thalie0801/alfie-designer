@@ -67,19 +67,17 @@ export function useAffiliate() {
 
   const loadAffiliateInfo = async (ref: string) => {
     try {
-      // Fetch affiliate info from database
-      const { data: affiliate, error } = await supabase
-        .from('affiliates')
-        .select('name, email')
-        .eq('id', ref)
-        .single();
+      console.log('[Affiliate] Loading affiliate info for', ref);
+      const { data, error } = await supabase.functions.invoke('get-affiliate-public', {
+        body: { ref },
+      });
 
-      if (error || !affiliate) {
-        console.error('Failed to fetch affiliate info:', error);
+      if (error || !data) {
+        console.error('Failed to get affiliate info:', error);
         return;
       }
 
-      const name = affiliate.name || affiliate.email.split('@')[0];
+      const name = (data as any).name as string;
       setAffiliateName(name);
 
       // Show toast only once per ref
