@@ -6,8 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, FileText, DollarSign, Activity, ArrowLeft, Sparkles, Plus, ExternalLink, Trash2 } from 'lucide-react';
+import { Users, FileText, DollarSign, Activity, ArrowLeft, Sparkles, Plus, ExternalLink, Trash2, Edit2, Search, RefreshCw, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Admin() {
@@ -21,6 +23,11 @@ export default function Admin() {
   const [scraping, setScraping] = useState(false);
   const [newUrl, setNewUrl] = useState('');
   const [category, setCategory] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [editingUser, setEditingUser] = useState<any>(null);
+  const [editingDesign, setEditingDesign] = useState<any>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [designDialogOpen, setDesignDialogOpen] = useState(false);
 
   useEffect(() => {
     loadAdminData();
@@ -96,6 +103,67 @@ export default function Admin() {
     }
   };
 
+  const handleUpdateUser = async () => {
+    if (!editingUser) return;
+    
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          plan: editingUser.plan,
+          quota_brands: editingUser.quota_brands,
+          quota_visuals_per_month: editingUser.quota_visuals_per_month,
+        })
+        .eq('id', editingUser.id);
+
+      if (error) throw error;
+      
+      toast.success('Utilisateur mis à jour');
+      setDialogOpen(false);
+      setEditingUser(null);
+      loadAdminData();
+    } catch (error) {
+      console.error('Update error:', error);
+      toast.error('Erreur lors de la mise à jour');
+    }
+  };
+
+  const handleUpdateDesign = async () => {
+    if (!editingDesign) return;
+    
+    try {
+      const { error } = await supabase
+        .from('canva_designs')
+        .update({
+          title: editingDesign.title,
+          category: editingDesign.category,
+          description: editingDesign.description,
+        })
+        .eq('id', editingDesign.id);
+
+      if (error) throw error;
+      
+      toast.success('Design mis à jour');
+      setDesignDialogOpen(false);
+      setEditingDesign(null);
+      loadAdminData();
+    } catch (error) {
+      console.error('Update error:', error);
+      toast.error('Erreur lors de la mise à jour');
+    }
+  };
+
+  const filteredUsers = users.filter(user => 
+    user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const totalRevenue = conversions
+    .filter(c => c.status === 'paid')
+    .reduce((sum, c) => sum + parseFloat(c.amount || 0), 0);
+
+  const activeSubscriptions = users.filter(u => u.plan && u.plan !== 'none').length;
+
   const getPlanBadgeColor = (plan: string) => {
     switch (plan) {
       case 'starter': return 'bg-orange-500';
@@ -132,45 +200,57 @@ export default function Admin() {
 
       {/* Stats Cards */}
       <div className="grid md:grid-cols-4 gap-4">
-        <Card>
+        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200 dark:border-blue-800">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Utilisateurs</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Utilisateurs</CardTitle>
+            <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{users.length}</div>
+            <div className="text-3xl font-bold text-blue-700 dark:text-blue-300">{users.length}</div>
+            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+              {activeSubscriptions} avec abonnement
+            </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200 dark:border-green-800">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Affiliés</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Revenu Total</CardTitle>
+            <TrendingUp className="h-5 w-5 text-green-600 dark:text-green-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{affiliates.length}</div>
+            <div className="text-3xl font-bold text-green-700 dark:text-green-300">{totalRevenue.toFixed(0)}€</div>
+            <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+              {conversions.filter(c => c.status === 'paid').length} conversions payées
+            </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 border-purple-200 dark:border-purple-800">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Conversions</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Designs Canva</CardTitle>
+            <Sparkles className="h-5 w-5 text-purple-600 dark:text-purple-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{conversions.length}</div>
+            <div className="text-3xl font-bold text-purple-700 dark:text-purple-300">{designs.length}</div>
+            <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
+              Catalogue complet
+            </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200 dark:border-orange-800">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Payouts en attente</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Affiliés Actifs</CardTitle>
+            <Activity className="h-5 w-5 text-orange-600 dark:text-orange-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {payouts.filter(p => p.status === 'pending').length}
+            <div className="text-3xl font-bold text-orange-700 dark:text-orange-300">
+              {affiliates.filter(a => a.status === 'active').length}
             </div>
+            <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+              sur {affiliates.length} total
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -189,31 +269,69 @@ export default function Admin() {
         <TabsContent value="users" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Utilisateurs</CardTitle>
-              <CardDescription>Tous les utilisateurs de la plateforme</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Utilisateurs ({filteredUsers.length})</CardTitle>
+                  <CardDescription>Gérez les utilisateurs et leurs abonnements</CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Rechercher..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-9 w-[250px]"
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={loadAdminData}
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {loading ? (
                 <p className="text-center text-muted-foreground py-4">Chargement...</p>
+              ) : filteredUsers.length === 0 ? (
+                <p className="text-center text-muted-foreground py-4">Aucun utilisateur trouvé</p>
               ) : (
                 <div className="space-y-2">
-                  {users.map((user) => (
+                  {filteredUsers.map((user) => (
                     <div
                       key={user.id}
-                      className="flex items-center justify-between p-4 rounded-lg border hover:shadow-sm transition"
+                      className="flex items-center justify-between p-4 rounded-lg border hover:shadow-sm transition group"
                     >
-                      <div>
-                        <p className="font-medium">{user.full_name || user.email}</p>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{user.full_name || 'Sans nom'}</p>
+                          <Badge className={getPlanBadgeColor(user.plan)} variant="secondary">
+                            {user.plan || 'none'}
+                          </Badge>
+                        </div>
                         <p className="text-sm text-muted-foreground">{user.email}</p>
+                        <div className="flex gap-4 mt-1 text-xs text-muted-foreground">
+                          <span>📊 {user.quota_visuals_per_month || 0} visuels/mois</span>
+                          <span>🎨 {user.quota_brands || 0} marques</span>
+                          <span>📅 {new Date(user.created_at).toLocaleDateString()}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge className={getPlanBadgeColor(user.plan)}>
-                          {user.plan}
-                        </Badge>
-                        <span className="text-sm text-muted-foreground">
-                          {new Date(user.created_at).toLocaleDateString()}
-                        </span>
-                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="opacity-0 group-hover:opacity-100 transition"
+                        onClick={() => {
+                          setEditingUser(user);
+                          setDialogOpen(true);
+                        }}
+                      >
+                        <Edit2 className="h-3 w-3 mr-1" />
+                        Modifier
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -442,11 +560,20 @@ export default function Admin() {
                           <Button
                             variant="outline"
                             size="sm"
-                            className="flex-1"
                             onClick={() => window.open(design.canva_url, '_blank')}
                           >
                             <ExternalLink className="h-3 w-3 mr-1" />
                             Voir
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setEditingDesign(design);
+                              setDesignDialogOpen(true);
+                            }}
+                          >
+                            <Edit2 className="h-3 w-3" />
                           </Button>
                           <Button
                             variant="destructive"
@@ -465,6 +592,130 @@ export default function Admin() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* User Edit Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Modifier l'utilisateur</DialogTitle>
+            <DialogDescription>
+              Modifiez les paramètres d'abonnement de {editingUser?.email}
+            </DialogDescription>
+          </DialogHeader>
+          {editingUser && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="plan">Plan</Label>
+                <Select
+                  value={editingUser.plan || 'none'}
+                  onValueChange={(value) => setEditingUser({ ...editingUser, plan: value })}
+                >
+                  <SelectTrigger id="plan">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Aucun</SelectItem>
+                    <SelectItem value="starter">Starter</SelectItem>
+                    <SelectItem value="pro">Pro</SelectItem>
+                    <SelectItem value="studio">Studio</SelectItem>
+                    <SelectItem value="enterprise">Enterprise</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="brands">Quota Marques</Label>
+                <Input
+                  id="brands"
+                  type="number"
+                  value={editingUser.quota_brands || 0}
+                  onChange={(e) => setEditingUser({ ...editingUser, quota_brands: parseInt(e.target.value) })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="visuals">Quota Visuels/mois</Label>
+                <Input
+                  id="visuals"
+                  type="number"
+                  value={editingUser.quota_visuals_per_month || 0}
+                  onChange={(e) => setEditingUser({ ...editingUser, quota_visuals_per_month: parseInt(e.target.value) })}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              Annuler
+            </Button>
+            <Button onClick={handleUpdateUser}>
+              Enregistrer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Design Edit Dialog */}
+      <Dialog open={designDialogOpen} onOpenChange={setDesignDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Modifier le design</DialogTitle>
+            <DialogDescription>
+              Modifiez les informations du design Canva
+            </DialogDescription>
+          </DialogHeader>
+          {editingDesign && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="title">Titre</Label>
+                <Input
+                  id="title"
+                  value={editingDesign.title}
+                  onChange={(e) => setEditingDesign({ ...editingDesign, title: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="category">Niche / Catégorie</Label>
+                <Select
+                  value={editingDesign.category || ''}
+                  onValueChange={(value) => setEditingDesign({ ...editingDesign, category: value })}
+                >
+                  <SelectTrigger id="category">
+                    <SelectValue placeholder="Sélectionner une niche" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="e-commerce">E-commerce</SelectItem>
+                    <SelectItem value="coaching">Coaching</SelectItem>
+                    <SelectItem value="immobilier">Immobilier</SelectItem>
+                    <SelectItem value="restauration">Restauration</SelectItem>
+                    <SelectItem value="mode">Mode & Beauté</SelectItem>
+                    <SelectItem value="tech">Tech & SaaS</SelectItem>
+                    <SelectItem value="sport">Sport & Fitness</SelectItem>
+                    <SelectItem value="sante">Santé & Bien-être</SelectItem>
+                    <SelectItem value="education">Éducation</SelectItem>
+                    <SelectItem value="general">Général</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="description">Description</Label>
+                <Input
+                  id="description"
+                  value={editingDesign.description || ''}
+                  onChange={(e) => setEditingDesign({ ...editingDesign, description: e.target.value })}
+                  placeholder="Optionnel"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDesignDialogOpen(false)}>
+              Annuler
+            </Button>
+            <Button onClick={handleUpdateDesign}>
+              Enregistrer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
