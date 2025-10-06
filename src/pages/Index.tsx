@@ -159,10 +159,10 @@ export default function AlfieLanding() {
       <section className="max-w-6xl mx-auto px-4 py-8">
         <h2 className="text-2xl font-bold mb-6">Créer des visuels en 1 clic</h2>
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
-          <TemplateCard title="Hero" subtitle="Annonce, Cover, Citation" ratios="1:1 • 16:9" onCreate={createHero} />
-          <TemplateCard title="Carousel" subtitle="Tips, Storytelling" ratios="4:5" onCreate={createCarousel} />
-          <TemplateCard title="Insight" subtitle="Stat, Preuve, Donnée" ratios="1:1 • 4:5" onCreate={createInsight} />
-          <TemplateCard title="Reel" subtitle="Vidéo 8–20 s" ratios="9:16" onCreate={createReel} />
+          <TemplateCard title="Hero" subtitle="Annonce, Cover, Citation" ratios="1:1 • 16:9" image="/images/hero-preview.jpg" />
+          <TemplateCard title="Carousel" subtitle="Tips, Storytelling" ratios="4:5" image="/images/carousel-preview.jpg" />
+          <TemplateCard title="Insight" subtitle="Stat, Preuve, Donnée" ratios="1:1 • 4:5" image="/images/insight-preview.jpg" />
+          <TemplateCard title="Reel" subtitle="Vidéo 8–20 s" ratios="9:16" image="/images/reel-preview.jpg" />
         </div>
       </section>
 
@@ -412,7 +412,7 @@ function MiniCard({ icon, title, subtitle, onClick, image }: { icon: React.React
   );
 }
 
-function TemplateCard({ title, subtitle, ratios, onCreate }: { title: string; subtitle: string; ratios: string; onCreate?: ()=>void }) {
+function TemplateCard({ title, subtitle, ratios, image }: { title: string; subtitle: string; ratios: string; image?: string }) {
   return (
     <Card className="rounded-3xl">
       <CardHeader>
@@ -423,8 +423,14 @@ function TemplateCard({ title, subtitle, ratios, onCreate }: { title: string; su
         <CardDescription>{subtitle}</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="aspect-[4/3] rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 grid place-items-center text-slate-500">
-          Aperçu {title}
+        <div className="aspect-[4/3] rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 overflow-hidden">
+          {image ? (
+            <img src={image} alt={`Aperçu ${title}`} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full grid place-items-center text-slate-500">
+              Aperçu {title}
+            </div>
+          )}
         </div>
         <ul className="mt-4 space-y-2 text-sm text-slate-600">
           <li className="flex items-center gap-2"><Check className="h-4 w-4"/> Brand Kit appliqué</li>
@@ -432,9 +438,6 @@ function TemplateCard({ title, subtitle, ratios, onCreate }: { title: string; su
           <li className="flex items-center gap-2"><Check className="h-4 w-4"/> Planif dans Canva (client maître)</li>
         </ul>
       </CardContent>
-      <CardFooter>
-        <Button className="w-full" onClick={onCreate}>Créer {title}</Button>
-      </CardFooter>
     </Card>
   );
 }
