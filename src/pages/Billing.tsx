@@ -17,7 +17,16 @@ const plans = [
     price: '29€',
     quota_brands: 1,
     quota_visuals: 20,
-    features: ['1 marque', '20 visuels/mois', '2 templates', 'Support email'],
+    ai_credits: 100,
+    alfie_requests: 100,
+    features: [
+      '1 marque',
+      '20 visuels/mois',
+      '100 crédits IA/mois',
+      '100 requêtes Alfie/mois',
+      '2 templates',
+      'Support email'
+    ],
     popular: false
   },
   {
@@ -26,7 +35,17 @@ const plans = [
     price: '79€',
     quota_brands: 3,
     quota_visuals: 100,
-    features: ['3 marques', '100 visuels/mois', '4 templates + Reels', 'Support prioritaire'],
+    ai_credits: 500,
+    alfie_requests: 500,
+    features: [
+      '3 marques',
+      '100 visuels/mois',
+      '500 crédits IA/mois',
+      '500 requêtes Alfie/mois',
+      '-20% sur packs de crédits',
+      '4 templates + Reels',
+      'Support prioritaire'
+    ],
     popular: true
   },
   {
@@ -35,17 +54,40 @@ const plans = [
     price: '149€',
     quota_brands: 5,
     quota_visuals: 1000,
-    features: ['Multi-marques', '1000 visuels/mois', 'Reels avancés', 'Analytics'],
+    ai_credits: 300,
+    alfie_requests: 300,
+    features: [
+      'Multi-marques (5 max)',
+      '1000 visuels/mois',
+      '300 crédits IA/mois',
+      '300 requêtes Alfie/mois',
+      '-20% sur packs de crédits',
+      'Reels avancés',
+      'Analytics',
+      'Support prioritaire'
+    ],
     popular: false
   },
   {
     name: 'Enterprise',
     key: 'enterprise',
-    price: '299€',
+    price: null,
     quota_brands: 999,
     quota_visuals: 9999,
-    features: ['Tout illimité', 'API & SSO', 'White-label', 'Support dédié'],
-    popular: false
+    ai_credits: 'custom',
+    alfie_requests: 'custom',
+    features: [
+      'Marques illimitées',
+      'Visuels illimités',
+      'Crédits IA sur mesure',
+      'Alfie illimité',
+      'API & SSO',
+      'White-label',
+      'Support dédié 24/7',
+      'Formation personnalisée'
+    ],
+    popular: false,
+    isEnterprise: true
   }
 ];
 
@@ -57,6 +99,11 @@ export default function Billing() {
   const hasActivePlan = currentPlan && currentPlan !== 'none';
 
   const handleSelectPlan = async (plan: typeof plans[0]) => {
+    if (plan.isEnterprise) {
+      window.open('https://tally.so/r/wMZPJL', '_blank');
+      return;
+    }
+
     if (!user) {
       toast.error('Vous devez être connecté pour souscrire à un abonnement');
       return;
@@ -190,8 +237,14 @@ export default function Billing() {
                   {plan.popular && <Badge className="bg-gradient-to-r from-primary to-secondary text-white">⭐ Populaire</Badge>}
                 </div>
               <CardDescription>
-                <span className="text-3xl font-extrabold text-slate-900 dark:text-slate-100">{plan.price}</span>
-                <span className="text-muted-foreground"> / mois</span>
+                {plan.price ? (
+                  <>
+                    <span className="text-3xl font-extrabold text-slate-900 dark:text-slate-100">{plan.price}</span>
+                    <span className="text-muted-foreground"> / mois</span>
+                  </>
+                ) : (
+                  <span className="text-2xl font-bold text-primary">Nous contacter</span>
+                )}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -211,7 +264,13 @@ export default function Billing() {
                 disabled={isCurrentPlan || loading}
                 onClick={() => handleSelectPlan(plan)}
               >
-                {isCurrentPlan ? '✓ Plan actuel' : loading ? 'Chargement...' : `Choisir ${plan.name}`}
+                {plan.isEnterprise 
+                  ? '📧 Nous contacter' 
+                  : isCurrentPlan 
+                  ? '✓ Plan actuel' 
+                  : loading 
+                  ? 'Chargement...' 
+                  : `Choisir ${plan.name}`}
               </Button>
             </CardFooter>
           </Card>
