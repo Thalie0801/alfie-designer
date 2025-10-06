@@ -13,6 +13,7 @@ interface AffiliateData {
 
 export function useAffiliate() {
   const [affiliateRef, setAffiliateRef] = useState<string | null>(null);
+  const [affiliateName, setAffiliateName] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -33,8 +34,8 @@ export function useAffiliate() {
       // Track click (will be implemented via edge function)
       trackAffiliateClick(refParam);
       
-      // Show welcome toast with affiliate name
-      showAffiliateWelcome(refParam);
+      // Show welcome toast and load affiliate name
+      loadAffiliateInfo(refParam);
       
       // Clean URL
       urlParams.delete('ref');
@@ -50,6 +51,8 @@ export function useAffiliate() {
           
           if (daysSinceStored < AFFILIATE_EXPIRY_DAYS) {
             setAffiliateRef(data.ref);
+            // Load affiliate name from storage or fetch it
+            loadAffiliateInfo(data.ref);
           } else {
             localStorage.removeItem(AFFILIATE_STORAGE_KEY);
             localStorage.removeItem(AFFILIATE_TOAST_SHOWN);
@@ -62,11 +65,7 @@ export function useAffiliate() {
     }
   }, []);
 
-  const showAffiliateWelcome = async (ref: string) => {
-    // Check if toast was already shown for this ref
-    const toastShown = localStorage.getItem(AFFILIATE_TOAST_SHOWN);
-    if (toastShown === ref) return;
-
+  const loadAffiliateInfo = async (ref: string) => {
     try {
       // Fetch affiliate info from database
       const { data: affiliate, error } = await supabase
@@ -80,18 +79,21 @@ export function useAffiliate() {
         return;
       }
 
-      const affiliateName = affiliate.name || affiliate.email.split('@')[0];
+      const name = affiliate.name || affiliate.email.split('@')[0];
+      setAffiliateName(name);
 
-      toast({
-        title: `🎉 ${affiliateName} vous invite !`,
-        description: "Profitez d'Alfie Designer recommandé par quelqu'un de confiance.",
-        duration: 8000,
-      });
-
-      // Mark toast as shown
-      localStorage.setItem(AFFILIATE_TOAST_SHOWN, ref);
+      // Show toast only once per ref
+      const toastShown = localStorage.getItem(AFFILIATE_TOAST_SHOWN);
+      if (toastShown !== ref) {
+        toast({
+          title: `🎉 ${name} vous invite !`,
+          description: "Profitez d'Alfie Designer recommandé par quelqu'un de confiance.",
+          duration: 10000,
+        });
+        localStorage.setItem(AFFILIATE_TOAST_SHOWN, ref);
+      }
     } catch (error) {
-      console.error('Error showing affiliate welcome:', error);
+      console.error('Error loading affiliate info:', error);
     }
   };
 
@@ -131,6 +133,7 @@ export function useAffiliate() {
 
   return {
     affiliateRef,
+    affiliateName,
     getAffiliateRef
   };
 }
