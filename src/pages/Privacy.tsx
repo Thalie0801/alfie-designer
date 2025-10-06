@@ -20,7 +20,7 @@ export default function Privacy() {
 
           <div>
             <h2 className="text-2xl font-semibold mb-3 text-foreground">Responsable du traitement</h2>
-            <p>Kronys – représentée par Nathalie Staelens</p>
+            <p>Staelens Nathalie EI</p>
             <p>Adresse : Rue roger Salengro 62000 Arras</p>
             <p>Email contact : contact@kronys.fr</p>
           </div>
