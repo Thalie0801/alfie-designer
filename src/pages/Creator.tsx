@@ -2,7 +2,6 @@ import { AppLayoutWithSidebar } from '@/components/AppLayoutWithSidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlfieChat } from '@/components/AlfieChat';
 import { BrandManager } from '@/components/BrandManager';
-import { ContentGenerator } from '@/components/ContentGenerator';
 import { Sparkles, Zap, Palette } from 'lucide-react';
 import { useAlfieCredits } from '@/hooks/useAlfieCredits';
 import { useBrandKit } from '@/hooks/useBrandKit';
@@ -61,9 +60,6 @@ export default function App() {
               </CardContent>
             </Card>
           </div>
-          
-          {/* Générateur de contenu */}
-          <ContentGenerator />
           
           {/* Chat Interface */}
           <Card className="shadow-strong border-2 border-primary/20">

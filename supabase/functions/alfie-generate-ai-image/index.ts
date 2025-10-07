@@ -27,14 +27,14 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Construire le prompt pour Nano Banana
+    // Construire le prompt pour la génération
     let fullPrompt = prompt || "Adapt this design maintaining the layout and structure";
     
     if (brandKit?.palette && brandKit.palette.length > 0) {
       fullPrompt += `. Use these brand colors: ${brandKit.palette.join(', ')}`;
     }
 
-    // Appel à l'API Lovable AI avec google/gemini-2.5-flash-image-preview (Nano Banana)
+    // Appel à l'API Lovable AI avec google/gemini-2.5-flash-image-preview
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {

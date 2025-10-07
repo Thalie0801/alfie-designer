@@ -94,7 +94,7 @@ export function ContentGenerator() {
           Générateur de Contenu IA
         </CardTitle>
         <CardDescription>
-          Crée des visuels et vidéos pour tes réseaux sociaux avec Nano Banana
+          Crée des visuels et vidéos pour tes réseaux sociaux avec l'IA
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-6 space-y-4">

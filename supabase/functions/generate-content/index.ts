@@ -33,7 +33,7 @@ serve(async (req) => {
     console.log(`🎨 Generating ${type} with prompt:`, prompt);
 
     if (type === 'image') {
-      // Génération d'image avec Nano Banana
+      // Génération d'image avec l'IA
       let fullPrompt = prompt;
       
       if (brandKit?.palette && brandKit.palette.length > 0) {
