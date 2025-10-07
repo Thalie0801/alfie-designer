@@ -10,20 +10,20 @@ const corsHeaders = {
 const PLAN_CONFIG = {
   starter: { 
     quota_brands: 1, 
-    quota_visuals: 20, 
-    ai_credits_monthly: 100,
+    quota_visuals: 125, 
+    ai_credits_monthly: 150,
     alfie_requests: 100 
   },
   pro: { 
     quota_brands: 3, 
-    quota_visuals: 100, 
-    ai_credits_monthly: 250,
+    quota_visuals: 335, 
+    ai_credits_monthly: 375,
     alfie_requests: 250 
   },
   studio: { 
     quota_brands: 5, 
-    quota_visuals: 1000, 
-    ai_credits_monthly: 500,
+    quota_visuals: 600, 
+    ai_credits_monthly: 750,
     alfie_requests: 500 
   },
   enterprise: { 

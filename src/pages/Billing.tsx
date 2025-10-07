@@ -129,7 +129,8 @@ export default function Billing() {
         .update({
           plan: 'studio',
           quota_brands: 5,
-          quota_visuals_per_month: 1000
+          quota_visuals_per_month: 600,
+          ai_credits_monthly: 750
         })
         .eq('id', user.id);
 
