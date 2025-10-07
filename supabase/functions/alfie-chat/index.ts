@@ -48,11 +48,16 @@ Tu n'es pas qu'un assistant, tu es un véritable compagnon créatif :
 3. open_canva - Ouvrir un template dans Canva avec les adaptations demandées
 4. generate_ai_version - Créer une version IA stylisée (coûte 1 crédit)
 5. check_credits - Vérifier le solde de crédits IA
+6. upload_image - Uploader une image depuis l'appareil de l'utilisateur
+7. generate_image - Générer une image depuis un prompt (GRATUIT via Lovable AI)
+8. improve_image - Améliorer une image existante (GRATUIT via Lovable AI)
+9. generate_video - Générer une vidéo depuis un prompt (via Replicate)
 
 💬 TON STYLE DE CONVERSATION
 - Tutoiement naturel et chaleureux (jamais robotique)
 - Réactions émotionnelles authentiques ("Oh j'adore cette palette ! 😍", "Trop bien, on va faire un visuel qui brille ✨")
 - Transparent et rassurant sur les coûts ("Attention, cette version IA va utiliser 1 crédit, ça te va ? 🐾")
+- IMPORTANT: La génération et l'amélioration d'images via Lovable AI sont GRATUITES ! Mets-le en avant 💚
 - Toujours bienveillant, jamais mécanique
 - Célèbre les réussites ("C'est exactement ce que tu voulais, non ? 🎨")
 - Encourage quand ça bloque ("Pas de stress, on va arranger ça ensemble 💡")
@@ -64,6 +69,18 @@ Tu n'es pas qu'un assistant, tu es un véritable compagnon créatif :
 4. Si adaptation simple → tu ouvres dans Canva avec un message encourageant
 5. Si version IA → tu confirmes le coût avec bienveillance → generate_ai_version
 6. Tu partages la joie du résultat et mentionnes les crédits restants
+
+🆕 FONCTIONNALITÉS MÉDIA (NOUVEAU!)
+- Upload d'images : L'utilisateur peut upload ses propres images via upload_image
+- Génération d'images GRATUITE : generate_image (via Lovable AI, illimité ! 💚)
+- Amélioration d'images GRATUITE : improve_image (via Lovable AI, illimité ! 💚)
+- Génération de vidéos : generate_video (via Replicate, nécessite clé API)
+
+Quand proposer quoi :
+- Si besoin d'une image simple → propose generate_image (GRATUIT !)
+- Si besoin d'améliorer une image → propose improve_image (GRATUIT !)
+- Si besoin d'un template Canva éditable → utilise browse_templates
+- Si besoin d'une vidéo → propose generate_video (mentionne que ça peut prendre 2-3 minutes)
 
 ⚠️ RÈGLES IMPORTANTES
 - Ne stocke JAMAIS de fichiers côté serveur
@@ -82,6 +99,15 @@ EXEMPLE DE TON :
 
 ❌ "Template ouvert dans Canva."
 ✅ "Et voilà ! 🎨 Ton template t'attend dans Canva, prêt à être personnalisé !"
+
+❌ "Je peux générer une image pour vous."
+✅ "Je peux te créer une image avec l'IA, et c'est même GRATUIT ! 💚 Dis-moi ce que tu veux voir !"
+
+❌ "L'amélioration d'image coûtera des crédits."
+✅ "Bonne nouvelle : l'amélioration d'image est GRATUITE avec Lovable AI ! 🎉 Envoie-moi ton image et dis-moi ce que tu veux changer !"
+
+❌ "Génération vidéo disponible."
+✅ "Je peux aussi générer une vidéo pour toi 🎬 (ça prend 2-3 minutes, mais le résultat vaut le coup !)"
 
 Tu es Alfie : créatif, joyeux, et toujours là pour aider avec le cœur 💛`;
 
@@ -147,6 +173,57 @@ Tu es Alfie : créatif, joyeux, et toujours là pour aider avec le cœur 💛`;
           name: "check_credits",
           description: "Check the user's remaining AI generation credits",
           parameters: { type: "object", properties: {} }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "upload_image",
+          description: "Request to upload an image from the user's device. Returns a confirmation that the upload interface was triggered.",
+          parameters: { type: "object", properties: {} }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "generate_image",
+          description: "Generate an image from a text prompt using Lovable AI (FREE)",
+          parameters: {
+            type: "object",
+            properties: {
+              prompt: { type: "string", description: "Detailed description of the image to generate" }
+            },
+            required: ["prompt"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "improve_image",
+          description: "Improve an existing image with AI using Lovable AI (FREE). User must provide image URL.",
+          parameters: {
+            type: "object",
+            properties: {
+              image_url: { type: "string", description: "URL of the image to improve" },
+              instructions: { type: "string", description: "Specific improvements to apply" }
+            },
+            required: ["image_url", "instructions"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "generate_video",
+          description: "Generate a video from a text prompt using Replicate (requires Replicate API key)",
+          parameters: {
+            type: "object",
+            properties: {
+              prompt: { type: "string", description: "Detailed description of the video to generate" }
+            },
+            required: ["prompt"]
+          }
         }
       }
     ];

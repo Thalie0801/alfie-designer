@@ -123,6 +123,184 @@ export function AlfieChat() {
         return { credits: totalCredits };
       }
       
+      case 'upload_image': {
+        // Trigger file input
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.onchange = async (e: any) => {
+          const file = e.target?.files?.[0];
+          if (!file) return;
+          
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) throw new Error("Not authenticated");
+
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+
+            const { error: uploadError } = await supabase.storage
+              .from('media-generations')
+              .upload(fileName, file);
+
+            if (uploadError) throw uploadError;
+
+            const { data: { publicUrl } } = supabase.storage
+              .from('media-generations')
+              .getPublicUrl(fileName);
+
+            await supabase.from('media_generations').insert({
+              user_id: user.id,
+              type: 'image',
+              output_url: publicUrl,
+              status: 'completed'
+            });
+
+            setMessages(prev => [...prev, {
+              role: 'assistant',
+              content: `Image uploadée avec succès ! 🎉\n\n![Image](${publicUrl})`
+            }]);
+          } catch (error: any) {
+            setMessages(prev => [...prev, {
+              role: 'assistant',
+              content: `Erreur lors de l'upload : ${error.message} 😔`
+            }]);
+          }
+        };
+        input.click();
+        return { success: true, message: "Interface d'upload déclenchée" };
+      }
+      
+      case 'generate_image': {
+        try {
+          const { data, error } = await supabase.functions.invoke('generate-ai-image', {
+            body: { prompt: args.prompt }
+          });
+
+          if (error) throw error;
+          
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) throw new Error("Not authenticated");
+
+          await supabase.from('media_generations').insert({
+            user_id: user.id,
+            type: 'image',
+            prompt: args.prompt,
+            output_url: data.imageUrl,
+            status: 'completed'
+          });
+
+          return {
+            success: true,
+            imageUrl: data.imageUrl
+          };
+        } catch (error: any) {
+          console.error('Image generation error:', error);
+          return { error: error.message || "Erreur de génération" };
+        }
+      }
+      
+      case 'improve_image': {
+        try {
+          const { data, error } = await supabase.functions.invoke('improve-image', {
+            body: { imageUrl: args.image_url, prompt: args.instructions }
+          });
+
+          if (error) throw error;
+
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) throw new Error("Not authenticated");
+
+          await supabase.from('media_generations').insert({
+            user_id: user.id,
+            type: 'improved_image',
+            prompt: args.instructions,
+            input_url: args.image_url,
+            output_url: data.imageUrl,
+            status: 'completed'
+          });
+
+          return {
+            success: true,
+            imageUrl: data.imageUrl
+          };
+        } catch (error: any) {
+          console.error('Image improvement error:', error);
+          return { error: error.message || "Erreur d'amélioration" };
+        }
+      }
+      
+      case 'generate_video': {
+        try {
+          const { data, error } = await supabase.functions.invoke('generate-video', {
+            body: { prompt: args.prompt }
+          });
+
+          if (error) throw error;
+
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) throw new Error("Not authenticated");
+
+          const predictionId = data.id;
+          
+          await supabase.from('media_generations').insert({
+            user_id: user.id,
+            type: 'video',
+            prompt: args.prompt,
+            output_url: '',
+            status: 'processing',
+            metadata: { predictionId }
+          });
+
+          // Poll for status
+          const checkStatus = async () => {
+            const { data: statusData } = await supabase.functions.invoke('generate-video', {
+              body: { predictionId }
+            });
+
+            if (statusData.status === 'succeeded') {
+              const videoUrl = statusData.output?.[0];
+              
+              const { data: existingRecords } = await supabase
+                .from('media_generations')
+                .select('id')
+                .eq('user_id', user.id)
+                .eq('type', 'video')
+                .order('created_at', { ascending: false })
+                .limit(1);
+              
+              if (existingRecords && existingRecords.length > 0) {
+                await supabase.from('media_generations')
+                  .update({ output_url: videoUrl, status: 'completed' })
+                  .eq('id', existingRecords[0].id);
+              }
+
+              setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: `Vidéo générée avec succès ! 🎬\n\n<video src="${videoUrl}" controls style="max-width: 100%"></video>`
+              }]);
+            } else if (statusData.status === 'failed') {
+              setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: `La génération de vidéo a échoué 😔`
+              }]);
+            } else {
+              setTimeout(checkStatus, 5000);
+            }
+          };
+
+          setTimeout(checkStatus, 5000);
+
+          return {
+            success: true,
+            message: "Génération de vidéo en cours... Cela peut prendre quelques minutes. 🎬"
+          };
+        } catch (error: any) {
+          console.error('Video generation error:', error);
+          return { error: error.message || "Erreur de génération vidéo" };
+        }
+      }
+      
       default:
         return { error: "Tool not found" };
     }
