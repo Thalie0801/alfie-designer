@@ -123,54 +123,6 @@ export function AlfieChat() {
         return { credits: totalCredits };
       }
       
-      case 'upload_image': {
-        // Trigger file input
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'image/*';
-        input.onchange = async (e: any) => {
-          const file = e.target?.files?.[0];
-          if (!file) return;
-          
-          try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) throw new Error("Not authenticated");
-
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-
-            const { error: uploadError } = await supabase.storage
-              .from('media-generations')
-              .upload(fileName, file);
-
-            if (uploadError) throw uploadError;
-
-            const { data: { publicUrl } } = supabase.storage
-              .from('media-generations')
-              .getPublicUrl(fileName);
-
-            await supabase.from('media_generations').insert({
-              user_id: user.id,
-              type: 'image',
-              output_url: publicUrl,
-              status: 'completed'
-            });
-
-            setMessages(prev => [...prev, {
-              role: 'assistant',
-              content: `Image uploadée avec succès ! 🎉\n\n![Image](${publicUrl})`
-            }]);
-          } catch (error: any) {
-            setMessages(prev => [...prev, {
-              role: 'assistant',
-              content: `Erreur lors de l'upload : ${error.message} 😔`
-            }]);
-          }
-        };
-        input.click();
-        return { success: true, message: "Interface d'upload déclenchée" };
-      }
-      
       case 'generate_image': {
         try {
           const { data, error } = await supabase.functions.invoke('generate-ai-image', {
