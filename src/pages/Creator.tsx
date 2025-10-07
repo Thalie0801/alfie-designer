@@ -2,6 +2,7 @@ import { AppLayoutWithSidebar } from '@/components/AppLayoutWithSidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlfieChat } from '@/components/AlfieChat';
 import { BrandManager } from '@/components/BrandManager';
+import { ContentGenerator } from '@/components/ContentGenerator';
 import { Sparkles, Zap, Palette } from 'lucide-react';
 import { useAlfieCredits } from '@/hooks/useAlfieCredits';
 import { useBrandKit } from '@/hooks/useBrandKit';
@@ -11,7 +12,8 @@ export default function App() {
   const { totalBrands, quotaBrands } = useBrandKit();
 
   return (
-    <div className="space-y-6">
+    <AppLayoutWithSidebar>
+      <div className="space-y-6">
       {/* Header */}
       <div className="gradient-subtle rounded-2xl p-6 border-2 border-primary/20 shadow-medium">
         <div className="flex items-center gap-3 mb-2">
@@ -60,6 +62,9 @@ export default function App() {
             </Card>
           </div>
           
+          {/* Générateur de contenu */}
+          <ContentGenerator />
+          
           {/* Chat Interface */}
           <Card className="shadow-strong border-2 border-primary/20">
             <CardHeader className="border-b bg-gradient-subtle">
@@ -82,6 +87,7 @@ export default function App() {
           <BrandManager />
         </div>
       </div>
-    </div>
+      </div>
+    </AppLayoutWithSidebar>
   );
 }
