@@ -717,8 +717,11 @@ export function AlfieChat() {
                     {new Date(message.created_at).toLocaleDateString('fr-FR', {
                       day: '2-digit',
                       month: '2-digit',
-                      year: 'numeric'
-                    })} à {new Date(message.created_at).toLocaleTimeString('fr-FR')}
+                      year: 'numeric',
+                      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                    })} à {new Date(message.created_at).toLocaleTimeString('fr-FR', {
+                      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                    })}
                   </p>
                 )}
               </Card>
