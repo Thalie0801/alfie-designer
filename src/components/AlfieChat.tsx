@@ -20,6 +20,7 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   imageUrl?: string;
+  created_at?: string;
 }
 const INITIAL_ASSISTANT_MESSAGE = `Salut ! 🐾 Je suis Alfie Designer, ton compagnon créatif IA 🎨\n\nJe peux t'aider à :\n• Trouver des templates Canva inspirants ✨\n• Les adapter à ton Brand Kit 🎨\n• Créer des versions IA stylisées 🪄\n• Ouvrir directement dans Canva pour l'édition finale 💡\n\nAlors, qu'est-ce qu'on crée ensemble aujourd'hui ? 😊`;
 
@@ -96,7 +97,7 @@ export function AlfieChat() {
             .eq('conversation_id', convId)
             .order('created_at', { ascending: true });
           if (msgs && msgs.length > 0) {
-            setMessages(msgs.map((m: any) => ({ role: m.role, content: m.content })));
+            setMessages(msgs.map((m: any) => ({ role: m.role, content: m.content, created_at: m.created_at })));
           }
         }
       } catch (e) {
@@ -599,7 +600,7 @@ export function AlfieChat() {
     }
     
     // Add user message (UI)
-    setMessages(prev => [...prev, { role: 'user', content: userMessage, imageUrl }]);
+    setMessages(prev => [...prev, { role: 'user', content: userMessage, imageUrl, created_at: new Date().toISOString() }]);
 
     // Persister le message utilisateur
     try {
@@ -711,6 +712,15 @@ export function AlfieChat() {
                   />
                 )}
                 <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                {message.created_at && (
+                  <p className="text-xs opacity-60 mt-2">
+                    {new Date(message.created_at).toLocaleDateString('fr-FR', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric'
+                    })} à {new Date(message.created_at).toLocaleTimeString('fr-FR')}
+                  </p>
+                )}
               </Card>
               {message.role === 'user' && (
                 <Avatar className="h-8 w-8 flex-shrink-0 bg-secondary">
