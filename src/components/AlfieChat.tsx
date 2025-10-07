@@ -516,7 +516,7 @@ export function AlfieChat() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-12rem)]">
+    <div className="flex flex-col h-[calc(100vh-12rem)] max-w-5xl mx-auto w-full">
       {/* Credits & Brand Kit Status Bar */}
       <div className="flex flex-col gap-2 p-3 mb-2 border rounded-lg bg-muted/30">
         <div className="flex items-center justify-between text-sm">
@@ -569,7 +569,7 @@ export function AlfieChat() {
                 </Avatar>
               )}
               <Card
-                className={`p-4 max-w-[80%] ${
+                className={`p-4 max-w-[75%] ${
                   message.role === 'user'
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-muted'

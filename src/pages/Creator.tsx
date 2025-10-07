@@ -28,9 +28,9 @@ export default function App() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Chat Interface - Takes 2 columns */}
-        <div className="lg:col-span-2 space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Chat Interface - Takes 3 columns (centered & wider) */}
+        <div className="lg:col-span-3 space-y-4">
           {/* Quick Stats */}
           <div className="grid grid-cols-2 gap-4">
             <Card className="border-primary/20">
