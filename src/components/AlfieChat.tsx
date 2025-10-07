@@ -36,6 +36,7 @@ export function AlfieChat() {
   const [loaded, setLoaded] = useState(false);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [generationStatus, setGenerationStatus] = useState<{ type: string; message: string } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { brandKit } = useBrandKit();
@@ -235,6 +236,8 @@ export function AlfieChat() {
       
       case 'generate_image': {
         try {
+          setGenerationStatus({ type: 'image', message: 'Génération de ton image en cours... ✨' });
+          
           const { data, error } = await supabase.functions.invoke('generate-ai-image', {
             body: { prompt: args.prompt }
           });
@@ -252,18 +255,23 @@ export function AlfieChat() {
             status: 'completed'
           });
 
+          setGenerationStatus(null);
+          
           return {
             success: true,
             imageUrl: data.imageUrl
           };
         } catch (error: any) {
           console.error('Image generation error:', error);
+          setGenerationStatus(null);
           return { error: error.message || "Erreur de génération" };
         }
       }
       
       case 'improve_image': {
         try {
+          setGenerationStatus({ type: 'image', message: 'Amélioration de ton image en cours... 🪄' });
+          
           const { data, error } = await supabase.functions.invoke('improve-image', {
             body: { imageUrl: args.image_url, prompt: args.instructions }
           });
@@ -282,18 +290,23 @@ export function AlfieChat() {
             status: 'completed'
           });
 
+          setGenerationStatus(null);
+
           return {
             success: true,
             imageUrl: data.imageUrl
           };
         } catch (error: any) {
           console.error('Image improvement error:', error);
+          setGenerationStatus(null);
           return { error: error.message || "Erreur d'amélioration" };
         }
       }
       
       case 'generate_video': {
         try {
+          setGenerationStatus({ type: 'video', message: 'Génération de ta vidéo en cours... Cela peut prendre 2-3 minutes 🎬' });
+          
           const { data, error } = await supabase.functions.invoke('generate-video', {
             body: { prompt: args.prompt }
           });
@@ -337,11 +350,14 @@ export function AlfieChat() {
                   .eq('id', existingRecords[0].id);
               }
 
+              setGenerationStatus(null);
+              
               setMessages(prev => [...prev, {
                 role: 'assistant',
                 content: `Vidéo générée avec succès ! 🎬\n\n<video src="${videoUrl}" controls style="max-width: 100%"></video>`
               }]);
             } else if (statusData.status === 'failed') {
+              setGenerationStatus(null);
               setMessages(prev => [...prev, {
                 role: 'assistant',
                 content: `La génération de vidéo a échoué 😔`
@@ -355,10 +371,11 @@ export function AlfieChat() {
 
           return {
             success: true,
-            message: "Génération de vidéo en cours... Cela peut prendre quelques minutes. 🎬"
+            message: "Génération de vidéo lancée ! Patiente quelques minutes... 🎬"
           };
         } catch (error: any) {
           console.error('Video generation error:', error);
+          setGenerationStatus(null);
           return { error: error.message || "Erreur de génération vidéo" };
         }
       }
@@ -707,17 +724,24 @@ export function AlfieChat() {
               )}
             </div>
           ))}
-          {isLoading && (
+          {(isLoading || generationStatus) && (
           <div className="flex gap-3 justify-start">
             <Avatar className="h-8 w-8 flex-shrink-0">
               <img src={alfieMain} alt="Alfie" className="object-cover" />
             </Avatar>
               <Card className="p-4 bg-muted">
-                <div className="flex gap-1">
-                  <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                </div>
+                {generationStatus ? (
+                  <div className="flex items-center gap-3">
+                    <Sparkles className="h-5 w-5 animate-spin text-primary" />
+                    <p className="text-sm">{generationStatus.message}</p>
+                  </div>
+                ) : (
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                )}
               </Card>
             </div>
           )}
