@@ -369,6 +369,9 @@ export function AlfieChat() {
                     .eq('id', existingRecords[0].id);
                 }
 
+                // Déduire les crédits (vidéo = 10 crédits)
+                await decrementCredits(10, 'video_generation');
+
                 setGenerationStatus(null);
                 toast.success("Vidéo générée avec succès ! 🎉");
                 
