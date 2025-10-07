@@ -201,7 +201,7 @@ export default function AlfieLanding() {
             price={calculatePrice(29)} 
             priceLabel={getPriceLabel()}
             isAnnual={isAnnual}
-            bullets={["1 marque","20 visuels/mois","100 crédits IA/mois","100 requêtes Alfie/mois","2 templates"]} 
+            bullets={["1 marque","20 visuels/mois","100 crédits IA/mois","100 requêtes Alfie/mois","Générateur de contenu IA intégré","2 templates"]} 
             cta="Essayer Starter"
             onSelect={() => createCheckout('starter')}
             loading={checkoutLoading}
@@ -213,7 +213,7 @@ export default function AlfieLanding() {
             priceLabel={getPriceLabel()}
             isAnnual={isAnnual}
             highlight 
-            bullets={["3 marques","100 visuels/mois","250 crédits IA/mois","250 requêtes Alfie/mois","-20% sur packs de crédits","4 templates + Reels"]} 
+            bullets={["3 marques","100 visuels/mois","250 crédits IA/mois","250 requêtes Alfie/mois","Générateur de contenu IA intégré","-20% sur packs de crédits","4 templates + Reels"]} 
             cta="Choisir Pro"
             onSelect={() => createCheckout('pro')}
             loading={checkoutLoading}
@@ -224,7 +224,7 @@ export default function AlfieLanding() {
             price={calculatePrice(149)} 
             priceLabel={getPriceLabel()}
             isAnnual={isAnnual}
-            bullets={["Multi-marques (5 max)","1000 visuels/mois","500 crédits IA/mois","500 requêtes Alfie/mois","-20% sur packs de crédits","Reels avancés","Analytics"]} 
+            bullets={["Multi-marques (5 max)","1000 visuels/mois","500 crédits IA/mois","500 requêtes Alfie/mois","Générateur de contenu IA intégré","-20% sur packs de crédits","Reels avancés","Analytics"]} 
             cta="Passer Studio"
             onSelect={() => createCheckout('studio')}
             loading={checkoutLoading}
@@ -235,7 +235,7 @@ export default function AlfieLanding() {
             price="Sur mesure"
             priceLabel=""
             isAnnual={false}
-            bullets={["Marques illimitées","Visuels illimités","Crédits IA sur mesure","Alfie illimité","API & SSO","White-label","Support dédié 24/7"]} 
+            bullets={["Marques illimitées","Visuels illimités","Crédits IA sur mesure","Alfie illimité","Générateur de contenu IA intégré","API & SSO","White-label","Support dédié 24/7"]} 
             cta="Nous contacter"
             onSelect={() => window.location.href = '/contact'}
             loading={false}

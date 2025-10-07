@@ -25,6 +25,7 @@ const plans = [
       '20 visuels/mois',
       '100 crédits IA/mois',
       '100 requêtes Alfie/mois',
+      'Générateur de contenu IA intégré',
       '2 templates',
       'Support email'
     ],
@@ -43,6 +44,7 @@ const plans = [
       '100 visuels/mois',
       '250 crédits IA/mois',
       '250 requêtes Alfie/mois',
+      'Générateur de contenu IA intégré',
       '-20% sur packs de crédits',
       '4 templates + Reels',
       'Support prioritaire'
@@ -62,6 +64,7 @@ const plans = [
       '1000 visuels/mois',
       '500 crédits IA/mois',
       '500 requêtes Alfie/mois',
+      'Générateur de contenu IA intégré',
       '-20% sur packs de crédits',
       'Reels avancés',
       'Analytics',
@@ -82,6 +85,7 @@ const plans = [
       'Visuels illimités',
       'Crédits IA sur mesure',
       'Alfie illimité',
+      'Générateur de contenu IA intégré',
       'API & SSO',
       'White-label',
       'Support dédié 24/7',
