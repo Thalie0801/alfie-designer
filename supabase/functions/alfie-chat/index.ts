@@ -17,12 +17,26 @@ serve(async (req) => {
   }
 
   try {
-    const { messages } = await req.json();
+    const { messages, brandId } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
+
+    // Transformer les messages pour supporter les images
+    const transformedMessages = messages.map((msg: any) => {
+      if (msg.imageUrl) {
+        return {
+          role: msg.role,
+          content: [
+            { type: "text", text: msg.content },
+            { type: "image_url", image_url: { url: msg.imageUrl } }
+          ]
+        };
+      }
+      return msg;
+    });
 
     const systemPrompt = `Tu es Alfie Designer 🐾, un golden retriever stylisé devenu designer IA expert en visuels.
 
@@ -236,7 +250,7 @@ Tu es Alfie : créatif, joyeux, et toujours là pour aider avec le cœur 💛`;
         model: AI_CONFIG.model, // Modèle configurable via env variable
         messages: [
           { role: "system", content: systemPrompt },
-          ...messages
+          ...transformedMessages
         ],
         tools: tools,
         stream: true,

@@ -4,7 +4,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar } from '@/components/ui/avatar';
-import { Send, Sparkles, Zap, Palette, AlertCircle } from 'lucide-react';
+import { Send, Sparkles, Zap, Palette, AlertCircle, ImagePlus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import alfieMain from '@/assets/alfie-main.png';
 import { useBrandKit } from '@/hooks/useBrandKit';
@@ -19,6 +19,7 @@ import { Progress } from '@/components/ui/progress';
 interface Message {
   role: 'user' | 'assistant';
   content: string;
+  imageUrl?: string;
 }
 const INITIAL_ASSISTANT_MESSAGE = `Salut ! 🐾 Je suis Alfie Designer, ton compagnon créatif IA 🎨\n\nJe peux t'aider à :\n• Trouver des templates Canva inspirants ✨\n• Les adapter à ton Brand Kit 🎨\n• Créer des versions IA stylisées 🪄\n• Ouvrir directement dans Canva pour l'édition finale 💡\n\nAlors, qu'est-ce qu'on crée ensemble aujourd'hui ? 😊`;
 
@@ -33,7 +34,10 @@ export function AlfieChat() {
   const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { brandKit } = useBrandKit();
   const { totalCredits, decrementCredits, hasCredits } = useAlfieCredits();
   const { searchTemplates } = useTemplateLibrary();
@@ -109,6 +113,53 @@ export function AlfieChat() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Vérifier le type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Seules les images sont acceptées');
+      return;
+    }
+
+    // Vérifier la taille (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image trop volumineuse (max 5MB)');
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Non authentifié');
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+
+      const { data, error } = await supabase.storage
+        .from('chat-uploads')
+        .upload(fileName, file);
+
+      if (error) throw error;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('chat-uploads')
+        .getPublicUrl(fileName);
+
+      setUploadedImage(publicUrl);
+      toast.success('Image ajoutée ! 📸');
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      toast.error('Erreur lors de l\'upload');
+    } finally {
+      setUploadingImage(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
 
   const handleToolCall = async (toolName: string, args: any) => {
     console.log('Tool call:', toolName, args);
@@ -328,7 +379,7 @@ export function AlfieChat() {
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({
-          messages: [...messages, { role: 'user', content: userMessage }],
+          messages: [...messages, { role: 'user', content: userMessage, imageUrl: uploadedImage }],
           brandId: brandKit?.id // Pass active brand ID
         }),
       });
@@ -474,7 +525,9 @@ export function AlfieChat() {
     if (!input.trim() || isLoading || !loaded) return;
 
     const userMessage = input.trim();
+    const imageUrl = uploadedImage;
     setInput('');
+    setUploadedImage(null);
     
     // S'assurer d'avoir une conversation
     let convId = conversationId;
@@ -493,7 +546,7 @@ export function AlfieChat() {
     }
     
     // Add user message (UI)
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    setMessages(prev => [...prev, { role: 'user', content: userMessage, imageUrl }]);
 
     // Persister le message utilisateur
     try {
@@ -629,13 +682,20 @@ export function AlfieChat() {
                   <img src={alfieMain} alt="Alfie" className="object-cover" />
                 </Avatar>
               )}
-              <Card
+               <Card
                 className={`p-4 max-w-[75%] ${
                   message.role === 'user'
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-muted'
                 }`}
               >
+                {message.imageUrl && (
+                  <img 
+                    src={message.imageUrl} 
+                    alt="Image uploadée" 
+                    className="max-w-full rounded-lg mb-2"
+                  />
+                )}
                 <p className="text-sm whitespace-pre-wrap">{message.content}</p>
               </Card>
               {message.role === 'user' && (
@@ -664,27 +724,63 @@ export function AlfieChat() {
         </div>
       </ScrollArea>
 
-      <div className="flex gap-2 pt-4 border-t">
-        <Textarea
-          placeholder="Décris ton idée à Alfie..."
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          className="min-h-[60px] resize-none"
-          disabled={isLoading}
-        />
-        <Button
-          onClick={handleSend}
-          disabled={!input.trim() || isLoading}
-          size="lg"
-          className="gap-2"
-        >
-          {isLoading ? (
-            <Sparkles className="h-5 w-5 animate-spin" />
-          ) : (
-            <Send className="h-5 w-5" />
-          )}
-        </Button>
+      <div className="space-y-2 pt-4 border-t">
+        {/* Image preview si uploadée */}
+        {uploadedImage && (
+          <div className="relative inline-block">
+            <img 
+              src={uploadedImage} 
+              alt="Preview" 
+              className="h-20 rounded-lg border-2 border-primary"
+            />
+            <Button
+              size="sm"
+              variant="destructive"
+              className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
+              onClick={() => setUploadedImage(null)}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
+        
+        <div className="flex gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImageUpload}
+            className="hidden"
+          />
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isLoading || uploadingImage}
+          >
+            <ImagePlus className="h-5 w-5" />
+          </Button>
+          <Textarea
+            placeholder="Décris ton idée à Alfie..."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className="min-h-[60px] resize-none"
+            disabled={isLoading}
+          />
+          <Button
+            onClick={handleSend}
+            disabled={!input.trim() || isLoading}
+            size="lg"
+            className="gap-2"
+          >
+            {isLoading ? (
+              <Sparkles className="h-5 w-5 animate-spin" />
+            ) : (
+              <Send className="h-5 w-5" />
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   );
