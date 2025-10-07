@@ -20,18 +20,20 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
 }
+const INITIAL_ASSISTANT_MESSAGE = `Salut ! 🐾 Je suis Alfie Designer, ton compagnon créatif IA 🎨\n\nJe peux t'aider à :\n• Trouver des templates Canva inspirants ✨\n• Les adapter à ton Brand Kit 🎨\n• Créer des versions IA stylisées 🪄\n• Ouvrir directement dans Canva pour l'édition finale 💡\n\nAlors, qu'est-ce qu'on crée ensemble aujourd'hui ? 😊`;
 
 export function AlfieChat() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: "Salut ! 🐾 Je suis Alfie Designer, ton compagnon créatif IA 🎨\n\nJe peux t'aider à :\n• Trouver des templates Canva inspirants ✨\n• Les adapter à ton Brand Kit 🎨\n• Créer des versions IA stylisées 🪄\n• Ouvrir directement dans Canva pour l'édition finale 💡\n\nAlors, qu'est-ce qu'on crée ensemble aujourd'hui ? 😊"
+      content: INITIAL_ASSISTANT_MESSAGE
     }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  
   const { brandKit } = useBrandKit();
   const { totalCredits, decrementCredits, hasCredits } = useAlfieCredits();
   const { searchTemplates } = useTemplateLibrary();
@@ -44,6 +46,63 @@ export function AlfieChat() {
     quota,
     quotaPercentage
   } = useAlfieOptimizations();
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          setLoaded(true);
+          return;
+        }
+
+        // Récupérer la dernière conversation ou en créer une
+        const { data: existing } = await supabase
+          .from('alfie_conversations')
+          .select('id')
+          .order('updated_at', { ascending: false })
+          .limit(1);
+
+        let convId: string | null = null;
+        if (existing && existing.length > 0) {
+          convId = existing[0].id;
+        } else {
+          const { data: created, error: createErr } = await supabase
+            .from('alfie_conversations')
+            .insert({ user_id: user.id, title: 'Conversation Alfie' })
+            .select('id')
+            .maybeSingle();
+          if (!createErr && created) {
+            convId = created.id;
+            // Seed du premier message assistant en base
+            await supabase.from('alfie_messages').insert({
+              conversation_id: convId,
+              role: 'assistant',
+              content: INITIAL_ASSISTANT_MESSAGE,
+            });
+          }
+        }
+
+        if (convId) {
+          setConversationId(convId);
+          const { data: msgs } = await supabase
+            .from('alfie_messages')
+            .select('role, content, created_at')
+            .eq('conversation_id', convId)
+            .order('created_at', { ascending: true });
+          if (msgs && msgs.length > 0) {
+            setMessages(msgs.map((m: any) => ({ role: m.role, content: m.content })));
+          }
+        }
+      } catch (e) {
+        console.error('Init chat error:', e);
+      } finally {
+        setLoaded(true);
+      }
+    };
+
+    init();
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -386,6 +445,23 @@ export function AlfieChat() {
         }
       }
 
+      // Persister le message assistant à la fin du stream
+      try {
+        if (assistantMessage.trim() && conversationId) {
+          await supabase.from('alfie_messages').insert({
+            conversation_id: conversationId,
+            role: 'assistant',
+            content: assistantMessage,
+          });
+          await supabase
+            .from('alfie_conversations')
+            .update({ updated_at: new Date().toISOString() })
+            .eq('id', conversationId);
+        }
+      } catch (e) {
+        console.error('Persist assistant message error:', e);
+      }
+
     } catch (error) {
       console.error('Chat error:', error);
       toast.error("Oups, une erreur est survenue !");
@@ -395,13 +471,46 @@ export function AlfieChat() {
   };
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || !loaded) return;
 
     const userMessage = input.trim();
     setInput('');
     
-    // Add user message
+    // S'assurer d'avoir une conversation
+    let convId = conversationId;
+    if (!convId) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: created } = await supabase
+        .from('alfie_conversations')
+        .insert({ user_id: user.id, title: 'Conversation Alfie' })
+        .select('id')
+        .maybeSingle();
+      if (created) {
+        convId = created.id;
+        setConversationId(created.id);
+      }
+    }
+    
+    // Add user message (UI)
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+
+    // Persister le message utilisateur
+    try {
+      if (convId) {
+        await supabase.from('alfie_messages').insert({
+          conversation_id: convId,
+          role: 'user',
+          content: userMessage,
+        });
+        await supabase
+          .from('alfie_conversations')
+          .update({ updated_at: new Date().toISOString() })
+          .eq('id', convId);
+      }
+    } catch (e) {
+      console.error('Persist user message error:', e);
+    }
 
     // 1. Détection d'intent rapide (évite appel IA si possible)
     const intent = detectIntent(userMessage);
