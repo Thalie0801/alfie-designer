@@ -327,43 +327,76 @@ export function AlfieChat() {
             metadata: { predictionId }
           });
 
-          // Poll for status
+          // Poll for status (max 10 minutes)
+          let attempts = 0;
+          const maxAttempts = 120; // 10 minutes
+          
           const checkStatus = async () => {
-            const { data: statusData } = await supabase.functions.invoke('generate-video', {
-              body: { predictionId }
-            });
+            if (attempts >= maxAttempts) {
+              setGenerationStatus(null);
+              toast.error("La génération prend trop de temps. Vérifie ton historique dans quelques minutes.");
+              return;
+            }
 
-            if (statusData.status === 'succeeded') {
-              const videoUrl = statusData.output?.[0];
-              
-              const { data: existingRecords } = await supabase
-                .from('media_generations')
-                .select('id')
-                .eq('user_id', user.id)
-                .eq('type', 'video')
-                .order('created_at', { ascending: false })
-                .limit(1);
-              
-              if (existingRecords && existingRecords.length > 0) {
-                await supabase.from('media_generations')
-                  .update({ output_url: videoUrl, status: 'completed' })
-                  .eq('id', existingRecords[0].id);
+            try {
+              const { data: statusData, error: statusError } = await supabase.functions.invoke('generate-video', {
+                body: { predictionId }
+              });
+
+              if (statusError) {
+                console.error('Status check error:', statusError);
+                setGenerationStatus(null);
+                toast.error("Erreur lors de la vérification du statut");
+                return;
               }
 
+              console.log('Video status check:', statusData.status, 'Attempt:', attempts);
+
+              if (statusData.status === 'succeeded') {
+                const videoUrl = Array.isArray(statusData.output) ? statusData.output[0] : statusData.output;
+                
+                const { data: existingRecords } = await supabase
+                  .from('media_generations')
+                  .select('id')
+                  .eq('user_id', user.id)
+                  .eq('type', 'video')
+                  .order('created_at', { ascending: false })
+                  .limit(1);
+                
+                if (existingRecords && existingRecords.length > 0) {
+                  await supabase.from('media_generations')
+                    .update({ output_url: videoUrl, status: 'completed' })
+                    .eq('id', existingRecords[0].id);
+                }
+
+                setGenerationStatus(null);
+                toast.success("Vidéo générée avec succès ! 🎉");
+                
+                setMessages(prev => [...prev, {
+                  role: 'assistant',
+                  content: `Vidéo générée avec succès ! 🎬\n\n<video src="${videoUrl}" controls style="max-width: 100%; border-radius: 0.5rem;"></video>`
+                }]);
+              } else if (statusData.status === 'failed') {
+                setGenerationStatus(null);
+                toast.error("La génération de vidéo a échoué");
+                setMessages(prev => [...prev, {
+                  role: 'assistant',
+                  content: `La génération de vidéo a échoué 😔 Réessaie avec un prompt différent.`
+                }]);
+              } else {
+                // Still processing - update status message
+                attempts++;
+                const elapsed = Math.floor((attempts * 5) / 60);
+                setGenerationStatus({
+                  type: 'video',
+                  message: `Génération en cours... ${elapsed > 0 ? `(${elapsed} min)` : '(quelques secondes)'} - Les vidéos prennent 2-5 minutes 🎬`
+                });
+                setTimeout(checkStatus, 5000);
+              }
+            } catch (err) {
+              console.error('Video status error:', err);
               setGenerationStatus(null);
-              
-              setMessages(prev => [...prev, {
-                role: 'assistant',
-                content: `Vidéo générée avec succès ! 🎬\n\n<video src="${videoUrl}" controls style="max-width: 100%"></video>`
-              }]);
-            } else if (statusData.status === 'failed') {
-              setGenerationStatus(null);
-              setMessages(prev => [...prev, {
-                role: 'assistant',
-                content: `La génération de vidéo a échoué 😔`
-              }]);
-            } else {
-              setTimeout(checkStatus, 5000);
+              toast.error("Erreur lors de la vérification");
             }
           };
 
