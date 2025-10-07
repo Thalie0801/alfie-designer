@@ -649,42 +649,28 @@ export function AlfieChat() {
   return (
     <div className="flex flex-col h-[calc(100vh-12rem)] max-w-5xl mx-auto w-full">
       {/* Credits & Brand Kit Status Bar */}
-      <div className="flex flex-col gap-2 p-3 mb-2 border rounded-lg bg-muted/30">
-        <div className="flex items-center justify-between text-sm">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Zap className="h-4 w-4 text-primary" />
-              <span className="font-medium">{totalCredits}</span>
-              <span className="text-muted-foreground">crédits IA</span>
-            </div>
-            
-            {brandKit && (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Palette className="h-4 w-4" />
-                <span className="text-xs">Brand Kit actif</span>
-              </div>
-            )}
+      <div className="flex items-center justify-between p-3 mb-2 border rounded-lg bg-muted/30 text-sm">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Zap className="h-4 w-4 text-primary" />
+            <span className="font-medium">{totalCredits}</span>
+            <span className="text-muted-foreground">crédits IA</span>
           </div>
           
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            {quotaPercentage >= 80 && (
-              <AlertCircle className="h-4 w-4 text-orange-500" />
-            )}
-            <span>{requestsThisMonth}/{quota} requêtes</span>
-          </div>
+          {brandKit && (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Palette className="h-4 w-4" />
+              <span className="text-xs">Brand Kit actif</span>
+            </div>
+          )}
         </div>
         
-        {/* Barre de progression du quota */}
-        {quotaPercentage > 0 && (
-          <div className="space-y-1">
-            <Progress value={quotaPercentage} className="h-1" />
-            {quotaPercentage >= 80 && (
-              <p className="text-xs text-orange-500">
-                {quotaPercentage >= 100 ? '⚠️ Quota atteint' : '⚠️ Quota bientôt atteint'}
-              </p>
-            )}
-          </div>
-        )}
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          {quotaPercentage >= 80 && (
+            <AlertCircle className="h-4 w-4 text-orange-500" />
+          )}
+          <span>{requestsThisMonth}/{quota} requêtes</span>
+        </div>
       </div>
       
       <ScrollArea className="flex-1 pr-4" ref={scrollRef}>
