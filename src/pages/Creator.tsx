@@ -59,7 +59,7 @@ export default function App() {
         </div>
         
         {/* Chat Interface - Full Width */}
-        <Card className="shadow-strong border-2 border-primary/20">
+        <Card className="shadow-strong border-2 border-primary/20 max-w-5xl mx-auto">
           <CardHeader className="border-b bg-gradient-subtle">
             <CardTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
