@@ -690,11 +690,19 @@ export function AlfieChat() {
             <Avatar className="h-8 w-8 flex-shrink-0">
               <img src={alfieMain} alt="Alfie" className="object-cover" />
             </Avatar>
-              <Card className="p-4 bg-muted">
+              <Card className="p-4 bg-primary/10 border-primary/30">
                 {generationStatus ? (
                   <div className="flex items-center gap-3">
-                    <Sparkles className="h-5 w-5 animate-spin text-primary" />
-                    <p className="text-sm">{generationStatus.message}</p>
+                    <div className="relative">
+                      <Sparkles className="h-6 w-6 animate-spin text-primary" />
+                      <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-primary mb-1">
+                        {generationStatus.type === 'video' ? '🎬 Génération vidéo' : '✨ Génération image'}
+                      </p>
+                      <p className="text-sm text-muted-foreground">{generationStatus.message}</p>
+                    </div>
                   </div>
                 ) : (
                   <div className="flex gap-1">
