@@ -1,7 +1,6 @@
 import { AppLayoutWithSidebar } from '@/components/AppLayoutWithSidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlfieChat } from '@/components/AlfieChat';
-import { BrandManager } from '@/components/BrandManager';
 import { Sparkles, Zap, Palette } from 'lucide-react';
 import { useAlfieCredits } from '@/hooks/useAlfieCredits';
 import { useBrandKit } from '@/hooks/useBrandKit';
@@ -28,60 +27,52 @@ export default function App() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Chat Interface - Takes 3 columns (centered & wider) */}
-        <div className="lg:col-span-3 space-y-4">
-          {/* Quick Stats */}
-          <div className="grid grid-cols-2 gap-4">
-            <Card className="border-primary/20">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="bg-primary/10 p-3 rounded-lg">
-                    <Zap className="h-6 w-6 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{totalCredits}</p>
-                    <p className="text-xs text-muted-foreground">Crédits IA restants</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="border-secondary/20">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="bg-secondary/10 p-3 rounded-lg">
-                    <Palette className="h-6 w-6 text-secondary" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{totalBrands}/{quotaBrands}</p>
-                    <p className="text-xs text-muted-foreground">Marques créées</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-          
-          {/* Chat Interface */}
-          <Card className="shadow-strong border-2 border-primary/20">
-            <CardHeader className="border-b bg-gradient-subtle">
-              <CardTitle className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-primary" />
-                Chat avec Alfie
-              </CardTitle>
-              <CardDescription>
-                Décris ce que tu veux créer, Alfie s'occupe du reste
-              </CardDescription>
-            </CardHeader>
+      <div className="space-y-4">
+        {/* Quick Stats */}
+        <div className="grid grid-cols-2 gap-4 max-w-2xl">
+          <Card className="border-primary/20">
             <CardContent className="pt-6">
-              <AlfieChat />
+              <div className="flex items-center gap-3">
+                <div className="bg-primary/10 p-3 rounded-lg">
+                  <Zap className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{totalCredits}</p>
+                  <p className="text-xs text-muted-foreground">Crédits IA restants</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-secondary/20">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="bg-secondary/10 p-3 rounded-lg">
+                  <Palette className="h-6 w-6 text-secondary" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{totalBrands}/{quotaBrands}</p>
+                  <p className="text-xs text-muted-foreground">Marques créées</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
-
-        {/* Brand Manager - Takes 1 column */}
-        <div className="lg:col-span-1">
-          <BrandManager />
-        </div>
+        
+        {/* Chat Interface - Full Width */}
+        <Card className="shadow-strong border-2 border-primary/20">
+          <CardHeader className="border-b bg-gradient-subtle">
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Chat avec Alfie
+            </CardTitle>
+            <CardDescription>
+              Décris ce que tu veux créer, Alfie s'occupe du reste
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <AlfieChat />
+          </CardContent>
+        </Card>
       </div>
       </div>
     </AppLayoutWithSidebar>

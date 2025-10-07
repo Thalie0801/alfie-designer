@@ -9,6 +9,7 @@ import { BrandDialog } from '@/components/BrandDialog';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useAlfieCredits } from '@/hooks/useAlfieCredits';
+import { BrandManager } from '@/components/BrandManager';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -153,6 +154,9 @@ export default function Dashboard() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Brand Manager */}
+      <BrandManager />
 
       {/* Brands */}
       <Card className="border-primary/20 shadow-medium">
