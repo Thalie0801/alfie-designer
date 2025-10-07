@@ -23,6 +23,7 @@ import Legal from "./pages/Legal";
 import FAQ from "./pages/FAQ";
 import NotFound from "./pages/NotFound";
 import Templates from "./pages/Templates";
+import MediaStudio from "./pages/MediaStudio";
 import { AppLayoutWithSidebar } from "./components/AppLayoutWithSidebar";
 
 const queryClient = new QueryClient();
@@ -99,6 +100,16 @@ const App = () => (
                 <ProtectedRoute>
                   <AppLayoutWithSidebar>
                     <Billing />
+                  </AppLayoutWithSidebar>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/media-studio"
+              element={
+                <ProtectedRoute requirePlan>
+                  <AppLayoutWithSidebar>
+                    <MediaStudio />
                   </AppLayoutWithSidebar>
                 </ProtectedRoute>
               }
