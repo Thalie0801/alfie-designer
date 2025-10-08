@@ -24,19 +24,6 @@ interface Message {
   created_at?: string;
 }
 
-interface AspectRatio {
-  value: string;
-  label: string;
-  icon: string;
-}
-
-const ASPECT_RATIOS: AspectRatio[] = [
-  { value: '1:1', label: 'Carré (Instagram)', icon: '□' },
-  { value: '4:5', label: 'Portrait (Instagram)', icon: '▭' },
-  { value: '9:16', label: 'Story (Instagram/TikTok)', icon: '▯' },
-  { value: '16:9', label: 'Paysage (YouTube)', icon: '▬' },
-];
-
 const INITIAL_ASSISTANT_MESSAGE = `Salut ! 🐾 Je suis Alfie Designer, ton compagnon créatif IA 🎨\n\nJe peux t'aider à :\n• Trouver des templates Canva inspirants ✨\n• Les adapter à ton Brand Kit 🎨\n• Créer des versions IA stylisées 🪄\n• Ouvrir directement dans Canva pour l'édition finale 💡\n\nAlors, qu'est-ce qu'on crée ensemble aujourd'hui ? 😊`;
 
 export function AlfieChat() {
@@ -53,7 +40,6 @@ export function AlfieChat() {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [generationStatus, setGenerationStatus] = useState<{ type: string; message: string } | null>(null);
-  const [selectedRatio, setSelectedRatio] = useState<string>('1:1');
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -669,18 +655,7 @@ export function AlfieChat() {
   const handleSend = async () => {
     if (!input.trim() || isLoading || !loaded) return;
 
-    let userMessage = input.trim();
-    
-    // Ajouter le ratio au message si différent de 1:1
-    if (selectedRatio !== '1:1') {
-      const ratioNames: Record<string, string> = {
-        '4:5': 'format portrait (4:5)',
-        '9:16': 'format story/vertical (9:16)',
-        '16:9': 'format paysage/YouTube (16:9)'
-      };
-      userMessage = `[Format demandé: ${ratioNames[selectedRatio]}] ${userMessage}`;
-    }
-    
+    const userMessage = input.trim();
     const imageUrl = uploadedImage;
     setInput('');
     setUploadedImage(null);
@@ -927,23 +902,6 @@ export function AlfieChat() {
             </Button>
           </div>
         )}
-        
-        {/* Ratio selector */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs text-muted-foreground">Format:</span>
-          {ASPECT_RATIOS.map((ratio) => (
-            <Button
-              key={ratio.value}
-              variant={selectedRatio === ratio.value ? "default" : "outline"}
-              size="sm"
-              onClick={() => setSelectedRatio(ratio.value)}
-              className="gap-1"
-            >
-              <span className="text-lg">{ratio.icon}</span>
-              <span className="text-xs">{ratio.label}</span>
-            </Button>
-          ))}
-        </div>
         
         <div className="flex gap-2">
           <input
