@@ -27,8 +27,8 @@ interface Message {
 const INITIAL_ASSISTANT_MESSAGE = `Salut ! 🐾 Je suis Alfie Designer, ton compagnon créatif IA 🎨
 
 Je peux t'aider à :
-• Créer des images IA (GRATUIT ✨)
-• Générer des vidéos animées (10 crédits 🎬)
+• Créer des images IA (1 crédit ✨)
+• Générer des vidéos animées (2 crédits 🎬)
 • Trouver des templates Canva (bientôt 🚀)
 • Adapter au Brand Kit 🎨
 
@@ -292,6 +292,8 @@ export function AlfieChat() {
             status: 'completed'
           });
 
+          // Déduire 1 crédit pour la génération d'image
+          await decrementCredits(1, 'image_generation');
           // Incrémenter le compteur de générations
           await incrementGenerations();
 
@@ -299,7 +301,7 @@ export function AlfieChat() {
           
           const imageMessage = {
             role: 'assistant' as const,
-            content: `Image générée avec succès ! ✨`,
+            content: `Image générée avec succès ! (1 crédit utilisé) ✨`,
             imageUrl: data.imageUrl
           };
           
@@ -348,6 +350,8 @@ export function AlfieChat() {
             status: 'completed'
           });
 
+          // Déduire 1 crédit pour l'amélioration d'image
+          await decrementCredits(1, 'image_improvement');
           // Incrémenter le compteur de générations
           await incrementGenerations();
 
@@ -355,7 +359,7 @@ export function AlfieChat() {
 
           const imageMessage = {
             role: 'assistant' as const,
-            content: `Image améliorée avec succès ! 🪄`,
+            content: `Image améliorée avec succès ! (1 crédit utilisé) 🪄`,
             imageUrl: data.imageUrl
           };
           
@@ -448,8 +452,8 @@ export function AlfieChat() {
                     .eq('id', existingRecords[0].id);
                 }
 
-                // Déduire les crédits (vidéo = 10 crédits)
-                await decrementCredits(10, 'video_generation');
+                // Déduire les crédits (vidéo = 2 crédits)
+                await decrementCredits(2, 'video_generation');
                 
                 // Incrémenter le compteur de générations
                 await incrementGenerations();
@@ -459,7 +463,7 @@ export function AlfieChat() {
                 
                 const videoMessage = {
                   role: 'assistant' as const,
-                  content: `Vidéo générée avec succès ! 🎬`,
+                  content: `Vidéo générée avec succès ! (2 crédits utilisés) 🎬`,
                   videoUrl
                 };
                 

@@ -29,7 +29,7 @@ export function CreditBalance() {
           </Badge>
         </CardTitle>
         <CardDescription>
-          {generations} générations ce mois-ci • Les images sont gratuites ✨
+          {generations} générations ce mois-ci • Images: 1 crédit • Vidéos: 2 crédits
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

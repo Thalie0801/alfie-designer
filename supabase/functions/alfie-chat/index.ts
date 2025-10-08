@@ -121,9 +121,9 @@ Tu n'es pas qu'un assistant, tu es un véritable compagnon créatif :
 4. Tu partages la joie du résultat et mentionnes les crédits restants
 
 🆕 FONCTIONNALITÉS MÉDIA DISPONIBLES
-- Génération d'images : generate_image (via Lovable AI)
-- Amélioration d'images : improve_image (via Lovable AI)
-- Génération de vidéos : generate_video (via Replicate nécessite clé API)
+- Génération d'images : generate_image (1 crédit)
+- Amélioration d'images : improve_image (1 crédit)
+- Génération de vidéos : generate_video (2 crédits)
 
 FONCTIONNALITÉS À VENIR BIENTÔT 🚀 :
 - Recherche de templates Canva
@@ -235,7 +235,7 @@ Tu es Alfie : créatif, joyeux, et toujours là pour aider avec le cœur 💛`;
         type: "function",
         function: {
           name: "generate_image",
-          description: "Generate an image from a text prompt using Lovable AI (FREE). Supports different aspect ratios for social media.",
+          description: "Generate an image from a text prompt (1 crédit). Supports different aspect ratios for social media.",
           parameters: {
             type: "object",
             properties: {
@@ -254,7 +254,7 @@ Tu es Alfie : créatif, joyeux, et toujours là pour aider avec le cœur 💛`;
         type: "function",
         function: {
           name: "improve_image",
-          description: "Improve an existing image with AI using Lovable AI (FREE). User must provide image URL.",
+          description: "Improve an existing image with AI (1 crédit). User must provide image URL.",
           parameters: {
             type: "object",
             properties: {
@@ -269,7 +269,7 @@ Tu es Alfie : créatif, joyeux, et toujours là pour aider avec le cœur 💛`;
         type: "function",
         function: {
           name: "generate_video",
-          description: "Generate a video from a text prompt using Replicate (requires Replicate API key)",
+          description: "Generate a video from a text prompt (2 crédits)",
           parameters: {
             type: "object",
             properties: {
