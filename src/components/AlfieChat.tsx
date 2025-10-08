@@ -528,6 +528,21 @@ export function AlfieChat() {
     }
   };
 
+  // Heuristique locale pour détecter le format (si l'agent n'appelle pas l'outil)
+  const detectAspectRatioFromText = (text: string): "1:1" | "4:5" | "9:16" | "16:9" => {
+    const t = text.toLowerCase();
+    if (/9\s*:\s*16|story|tiktok|reels|vertical/.test(t)) return "9:16";
+    if (/4\s*:\s*5|portrait|feed/.test(t)) return "4:5";
+    if (/16\s*:\s*9|youtube|horizontal|paysage/.test(t)) return "16:9";
+    if (/1\s*:\s*1|carré|carre|square/.test(t)) return "1:1";
+    if (/carrousel|carousel/.test(t)) return "4:5";
+    return "1:1";
+  };
+
+  const wantsImageFromText = (text: string): boolean => {
+    return /(image|visuel|carrousel|carousel|affiche|flyer)/i.test(text);
+  };
+
   const streamChat = async (userMessage: string) => {
     const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/alfie-chat`;
     
@@ -756,6 +771,13 @@ export function AlfieChat() {
         role: 'assistant', 
         content: `Oups ! Tu as atteint ton quota mensuel (${quota} requêtes/mois) 🐾\n\nPasse à un plan supérieur pour continuer à utiliser Alfie !` 
       }]);
+      return;
+    }
+
+    // 2.5 Fallback local: si l'utilisateur demande clairement une image, lance la génération directe
+    if (wantsImageFromText(userMessage)) {
+      const aspect = detectAspectRatioFromText(userMessage);
+      await handleToolCall('generate_image', { prompt: userMessage, aspect_ratio: aspect });
       return;
     }
 
