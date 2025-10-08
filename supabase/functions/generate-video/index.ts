@@ -12,13 +12,13 @@ serve(async (req) => {
   }
 
   try {
-    const REPLICATE_API_KEY = Deno.env.get('REPLICATE_API_KEY');
-    if (!REPLICATE_API_KEY) {
-      throw new Error('REPLICATE_API_KEY is not set');
+    const REPLICATE_API_TOKEN = Deno.env.get('REPLICATE_API_TOKEN') || Deno.env.get('REPLICATE_API_KEY');
+    if (!REPLICATE_API_TOKEN) {
+      throw new Error('REPLICATE_API_TOKEN is not set');
     }
 
     const replicate = new Replicate({
-      auth: REPLICATE_API_KEY,
+      auth: REPLICATE_API_TOKEN,
     });
 
     const body = await req.json();
@@ -47,7 +47,7 @@ serve(async (req) => {
     console.log("Starting video generation with prompt:", body.prompt);
     
     const prediction = await replicate.predictions.create({
-      version: "minimax/video-01",
+      model: "minimax/video-01",
       input: {
         prompt: body.prompt,
       }
