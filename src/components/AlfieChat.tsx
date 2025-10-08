@@ -40,6 +40,7 @@ export function AlfieChat() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [generationStatus, setGenerationStatus] = useState<{ type: string; message: string } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { brandKit } = useBrandKit();
   const { totalCredits, decrementCredits, hasCredits } = useAlfieCredits();
@@ -63,20 +64,36 @@ export function AlfieChat() {
           return;
         }
 
-        // Récupérer la dernière conversation ou en créer une
+        // Vérifier si on doit créer une nouvelle conversation (nettoyage quotidien)
         const { data: existing } = await supabase
           .from('alfie_conversations')
-          .select('id')
+          .select('id, created_at, updated_at')
           .order('updated_at', { ascending: false })
-          .limit(1);
+          .limit(1)
+          .maybeSingle();
 
         let convId: string | null = null;
-        if (existing && existing.length > 0) {
-          convId = existing[0].id;
+        let shouldCreateNew = false;
+
+        if (existing) {
+          const lastUpdate = new Date(existing.updated_at);
+          const now = new Date();
+          const hoursSinceLastUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60);
+          
+          // Créer nouvelle conversation si plus de 24h ou si c'est une nouvelle session
+          if (hoursSinceLastUpdate > 24) {
+            shouldCreateNew = true;
+          } else {
+            convId = existing.id;
+          }
         } else {
+          shouldCreateNew = true;
+        }
+
+        if (shouldCreateNew) {
           const { data: created, error: createErr } = await supabase
             .from('alfie_conversations')
-            .insert({ user_id: user.id, title: 'Conversation Alfie' })
+            .insert({ user_id: user.id, title: `Conversation ${new Date().toLocaleDateString('fr-FR')}` })
             .select('id')
             .maybeSingle();
           if (!createErr && created) {
@@ -87,20 +104,27 @@ export function AlfieChat() {
               role: 'assistant',
               content: INITIAL_ASSISTANT_MESSAGE,
             });
+            setMessages([{ role: 'assistant', content: INITIAL_ASSISTANT_MESSAGE }]);
           }
-        }
-
-        if (convId) {
-          setConversationId(convId);
+        } else if (convId) {
+          // Charger les messages existants
           const { data: msgs } = await supabase
             .from('alfie_messages')
-            .select('role, content, created_at')
+            .select('role, content, image_url, video_url, created_at')
             .eq('conversation_id', convId)
             .order('created_at', { ascending: true });
           if (msgs && msgs.length > 0) {
-            setMessages(msgs.map((m: any) => ({ role: m.role, content: m.content, created_at: m.created_at })));
+            setMessages(msgs.map((m: any) => ({ 
+              role: m.role, 
+              content: m.content, 
+              imageUrl: m.image_url,
+              videoUrl: m.video_url,
+              created_at: m.created_at 
+            })));
           }
         }
+
+        setConversationId(convId);
       } catch (e) {
         console.error('Init chat error:', e);
       } finally {
@@ -111,11 +135,10 @@ export function AlfieChat() {
     init();
   }, []);
 
+  // Scroll automatique avec scrollIntoView
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages]);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, generationStatus]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -377,11 +400,23 @@ export function AlfieChat() {
                 setGenerationStatus(null);
                 toast.success("Vidéo générée avec succès ! 🎉");
                 
-                setMessages(prev => [...prev, {
-                  role: 'assistant',
+                const videoMessage = {
+                  role: 'assistant' as const,
                   content: `Vidéo générée avec succès ! 🎬`,
                   videoUrl
-                }]);
+                };
+                
+                setMessages(prev => [...prev, videoMessage]);
+                
+                // Persister le message vidéo en base
+                if (conversationId) {
+                  await supabase.from('alfie_messages').insert({
+                    conversation_id: conversationId,
+                    role: 'assistant',
+                    content: videoMessage.content,
+                    video_url: videoUrl
+                  });
+                }
               } else if (statusData.status === 'failed') {
                 setGenerationStatus(null);
                 toast.error("La génération de vidéo a échoué");
@@ -772,6 +807,7 @@ export function AlfieChat() {
               </Card>
             </div>
           )}
+          <div ref={messagesEndRef} />
         </div>
       </ScrollArea>
 
