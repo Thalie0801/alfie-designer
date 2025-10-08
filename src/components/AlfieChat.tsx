@@ -282,6 +282,24 @@ export function AlfieChat() {
 
           setGenerationStatus(null);
           
+          const imageMessage = {
+            role: 'assistant' as const,
+            content: `Image générée avec succès ! ✨`,
+            imageUrl: data.imageUrl
+          };
+          
+          setMessages(prev => [...prev, imageMessage]);
+          
+          // Persister le message image en base
+          if (conversationId) {
+            await supabase.from('alfie_messages').insert({
+              conversation_id: conversationId,
+              role: 'assistant',
+              content: imageMessage.content,
+              image_url: data.imageUrl
+            });
+          }
+          
           return {
             success: true,
             imageUrl: data.imageUrl
@@ -316,6 +334,24 @@ export function AlfieChat() {
           });
 
           setGenerationStatus(null);
+
+          const imageMessage = {
+            role: 'assistant' as const,
+            content: `Image améliorée avec succès ! 🪄`,
+            imageUrl: data.imageUrl
+          };
+          
+          setMessages(prev => [...prev, imageMessage]);
+          
+          // Persister le message image en base
+          if (conversationId) {
+            await supabase.from('alfie_messages').insert({
+              conversation_id: conversationId,
+              role: 'assistant',
+              content: imageMessage.content,
+              image_url: data.imageUrl
+            });
+          }
 
           return {
             success: true,

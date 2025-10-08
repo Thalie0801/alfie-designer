@@ -295,21 +295,27 @@ export type Database = {
           conversation_id: string
           created_at: string
           id: string
+          image_url: string | null
           role: string
+          video_url: string | null
         }
         Insert: {
           content: string
           conversation_id: string
           created_at?: string
           id?: string
+          image_url?: string | null
           role: string
+          video_url?: string | null
         }
         Update: {
           content?: string
           conversation_id?: string
           created_at?: string
           id?: string
+          image_url?: string | null
           role?: string
+          video_url?: string | null
         }
         Relationships: [
           {
