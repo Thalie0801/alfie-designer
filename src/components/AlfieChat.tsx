@@ -20,6 +20,7 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   imageUrl?: string;
+  videoUrl?: string;
   created_at?: string;
 }
 const INITIAL_ASSISTANT_MESSAGE = `Salut ! 🐾 Je suis Alfie Designer, ton compagnon créatif IA 🎨\n\nJe peux t'aider à :\n• Trouver des templates Canva inspirants ✨\n• Les adapter à ton Brand Kit 🎨\n• Créer des versions IA stylisées 🪄\n• Ouvrir directement dans Canva pour l'édition finale 💡\n\nAlors, qu'est-ce qu'on crée ensemble aujourd'hui ? 😊`;
@@ -378,7 +379,8 @@ export function AlfieChat() {
                 
                 setMessages(prev => [...prev, {
                   role: 'assistant',
-                  content: `Vidéo générée avec succès ! 🎬\n\n<video src="${videoUrl}" controls style="max-width: 100%; border-radius: 0.5rem;"></video>`
+                  content: `Vidéo générée avec succès ! 🎬`,
+                  videoUrl
                 }]);
               } else if (statusData.status === 'failed') {
                 setGenerationStatus(null);
@@ -708,6 +710,13 @@ export function AlfieChat() {
                   <img 
                     src={message.imageUrl} 
                     alt="Image uploadée" 
+                    className="max-w-full rounded-lg mb-2"
+                  />
+                )}
+                {message.videoUrl && (
+                  <video 
+                    src={message.videoUrl} 
+                    controls
                     className="max-w-full rounded-lg mb-2"
                   />
                 )}
