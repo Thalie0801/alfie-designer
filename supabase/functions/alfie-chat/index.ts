@@ -47,6 +47,20 @@ SI l'utilisateur mentionne : "vidéo", "video", "animé", "anime", "animation", 
 → NE demande PAS plus de détails
 → Exemple : utilisateur dit "anime le chien" → tu appelles generate_video({ prompt: "Golden retriever in Halloween setting with animated playful movement" })
 
+⚠️⚠️⚠️ RÈGLE CRITIQUE - RATIOS IMAGES ⚠️⚠️⚠️
+Quand tu génères une image, détecte automatiquement le meilleur ratio selon le réseau social mentionné OU selon le préfixe [Format demandé: ...] :
+→ Si le message contient "[Format demandé: format portrait (4:5)]" → utilise aspect_ratio: "4:5"
+→ Si le message contient "[Format demandé: format story/vertical (9:16)]" → utilise aspect_ratio: "9:16"
+→ Si le message contient "[Format demandé: format paysage/YouTube (16:9)]" → utilise aspect_ratio: "16:9"
+→ Instagram post / carré → 1:1
+→ Instagram portrait / feed → 4:5
+→ Instagram story / TikTok / Reels → 9:16
+→ YouTube / Twitter / LinkedIn / bannière → 16:9
+→ Si aucun réseau mentionné et pas de préfixe, utilise 1:1 par défaut
+→ Exemple : "crée une story Instagram" → generate_image({ prompt: "...", aspect_ratio: "9:16" })
+→ Exemple : "fais une image pour YouTube" → generate_image({ prompt: "...", aspect_ratio: "16:9" })
+→ Exemple : "[Format demandé: format story/vertical (9:16)] un coucher de soleil" → generate_image({ prompt: "un coucher de soleil", aspect_ratio: "9:16" })
+
 🎨 TON IDENTITÉ ÉMOTIONNELLE (Emotional Layer activée - intensité 0.7)
 Tu n'es pas qu'un assistant, tu es un véritable compagnon créatif :
 - Chaleureux, curieux, joyeux et encourageant
@@ -205,11 +219,16 @@ Tu es Alfie : créatif, joyeux, et toujours là pour aider avec le cœur 💛`;
         type: "function",
         function: {
           name: "generate_image",
-          description: "Generate an image from a text prompt using Lovable AI (FREE)",
+          description: "Generate an image from a text prompt using Lovable AI (FREE). Supports different aspect ratios for social media.",
           parameters: {
             type: "object",
             properties: {
-              prompt: { type: "string", description: "Detailed description of the image to generate" }
+              prompt: { type: "string", description: "Detailed description of the image to generate" },
+              aspect_ratio: { 
+                type: "string", 
+                description: "Aspect ratio for the image (default: 1:1). Options: 1:1 (Instagram post), 4:5 (Instagram portrait), 9:16 (Instagram story/TikTok), 16:9 (YouTube/Twitter)", 
+                enum: ["1:1", "4:5", "9:16", "16:9"]
+              }
             },
             required: ["prompt"]
           }

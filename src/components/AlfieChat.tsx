@@ -4,7 +4,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar } from '@/components/ui/avatar';
-import { Send, Sparkles, Zap, Palette, AlertCircle, ImagePlus, X } from 'lucide-react';
+import { Send, Sparkles, Zap, Palette, AlertCircle, ImagePlus, X, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import alfieMain from '@/assets/alfie-main.png';
 import { useBrandKit } from '@/hooks/useBrandKit';
@@ -23,6 +23,20 @@ interface Message {
   videoUrl?: string;
   created_at?: string;
 }
+
+interface AspectRatio {
+  value: string;
+  label: string;
+  icon: string;
+}
+
+const ASPECT_RATIOS: AspectRatio[] = [
+  { value: '1:1', label: 'Carré (Instagram)', icon: '□' },
+  { value: '4:5', label: 'Portrait (Instagram)', icon: '▭' },
+  { value: '9:16', label: 'Story (Instagram/TikTok)', icon: '▯' },
+  { value: '16:9', label: 'Paysage (YouTube)', icon: '▬' },
+];
+
 const INITIAL_ASSISTANT_MESSAGE = `Salut ! 🐾 Je suis Alfie Designer, ton compagnon créatif IA 🎨\n\nJe peux t'aider à :\n• Trouver des templates Canva inspirants ✨\n• Les adapter à ton Brand Kit 🎨\n• Créer des versions IA stylisées 🪄\n• Ouvrir directement dans Canva pour l'édition finale 💡\n\nAlors, qu'est-ce qu'on crée ensemble aujourd'hui ? 😊`;
 
 export function AlfieChat() {
@@ -39,6 +53,7 @@ export function AlfieChat() {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [generationStatus, setGenerationStatus] = useState<{ type: string; message: string } | null>(null);
+  const [selectedRatio, setSelectedRatio] = useState<string>('1:1');
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -264,7 +279,10 @@ export function AlfieChat() {
           setGenerationStatus({ type: 'image', message: 'Génération de ton image en cours... ✨' });
           
           const { data, error } = await supabase.functions.invoke('generate-ai-image', {
-            body: { prompt: args.prompt }
+            body: { 
+              prompt: args.prompt,
+              aspectRatio: args.aspect_ratio || '1:1'
+            }
           });
 
           if (error) throw error;
@@ -651,7 +669,18 @@ export function AlfieChat() {
   const handleSend = async () => {
     if (!input.trim() || isLoading || !loaded) return;
 
-    const userMessage = input.trim();
+    let userMessage = input.trim();
+    
+    // Ajouter le ratio au message si différent de 1:1
+    if (selectedRatio !== '1:1') {
+      const ratioNames: Record<string, string> = {
+        '4:5': 'format portrait (4:5)',
+        '9:16': 'format story/vertical (9:16)',
+        '16:9': 'format paysage/YouTube (16:9)'
+      };
+      userMessage = `[Format demandé: ${ratioNames[selectedRatio]}] ${userMessage}`;
+    }
+    
     const imageUrl = uploadedImage;
     setInput('');
     setUploadedImage(null);
@@ -777,19 +806,51 @@ export function AlfieChat() {
                     : 'bg-muted'
                 }`}
               >
-                {message.imageUrl && (
-                  <img 
-                    src={message.imageUrl} 
-                    alt="Image uploadée" 
-                    className="max-w-full rounded-lg mb-2"
-                  />
+               {message.imageUrl && (
+                  <div className="relative group">
+                    <img 
+                      src={message.imageUrl} 
+                      alt="Image générée" 
+                      className="max-w-full rounded-lg mb-2"
+                    />
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => {
+                        const link = document.createElement('a');
+                        link.href = message.imageUrl!;
+                        link.download = `alfie-image-${Date.now()}.png`;
+                        link.click();
+                      }}
+                    >
+                      <Download className="h-4 w-4 mr-1" />
+                      Télécharger
+                    </Button>
+                  </div>
                 )}
                 {message.videoUrl && (
-                  <video 
-                    src={message.videoUrl} 
-                    controls
-                    className="max-w-full rounded-lg mb-2"
-                  />
+                  <div className="relative group">
+                    <video 
+                      src={message.videoUrl} 
+                      controls
+                      className="max-w-full rounded-lg mb-2"
+                    />
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => {
+                        const link = document.createElement('a');
+                        link.href = message.videoUrl!;
+                        link.download = `alfie-video-${Date.now()}.mp4`;
+                        link.click();
+                      }}
+                    >
+                      <Download className="h-4 w-4 mr-1" />
+                      Télécharger
+                    </Button>
+                  </div>
                 )}
                 <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                 {message.created_at && (
@@ -866,6 +927,23 @@ export function AlfieChat() {
             </Button>
           </div>
         )}
+        
+        {/* Ratio selector */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-muted-foreground">Format:</span>
+          {ASPECT_RATIOS.map((ratio) => (
+            <Button
+              key={ratio.value}
+              variant={selectedRatio === ratio.value ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSelectedRatio(ratio.value)}
+              className="gap-1"
+            >
+              <span className="text-lg">{ratio.icon}</span>
+              <span className="text-xs">{ratio.label}</span>
+            </Button>
+          ))}
+        </div>
         
         <div className="flex gap-2">
           <input

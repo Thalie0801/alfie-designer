@@ -16,7 +16,7 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    const { prompt } = await req.json();
+    const { prompt, aspectRatio = "1:1" } = await req.json();
 
     if (!prompt) {
       return new Response(
@@ -28,7 +28,17 @@ serve(async (req) => {
       );
     }
 
-    console.log("Generating image with prompt:", prompt);
+    console.log("Generating image with prompt:", prompt, "Aspect ratio:", aspectRatio);
+
+    // Ajouter le ratio au prompt pour Gemini
+    const ratioDescriptions: Record<string, string> = {
+      "1:1": "square format (1:1 aspect ratio, 1024x1024px)",
+      "4:5": "portrait format (4:5 aspect ratio, 1024x1280px)",
+      "9:16": "vertical format (9:16 aspect ratio, 1024x1820px)",
+      "16:9": "horizontal format (16:9 aspect ratio, 1820x1024px)"
+    };
+
+    const enhancedPrompt = `${prompt}. Create this image in ${ratioDescriptions[aspectRatio] || ratioDescriptions["1:1"]}. High quality, professional result.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -41,7 +51,7 @@ serve(async (req) => {
         messages: [
           {
             role: "user",
-            content: prompt
+            content: enhancedPrompt
           }
         ],
         modalities: ["image", "text"]
