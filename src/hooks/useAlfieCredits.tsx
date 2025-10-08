@@ -9,11 +9,13 @@ export function useAlfieCredits() {
     purchased: 0,
     affiliation: 0
   });
+  const [generations, setGenerations] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const loadCredits = useCallback(async () => {
     if (!user) {
       setCredits({ monthly: 0, purchased: 0, affiliation: 0 });
+      setGenerations(0);
       setLoading(false);
       return;
     }
@@ -21,7 +23,7 @@ export function useAlfieCredits() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('ai_credits_monthly, ai_credits_purchased, ai_credits_from_affiliation')
+        .select('ai_credits_monthly, ai_credits_purchased, ai_credits_from_affiliation, generations_this_month')
         .eq('id', user.id)
         .single();
 
@@ -32,6 +34,7 @@ export function useAlfieCredits() {
         purchased: data?.ai_credits_purchased || 0,
         affiliation: data?.ai_credits_from_affiliation || 0
       });
+      setGenerations(data?.generations_this_month || 0);
     } catch (error) {
       console.error('Error loading credits:', error);
     } finally {
@@ -132,6 +135,35 @@ export function useAlfieCredits() {
     }
   };
 
+  const incrementGenerations = async () => {
+    if (!user) return;
+
+    try {
+      const newCount = generations + 1;
+      
+      const { error } = await supabase
+        .from('profiles')
+        .update({ generations_this_month: newCount })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      setGenerations(newCount);
+      
+      await supabase
+        .from('credit_transactions')
+        .insert({
+          user_id: user.id,
+          amount: 0,
+          transaction_type: 'usage',
+          action: 'generation'
+        });
+    } catch (error) {
+      console.error('Error incrementing generations:', error);
+      throw error;
+    }
+  };
+
   const hasCredits = (amount: number = 1) => getTotalCredits() >= amount;
 
   const refreshCredits = () => loadCredits();
@@ -139,9 +171,11 @@ export function useAlfieCredits() {
   return {
     credits,
     totalCredits: getTotalCredits(),
+    generations,
     loading,
     decrementCredits,
     addCredits,
+    incrementGenerations,
     hasCredits,
     refreshCredits
   };

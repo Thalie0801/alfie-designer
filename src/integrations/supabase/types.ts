@@ -677,6 +677,8 @@ export type Database = {
           credits_reset_date: string | null
           email: string
           full_name: string | null
+          generations_reset_date: string | null
+          generations_this_month: number | null
           id: string
           plan: string | null
           quota_brands: number | null
@@ -697,6 +699,8 @@ export type Database = {
           credits_reset_date?: string | null
           email: string
           full_name?: string | null
+          generations_reset_date?: string | null
+          generations_this_month?: number | null
           id: string
           plan?: string | null
           quota_brands?: number | null
@@ -717,6 +721,8 @@ export type Database = {
           credits_reset_date?: string | null
           email?: string
           full_name?: string | null
+          generations_reset_date?: string | null
+          generations_this_month?: number | null
           id?: string
           plan?: string | null
           quota_brands?: number | null

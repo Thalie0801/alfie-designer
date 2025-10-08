@@ -24,7 +24,15 @@ interface Message {
   created_at?: string;
 }
 
-const INITIAL_ASSISTANT_MESSAGE = `Salut ! 🐾 Je suis Alfie Designer, ton compagnon créatif IA 🎨\n\nJe peux t'aider à :\n• Trouver des templates Canva inspirants ✨\n• Les adapter à ton Brand Kit 🎨\n• Créer des versions IA stylisées 🪄\n• Ouvrir directement dans Canva pour l'édition finale 💡\n\nAlors, qu'est-ce qu'on crée ensemble aujourd'hui ? 😊`;
+const INITIAL_ASSISTANT_MESSAGE = `Salut ! 🐾 Je suis Alfie Designer, ton compagnon créatif IA 🎨
+
+Je peux t'aider à :
+• Créer des images IA (GRATUIT ✨)
+• Générer des vidéos animées (10 crédits 🎬)
+• Trouver des templates Canva (bientôt 🚀)
+• Adapter au Brand Kit 🎨
+
+Alors, qu'est-ce qu'on crée ensemble aujourd'hui ? 😊`;
 
 export function AlfieChat() {
   const [messages, setMessages] = useState<Message[]>([
@@ -44,7 +52,7 @@ export function AlfieChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { brandKit } = useBrandKit();
-  const { totalCredits, decrementCredits, hasCredits } = useAlfieCredits();
+  const { totalCredits, decrementCredits, hasCredits, incrementGenerations } = useAlfieCredits();
   const { searchTemplates } = useTemplateLibrary();
   const { 
     checkQuota, 
@@ -284,6 +292,9 @@ export function AlfieChat() {
             status: 'completed'
           });
 
+          // Incrémenter le compteur de générations
+          await incrementGenerations();
+
           setGenerationStatus(null);
           
           const imageMessage = {
@@ -336,6 +347,9 @@ export function AlfieChat() {
             output_url: data.imageUrl,
             status: 'completed'
           });
+
+          // Incrémenter le compteur de générations
+          await incrementGenerations();
 
           setGenerationStatus(null);
 
@@ -436,6 +450,9 @@ export function AlfieChat() {
 
                 // Déduire les crédits (vidéo = 10 crédits)
                 await decrementCredits(10, 'video_generation');
+                
+                // Incrémenter le compteur de générations
+                await incrementGenerations();
 
                 setGenerationStatus(null);
                 toast.success("Vidéo générée avec succès ! 🎉");

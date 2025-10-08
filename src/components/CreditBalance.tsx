@@ -5,7 +5,7 @@ import { useAlfieCredits } from '@/hooks/useAlfieCredits';
 import { CreditPurchaseDialog } from './CreditPurchaseDialog';
 
 export function CreditBalance() {
-  const { credits, totalCredits, loading } = useAlfieCredits();
+  const { credits, totalCredits, generations, loading } = useAlfieCredits();
 
   if (loading) {
     return (
@@ -29,7 +29,7 @@ export function CreditBalance() {
           </Badge>
         </CardTitle>
         <CardDescription>
-          Utilisez vos crédits pour générer des visuels personnalisés
+          {generations} générations ce mois-ci • Les images sont gratuites ✨
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
