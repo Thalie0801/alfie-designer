@@ -279,11 +279,19 @@ export function AlfieChat() {
             }
           });
 
-          if (error) throw error;
+          if (error) {
+            console.error('Generate image error:', error);
+            throw error;
+          }
+
+          if (!data?.imageUrl) {
+            throw new Error("Aucune image générée");
+          }
           
           const { data: { user } } = await supabase.auth.getUser();
           if (!user) throw new Error("Not authenticated");
 
+          // Stocker en DB
           await supabase.from('media_generations').insert({
             user_id: user.id,
             type: 'image',
@@ -292,9 +300,8 @@ export function AlfieChat() {
             status: 'completed'
           });
 
-          // Déduire 1 crédit pour la génération d'image
+          // Débiter les crédits SEULEMENT si l'image a été générée et stockée
           await decrementCredits(1, 'image_generation');
-          // Incrémenter le compteur de générations
           await incrementGenerations();
 
           setGenerationStatus(null);
@@ -324,6 +331,7 @@ export function AlfieChat() {
         } catch (error: any) {
           console.error('Image generation error:', error);
           setGenerationStatus(null);
+          toast.error("Erreur lors de la génération. Crédits non débités.");
           return { error: error.message || "Erreur de génération" };
         }
       }
@@ -556,8 +564,6 @@ export function AlfieChat() {
       const decoder = new TextDecoder();
       let assistantMessage = '';
       let textBuffer = '';
-      let generatedImageBase64: string | null = null;
-      let uploadedImageUrl: string | null = null;
 
       // Add empty assistant message that we'll update
       setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
@@ -599,12 +605,6 @@ export function AlfieChat() {
               }
             }
             
-            // Détecter les images générées dans le message
-            const message = parsed.choices?.[0]?.message;
-            if (message?.images?.[0]?.image_url?.url) {
-              generatedImageBase64 = message.images[0].image_url.url;
-            }
-            
             // Handle regular content
             const content = delta?.content;
             if (content) {
@@ -621,67 +621,6 @@ export function AlfieChat() {
           } catch (e) {
             // Ignore parse errors for incomplete JSON
           }
-        }
-      }
-      
-      // Traiter l'image base64 si présente
-      if (generatedImageBase64) {
-        try {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) throw new Error("Not authenticated");
-          
-          // Convertir base64 en Blob
-          const base64Data = generatedImageBase64.split(',')[1];
-          const byteCharacters = atob(base64Data);
-          const byteNumbers = new Array(byteCharacters.length);
-          for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i);
-          }
-          const byteArray = new Uint8Array(byteNumbers);
-          const blob = new Blob([byteArray], { type: 'image/png' });
-          
-          // Uploader en storage
-          const fileName = `${user.id}/${Date.now()}.png`;
-          const { data: uploadData, error: uploadError } = await supabase.storage
-            .from('media-generations')
-            .upload(fileName, blob);
-          
-          if (uploadError) throw uploadError;
-          
-          const { data: { publicUrl } } = supabase.storage
-            .from('media-generations')
-            .getPublicUrl(fileName);
-          
-          uploadedImageUrl = publicUrl;
-          
-          // Stocker en DB
-          await supabase.from('media_generations').insert({
-            user_id: user.id,
-            type: 'image',
-            prompt: userMessage,
-            output_url: publicUrl,
-            status: 'completed'
-          });
-          
-          // MAINTENANT on débite les crédits car l'image est stockée avec succès
-          await decrementCredits(1, 'image_generation');
-          await incrementGenerations();
-          
-          // Mettre à jour le message avec l'URL de l'image
-          setMessages(prev => {
-            const newMessages = [...prev];
-            newMessages[newMessages.length - 1] = {
-              role: 'assistant',
-              content: assistantMessage,
-              imageUrl: publicUrl
-            };
-            return newMessages;
-          });
-          
-          toast.success("Image générée ! (1 crédit débité)");
-        } catch (error) {
-          console.error('Erreur upload image:', error);
-          toast.error("Erreur lors du stockage de l'image. Crédits non débités.");
         }
       }
 
@@ -722,8 +661,7 @@ export function AlfieChat() {
           await supabase.from('alfie_messages').insert({
             conversation_id: conversationId,
             role: 'assistant',
-            content: assistantMessage,
-            image_url: uploadedImageUrl
+            content: assistantMessage
           });
           await supabase
             .from('alfie_conversations')
