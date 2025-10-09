@@ -1,6 +1,7 @@
 // Gestionnaire de quotas mensuels par marque (visuels, vidéos, Woofs)
 
 import { supabase } from '@/integrations/supabase/client';
+import { SYSTEM_CONFIG } from '@/config/systemConfig';
 
 export interface QuotaStatus {
   visuals: {
@@ -52,18 +53,20 @@ export async function getQuotaStatus(brandId: string): Promise<QuotaStatus | nul
     const woofsLimit = brand.quota_woofs || 0;
     const woofsRemaining = Math.max(0, woofsLimit - woofsConsumed);
 
+    const hardStopThreshold = SYSTEM_CONFIG.HARD_STOP_MULTIPLIER * 100; // 110%
+
     return {
       visuals: {
         used: visualsUsed,
         limit: visualsLimit,
         percentage: visualsPercentage,
-        canGenerate: visualsPercentage < 110 // Hard-stop à 110%
+        canGenerate: visualsPercentage < hardStopThreshold
       },
       videos: {
         used: videosUsed,
         limit: videosLimit,
         percentage: videosPercentage,
-        canGenerate: videosPercentage < 110 // Hard-stop à 110%
+        canGenerate: videosPercentage < hardStopThreshold
       },
       woofs: {
         consumed: woofsConsumed,
@@ -194,16 +197,18 @@ export function checkQuotaAlert(status: QuotaStatus): { level: 'warning' | 'erro
   const woofsPercent = status.woofs.limit > 0 ? (status.woofs.consumed / status.woofs.limit) * 100 : 0;
 
   const resetDate = new Date(status.resetsOn || '').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+  const alertThreshold = SYSTEM_CONFIG.ALERT_THRESHOLD * 100; // 80%
+  const packSizes = SYSTEM_CONFIG.PACK_WOOFS_SIZES.join(' / +');
 
   if (visualsPercent >= 100 || videosPercent >= 100 || woofsPercent >= 100) {
     return {
       level: 'error',
-      message: `⚠️ Quota atteint pour ${status.brandName}! Ajoutez un Pack Woofs (+50 / +100) ou patientez jusqu'au ${resetDate}.`
+      message: `⚠️ Quota atteint pour ${status.brandName}! Ajoutez un Pack Woofs (+${packSizes}) ou patientez jusqu'au ${resetDate}.`
     };
   }
 
   const maxPercent = Math.max(visualsPercent, videosPercent, woofsPercent);
-  if (maxPercent >= 80) {
+  if (maxPercent >= alertThreshold) {
     return {
       level: 'warning',
       message: `⚠️ Vous avez utilisé ${maxPercent.toFixed(0)}% de vos quotas pour ${status.brandName}.`
