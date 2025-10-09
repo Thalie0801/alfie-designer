@@ -15,8 +15,9 @@ import { openInCanva } from '@/services/canvaLinker';
 import { supabase } from '@/integrations/supabase/client';
 import { detectIntent, canHandleLocally, generateLocalResponse } from '@/utils/alfieIntentDetector';
 import { Progress } from '@/components/ui/progress';
-import { getQuotaStatus, consumeQuota, canGenerateVideo } from '@/utils/quotaManager';
+import { getQuotaStatus, consumeQuota, canGenerateVideo, checkQuotaAlert, formatExpirationMessage } from '@/utils/quotaManager';
 import { routeVideoEngine, estimateVideoDuration, detectVideoStyle } from '@/utils/videoRouting';
+import { BrandQuotaDisplay } from '@/components/BrandQuotaDisplay';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -432,7 +433,22 @@ export function AlfieChat() {
           const canGenerate = await canGenerateVideo(activeBrandId, routing.woofCost);
           if (!canGenerate.canGenerate) {
             setGenerationStatus(null);
+            
+            // Si c'est un problème de budget pour Veo3, afficher le message de fallback
+            if (canGenerate.fallbackMessage) {
+              toast.warning(canGenerate.fallbackMessage);
+            }
+            
             toast.error(canGenerate.reason);
+            
+            // Retourner un message assistant avec le contexte
+            setMessages(prev => [...prev, {
+              role: 'assistant',
+              content: canGenerate.fallbackMessage 
+                ? `${canGenerate.reason}\n\n💡 ${canGenerate.fallbackMessage}`
+                : canGenerate.reason
+            }]);
+            
             return { error: canGenerate.reason };
           }
 
@@ -643,15 +659,20 @@ export function AlfieChat() {
           const { data: assets, error } = await query;
           if (error) throw error;
 
+          // Ajouter les messages d'expiration
+          const assetsWithExpiration = assets?.map(a => ({
+            id: a.id,
+            type: a.type,
+            url: a.output_url,
+            created_at: a.created_at,
+            expires_at: a.expires_at,
+            expiration_message: a.expires_at ? formatExpirationMessage(a.expires_at) : null
+          })) || [];
+
           return {
             success: true,
-            assets: assets?.map(a => ({
-              id: a.id,
-              type: a.type,
-              url: a.output_url,
-              created_at: a.created_at
-            })) || [],
-            message: `Package prêt avec ${assets?.length || 0} assets ! 📦`
+            assets: assetsWithExpiration,
+            message: `Package prêt avec ${assets?.length || 0} assets ! 📦\n\n${assetsWithExpiration[0]?.expiration_message || ''}`
           };
         } catch (error: any) {
           console.error('Package download error:', error);
@@ -948,6 +969,12 @@ export function AlfieChat() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-12rem)] max-w-5xl mx-auto w-full">
+      {/* Quota Display */}
+      <div className="mb-4">
+        <BrandQuotaDisplay />
+      </div>
+      
+      {/* Chat Messages */}
       <ScrollArea className="flex-1 pr-4" ref={scrollRef}>
         <div className="space-y-4 pb-4">
           {messages.map((message, index) => (

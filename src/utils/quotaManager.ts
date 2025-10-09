@@ -134,9 +134,10 @@ export async function canGenerateVisual(brandId: string): Promise<{ canGenerate:
   }
 
   if (!status.visuals.canGenerate) {
+    const resetDate = new Date(status.resetsOn || '').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
     return { 
       canGenerate: false, 
-      reason: `Quota visuels atteint pour ${status.brandName} (${status.visuals.used}/${status.visuals.limit}). Upgrade le plan ou attends le reset le ${status.resetsOn} !` 
+      reason: `Quota atteint pour ${status.brandName}. Ajoutez un Pack Visuels ou patientez jusqu'au ${resetDate}.` 
     };
   }
 
@@ -149,24 +150,35 @@ export async function canGenerateVisual(brandId: string): Promise<{ canGenerate:
 export async function canGenerateVideo(
   brandId: string, 
   woofCost: number
-): Promise<{ canGenerate: boolean; reason?: string }> {
+): Promise<{ canGenerate: boolean; reason?: string; fallbackMessage?: string }> {
   const status = await getQuotaStatus(brandId);
   
   if (!status) {
     return { canGenerate: false, reason: 'Impossible de récupérer les quotas de la marque' };
   }
 
+  const resetDate = new Date(status.resetsOn || '').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+
   if (!status.videos.canGenerate) {
     return { 
       canGenerate: false, 
-      reason: `Quota vidéos atteint pour ${status.brandName} (${status.videos.used}/${status.videos.limit}). Upgrade le plan pour continuer !` 
+      reason: `Quota vidéos atteint pour ${status.brandName}. Ajoutez un Pack Woofs (+50 / +100) ou patientez jusqu'au ${resetDate}.` 
     };
   }
 
   if (!status.woofs.canUse(woofCost)) {
+    // Si Veo3 demandé mais pas assez de Woofs, suggérer Sora
+    if (woofCost === 4) {
+      return { 
+        canGenerate: false, 
+        reason: `Veo 3 consomme 4 Woofs, budget insuffisant pour ${status.brandName}. Utilisez Sora (1 Woof) ou ajoutez un Pack Woofs (+50 / +100).`,
+        fallbackMessage: `Il vous reste ${status.woofs.remaining} Woofs. Veo 3 nécessite 4 Woofs, mais Sora n'en utilise qu'1.`
+      };
+    }
+    
     return { 
       canGenerate: false, 
-      reason: `Woofs insuffisants pour ${status.brandName} (${status.woofs.remaining} restants, ${woofCost} requis). Achète un Pack Woofs ou upgrade le plan !` 
+      reason: `Woofs insuffisants pour ${status.brandName} (${status.woofs.remaining} restants, ${woofCost} requis). Ajoutez un Pack Woofs (+50 / +100) ou patientez jusqu'au ${resetDate}.` 
     };
   }
 
@@ -174,26 +186,48 @@ export async function canGenerateVideo(
 }
 
 /**
- * Affiche un alerte si les quotas approchent de la limite (80% ou 100%)
+ * Affiche une alerte si les quotas approchent de la limite (80% ou 100%)
  */
 export function checkQuotaAlert(status: QuotaStatus): { level: 'warning' | 'error' | null; message: string } | null {
   const visualsPercent = status.visuals.percentage;
   const videosPercent = status.videos.percentage;
   const woofsPercent = status.woofs.limit > 0 ? (status.woofs.consumed / status.woofs.limit) * 100 : 0;
 
+  const resetDate = new Date(status.resetsOn || '').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+
   if (visualsPercent >= 100 || videosPercent >= 100 || woofsPercent >= 100) {
     return {
       level: 'error',
-      message: `⚠️ Quotas atteints pour ${status.brandName}! Upgrade ton plan ou attends le reset le ${status.resetsOn}.`
+      message: `⚠️ Quota atteint pour ${status.brandName}! Ajoutez un Pack Woofs (+50 / +100) ou patientez jusqu'au ${resetDate}.`
     };
   }
 
-  if (visualsPercent >= 80 || videosPercent >= 80 || woofsPercent >= 80) {
+  const maxPercent = Math.max(visualsPercent, videosPercent, woofsPercent);
+  if (maxPercent >= 80) {
     return {
       level: 'warning',
-      message: `⚠️ Tu approches de tes limites pour ${status.brandName} (80%+). Pense à upgrader !`
+      message: `⚠️ Vous avez utilisé ${maxPercent.toFixed(0)}% de vos quotas pour ${status.brandName}.`
     };
   }
 
   return null;
+}
+
+/**
+ * Formatte un message d'expiration pour un asset
+ */
+export function formatExpirationMessage(expiresAt: string): string {
+  const expiryDate = new Date(expiresAt);
+  const now = new Date();
+  const daysLeft = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  
+  const formattedDate = expiryDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+  
+  if (daysLeft <= 0) {
+    return `⚠️ Expiré. Asset supprimé.`;
+  } else if (daysLeft <= 7) {
+    return `⚠️ Disponible jusqu'au ${formattedDate} (J+${daysLeft}). Téléchargez avant purge.`;
+  }
+  
+  return `Disponible jusqu'au ${formattedDate} (J+30). Téléchargez avant purge.`;
 }
