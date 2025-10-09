@@ -24,12 +24,12 @@ export default function Library() {
     cleanupProcessingVideos
   } = useLibraryAssets(user?.id, activeTab);
 
-  // Auto cleanup on mount if there are processing videos
+  // Auto cleanup when switching to videos tab
   useEffect(() => {
-    if (activeTab === 'videos' && assets.some(a => a.status === 'processing')) {
+    if (activeTab === 'videos') {
       cleanupProcessingVideos();
     }
-  }, []);
+  }, [activeTab]);
 
   const filteredAssets = assets.filter(asset =>
     !searchQuery || 
@@ -104,6 +104,17 @@ export default function Library() {
               />
             </div>
           </div>
+
+          {activeTab === 'videos' && (
+            <Button 
+              size="sm" 
+              variant="outline"
+              onClick={cleanupProcessingVideos}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Nettoyer les vidéos bloquées
+            </Button>
+          )}
 
           {selectedAssets.length > 0 && (
             <div className="flex items-center gap-2">
