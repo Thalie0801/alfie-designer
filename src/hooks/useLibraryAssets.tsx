@@ -141,11 +141,28 @@ export function useLibraryAssets(userId: string | undefined, type: 'images' | 'v
 
   const cleanupProcessingVideos = async () => {
     try {
+      // Try backend function first
       const { data, error } = await supabase.functions.invoke('cleanup-processing-videos');
       
-      if (error) throw error;
+      if (error) {
+        console.warn('Backend cleanup failed, using client-side fallback:', error);
+        // Fallback: delete directly via client
+        const { data: deletedData, error: deleteError } = await supabase
+          .from('media_generations')
+          .delete()
+          .eq('user_id', userId)
+          .eq('type', 'video')
+          .eq('status', 'processing')
+          .select();
+
+        if (deleteError) throw deleteError;
+        
+        const count = deletedData?.length || 0;
+        toast.success(`${count} vidéo(s) en processing supprimée(s)`);
+      } else {
+        toast.success(data.message || 'Vidéos bloquées nettoyées');
+      }
       
-      toast.success(data.message || 'Vidéos bloquées nettoyées');
       await fetchAssets();
     } catch (error) {
       console.error('Error cleaning up videos:', error);
