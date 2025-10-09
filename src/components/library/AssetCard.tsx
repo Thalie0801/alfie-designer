@@ -156,9 +156,11 @@ export function AssetCard({
           variant="outline" 
           className="flex-1"
           onClick={onDownload}
+          disabled={asset.type === 'video' && !asset.output_url}
+          title={asset.type === 'video' && !asset.output_url ? 'Vidéo en cours de génération' : 'Télécharger'}
         >
           <Download className="h-4 w-4 mr-2" />
-          Télécharger
+          {asset.type === 'video' && !asset.output_url ? 'En génération…' : 'Télécharger'}
         </Button>
         <Button 
           size="sm" 

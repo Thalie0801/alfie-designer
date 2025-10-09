@@ -1112,41 +1112,59 @@ export function AlfieChat() {
 
         {/* Chips durée vidéo */}
         {input.toLowerCase().includes('vidéo') || input.toLowerCase().includes('tiktok') || input.toLowerCase().includes('reel') ? (
-          <div className="flex gap-2 items-center mb-2">
-            <span className="text-xs text-muted-foreground">Durée :</span>
-            <button
-              onClick={() => setSelectedDuration('short')}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                selectedDuration === 'short'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted hover:bg-muted/80'
-              }`}
-            >
-              10-12s loop (1 Woof)
-            </button>
-            <button
-              onClick={() => setSelectedDuration('medium')}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                selectedDuration === 'medium'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted hover:bg-muted/80'
-              }`}
-            >
-              ~20s (2 Woofs)
-            </button>
-            <button
-              onClick={() => setSelectedDuration('long')}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                selectedDuration === 'long'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted hover:bg-muted/80'
-              }`}
-            >
-              ~30s (3 Woofs)
-            </button>
-            <span className="text-xs text-muted-foreground ml-2">
-              💡 1 clip Sora = 1 Woof
-            </span>
+          <div className="mb-2 space-y-2">
+            <div className="flex gap-2 items-center">
+              <span className="text-xs text-muted-foreground">Durée :</span>
+              <button
+                onClick={() => setSelectedDuration('short')}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  selectedDuration === 'short'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted hover:bg-muted/80'
+                }`}
+              >
+                10-12s loop (1 Woof)
+              </button>
+              <button
+                onClick={() => setSelectedDuration('medium')}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  selectedDuration === 'medium'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted hover:bg-muted/80'
+                }`}
+              >
+                ~20s (2 Woofs)
+              </button>
+              <button
+                onClick={() => setSelectedDuration('long')}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  selectedDuration === 'long'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted hover:bg-muted/80'
+                }`}
+              >
+                ~30s (3 Woofs)
+              </button>
+              <span className="text-xs text-muted-foreground ml-2">
+                💡 1 clip Sora = 1 Woof
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">
+                {selectedDuration === 'short' ? 'Estimation ≈ 1–2 min' : selectedDuration === 'medium' ? 'Estimation ≈ 2–3 min' : 'Estimation ≈ 3–4 min'}
+              </span>
+              <Button
+                size="sm"
+                onClick={() => {
+                  const clipCount = selectedDuration === 'short' ? 1 : selectedDuration === 'medium' ? 2 : 3;
+                  void handleToolCall('generate_video', { prompt: input, imageUrl: uploadedImage, clipCount });
+                }}
+                disabled={!input.trim()}
+              >
+                Générer la vidéo
+              </Button>
+            </div>
           </div>
         ) : null}
         

@@ -16,6 +16,7 @@ export interface LibraryAsset {
   expires_at: string;
   is_source_upload: boolean;
   brand_id?: string;
+  status?: string;
 }
 
 export function useLibraryAssets(userId: string | undefined, type: 'images' | 'videos') {
@@ -51,6 +52,14 @@ export function useLibraryAssets(userId: string | undefined, type: 'images' | 'v
     fetchAssets();
   }, [userId, type]);
 
+  // Auto-refresh when videos are processing
+  useEffect(() => {
+    if (type === 'videos' && assets.some(a => a.type === 'video' && !a.output_url)) {
+      const id = setInterval(fetchAssets, 10000);
+      return () => clearInterval(id);
+    }
+  }, [assets, type]);
+
   const deleteAsset = async (assetId: string) => {
     try {
       const { error } = await supabase
@@ -71,6 +80,11 @@ export function useLibraryAssets(userId: string | undefined, type: 'images' | 'v
   const downloadAsset = async (assetId: string) => {
     const asset = assets.find(a => a.id === assetId);
     if (!asset) return;
+
+    if (!asset.output_url) {
+      toast.info(asset.type === 'video' ? 'Vidéo encore en génération… réessayez dans quelques minutes.' : "Fichier indisponible");
+      return;
+    }
 
     try {
       const response = await fetch(asset.output_url);
