@@ -5,13 +5,15 @@
 export const FEATURE_FLAGS = {
   VEO3_ENABLED: false,
   CANVA_API_ENABLED: false,
-  VIDEO_GENERATION_ENABLED: false, // Désactivé: problème IP whitelist Kie.ai
+  VIDEO_GENERATION_ENABLED: true, // ✅ Réactivé avec fallback Sora2 → Seededance → Kling
 } as const;
 
 export const SYSTEM_CONFIG = {
-  // Coûts vidéo en Woofs
+  // Coûts vidéo en Woofs (coût unifié pour tous les providers)
   VEO3_WOOF_FACTOR: 4,
   SORA_WOOF_FACTOR: 1,
+  SEEDEDANCE_WOOF_FACTOR: 1, // ByteDance Seededance (Replicate)
+  KLING_WOOF_FACTOR: 1, // Kling v2.5-turbo-pro (Replicate)
 
   // Vidéo (qualité/latence)
   VIDEO: {

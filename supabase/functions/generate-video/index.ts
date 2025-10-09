@@ -47,60 +47,96 @@ serve(async (req) => {
 
     // Check status of existing generation
     if (body.generationId) {
-      console.log("Checking video generation status:", body.generationId);
+      const provider = body.provider || 'sora';
+      console.log(`Checking video generation status for ${provider}:`, body.generationId);
       
-      // Kie AI recordInfo endpoint
-      const statusResponse = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${body.generationId}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${KIE_AI_API_KEY}`,
-        },
-      });
-
-      if (!statusResponse.ok) {
-        const errorText = await statusResponse.text();
-        console.error("Kie AI status check error:", statusResponse.status, errorText);
-        throw new Error(`Status check failed: ${statusResponse.statusText}`);
-      }
-
-      const statusData = await statusResponse.json();
-      console.log("Kie.ai status:", JSON.stringify(statusData));
-      
-      // Parse Kie.ai response format
-      let finalResponse: any = {
-        status: 'processing'
-      };
-
-      if (statusData.data?.state === 'success') {
-        const resultJson = JSON.parse(statusData.data.resultJson);
-        finalResponse = {
-          status: 'succeeded',
-          output: resultJson.resultUrls?.[0] || null
-        };
-      } else if (statusData.data?.state === 'fail') {
-        console.error("Kie.ai generation failed:", {
-          failCode: statusData.data.failCode,
-          failMsg: statusData.data.failMsg,
-          taskId: body.generationId
+      if (provider === 'sora') {
+        // Kie AI recordInfo endpoint
+        const statusResponse = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${body.generationId}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${KIE_AI_API_KEY}`,
+          },
         });
-        finalResponse = {
-          status: 'failed',
-          error: statusData.data.failMsg || 'Generation failed'
-        };
+
+        if (!statusResponse.ok) {
+          const errorText = await statusResponse.text();
+          console.error("Kie AI status check error:", statusResponse.status, errorText);
+          throw new Error(`Status check failed: ${statusResponse.statusText}`);
+        }
+
+        const statusData = await statusResponse.json();
+        console.log("Kie.ai status:", JSON.stringify(statusData));
+        
+        let finalResponse: any = { status: 'processing' };
+
+        if (statusData.data?.state === 'success') {
+          const resultJson = JSON.parse(statusData.data.resultJson);
+          finalResponse = {
+            status: 'succeeded',
+            output: resultJson.resultUrls?.[0] || null
+          };
+        } else if (statusData.data?.state === 'fail') {
+          console.error("Kie.ai generation failed:", statusData.data);
+          finalResponse = {
+            status: 'failed',
+            error: statusData.data.failMsg || 'Generation failed'
+          };
+        } else {
+          finalResponse = {
+            status: 'processing',
+            progress: statusData.data?.state === 'generating' ? 50 : 10
+          };
+        }
+        
+        return new Response(JSON.stringify(finalResponse), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       } else {
-        // waiting, queuing, generating
-        finalResponse = {
-          status: 'processing',
-          progress: statusData.data?.state === 'generating' ? 50 : 10
-        };
+        // Replicate status check (for Seededance and Kling)
+        const REPLICATE_API_TOKEN = Deno.env.get('REPLICATE_API_TOKEN');
+        const statusResponse = await fetch(`https://api.replicate.com/v1/predictions/${body.generationId}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Token ${REPLICATE_API_TOKEN}`,
+          },
+        });
+
+        if (!statusResponse.ok) {
+          const errorText = await statusResponse.text();
+          console.error(`${provider} status check error:`, statusResponse.status, errorText);
+          throw new Error(`Status check failed: ${statusResponse.statusText}`);
+        }
+
+        const prediction = await statusResponse.json();
+        console.log(`${provider} status:`, JSON.stringify(prediction));
+        
+        let finalResponse: any = { status: 'processing' };
+
+        if (prediction.status === 'succeeded') {
+          finalResponse = {
+            status: 'succeeded',
+            output: prediction.output || null
+          };
+        } else if (prediction.status === 'failed' || prediction.status === 'canceled') {
+          finalResponse = {
+            status: 'failed',
+            error: prediction.error || 'Generation failed'
+          };
+        } else {
+          finalResponse = {
+            status: 'processing',
+            progress: prediction.status === 'processing' ? 50 : 10
+          };
+        }
+        
+        return new Response(JSON.stringify(finalResponse), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
-      
-      return new Response(JSON.stringify(finalResponse), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
     }
 
-    // Start new video generation
+    // Start new video generation with cascade fallback
     if (!body.prompt) {
       return new Response(
         JSON.stringify({ error: "Missing required field: prompt" }), 
@@ -111,89 +147,144 @@ serve(async (req) => {
       );
     }
 
-    console.log("Starting Sora2 video generation with prompt:", body.prompt);
-    
-    // Kie AI createTask endpoint for Sora 2
+    console.log("🎬 [generate-video] Starting cascade fallback with prompt:", body.prompt);
     const aspectRatio = body.aspectRatio === '9:16' ? 'portrait' : 'landscape';
-    const payload: any = {
-      model: "sora-2-text-to-video",
-      input: {
-        prompt: body.prompt,
-        aspect_ratio: aspectRatio
-      }
-    };
-
-    // Support image→video (if available in Sora 2)
-    if (body.imageUrl) {
-      payload.input.image = body.imageUrl;
-    }
-
-    console.log("Kie AI createTask payload:", JSON.stringify(payload));
     
-    const kieResponse = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${KIE_AI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!kieResponse.ok) {
-      const errorText = await kieResponse.text();
-      console.error("❌ [Kie AI] HTTP error:", kieResponse.status, errorText);
+    // 1️⃣ TENTATIVE SORA2 (Kie.ai) avec timeout 5s
+    try {
+      console.log("🎬 [Sora2] Attempting generation...");
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
       
-      // Tenter de parser l'erreur JSON
-      let errorData: any = {};
-      try {
-        errorData = JSON.parse(errorText);
-      } catch {
-        errorData = { msg: errorText };
+      const kiePayload: any = {
+        model: "sora-2-text-to-video",
+        input: {
+          prompt: body.prompt,
+          aspect_ratio: aspectRatio
+        }
+      };
+      
+      if (body.imageUrl) {
+        kiePayload.input.image = body.imageUrl;
       }
       
-      // 🚨 Détection spécifique de l'erreur IP whitelist
-      if (kieResponse.status === 401 && errorData.msg?.includes('Illegal IP')) {
-        console.error('🚨 [Kie.ai] IP NOT WHITELISTED - Backend IP needs to be added to Kie.ai whitelist');
-        return new Response(JSON.stringify({
-          error: 'PROVIDER_IP_WHITELIST',
-          message: 'L\'IP sortante du backend n\'est pas whitelistée chez Kie.ai',
-          details: errorData.msg,
-          help: 'Appelle generate-video avec { diagnose: true } pour obtenir l\'IP à whitelister'
+      const kieResponse = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${KIE_AI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(kiePayload),
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeout);
+      
+      if (kieResponse.ok) {
+        const generation = await kieResponse.json();
+        if (generation.data?.taskId) {
+          console.log("✅ [Sora2] Generation started with ID:", generation.data.taskId);
+          return new Response(JSON.stringify({ 
+            id: generation.data.taskId,
+            provider: 'sora',
+            status: 'processing'
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200,
+          });
+        }
+      }
+      
+      console.warn("⚠️ [Sora2] Failed, trying Seededance...");
+      
+    } catch (soraError: any) {
+      console.error("❌ [Sora2] Error:", soraError?.message || soraError);
+    }
+    
+    // 2️⃣ FALLBACK SEEDEDANCE (Replicate/ByteDance)
+    const REPLICATE_API_TOKEN = Deno.env.get('REPLICATE_API_TOKEN');
+    if (!REPLICATE_API_TOKEN) {
+      console.error('❌ REPLICATE_API_TOKEN not set');
+      throw new Error('REPLICATE_API_TOKEN not configured');
+    }
+    
+    try {
+      console.log("🎬 [Seededance] Attempting generation...");
+      
+      const seededanceResponse = await fetch('https://api.replicate.com/v1/predictions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Token ${REPLICATE_API_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          version: "bytedance/seedance-1-pro:latest",
+          input: {
+            prompt: body.prompt,
+            aspect_ratio: body.aspectRatio || '16:9',
+            duration: 5
+          }
+        })
+      });
+      
+      if (seededanceResponse.ok) {
+        const prediction = await seededanceResponse.json();
+        console.log("✅ [Seededance] Generation started with ID:", prediction.id);
+        return new Response(JSON.stringify({ 
+          id: prediction.id,
+          provider: 'seededance',
+          status: 'processing'
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 401,
+          status: 200,
         });
       }
       
-      throw new Error(`Kie AI API error: ${errorText}`);
+      console.warn("⚠️ [Seededance] Failed, trying Kling...");
+      
+    } catch (seededanceError: any) {
+      console.error("❌ [Seededance] Error:", seededanceError?.message || seededanceError);
     }
-
-    const generation = await kieResponse.json();
-    console.log("✅ [Kie.ai] Full response:", JSON.stringify(generation));
-    console.log("🔑 [Kie.ai] Task ID extracted:", generation.data?.taskId);
     
-    // Vérification critique: s'assurer que taskId existe
-    if (!generation.data?.taskId) {
-      console.error('❌ [Kie.ai] No taskId in response:', generation);
-      return new Response(JSON.stringify({ 
-        error: 'NO_TASK_ID',
-        message: 'Kie.ai n\'a pas retourné de taskId',
-        kieResponse: generation
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
+    // 3️⃣ FALLBACK FINAL : KLING (Replicate)
+    try {
+      console.log("🎬 [Kling] Attempting generation (final fallback)...");
+      
+      const klingResponse = await fetch('https://api.replicate.com/v1/predictions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Token ${REPLICATE_API_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          version: "kwaivgi/kling-v2.5-turbo-pro:latest",
+          input: {
+            prompt: body.prompt,
+            aspect_ratio: body.aspectRatio || '16:9',
+            duration: 5
+          }
+        })
       });
+      
+      if (klingResponse.ok) {
+        const prediction = await klingResponse.json();
+        console.log("✅ [Kling] Generation started with ID:", prediction.id);
+        return new Response(JSON.stringify({ 
+          id: prediction.id,
+          provider: 'kling',
+          status: 'processing'
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        });
+      }
+      
+      throw new Error("Kling generation failed");
+      
+    } catch (klingError: any) {
+      console.error("❌ [Kling] Error:", klingError?.message || klingError);
+      throw new Error("All video providers failed");
     }
-    
-    console.log("✨ Sora2 task created successfully with ID:", generation.data.taskId);
-    
-    return new Response(JSON.stringify({ 
-      id: generation.data.taskId,
-      status: 'processing'
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    });
   } catch (error) {
     console.error("Error in generate-video function:", error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

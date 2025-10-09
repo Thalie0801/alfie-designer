@@ -433,13 +433,78 @@ export function AlfieChat() {
       }
       
       case 'generate_video': {
-        // Fonctionnalité désactivée côté backend
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: "🎬 Oups, la génération vidéo est temporairement indisponible. Je ne peux pas traiter cette demande pour le moment."
-        }]);
-        toast.error("Génération vidéo indisponible");
-        return { error: "Video generation disabled" };
+        try {
+          console.log('🎬 [generate_video] Starting with args:', args);
+          
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) throw new Error("Not authenticated");
+          
+          // Décrémenter les Woofs (coût unifié = 1 Woof)
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('woofs_consumed_this_month')
+            .eq('id', user.id)
+            .single();
+
+          if (profile) {
+            await supabase
+              .from('profiles')
+              .update({ woofs_consumed_this_month: (profile.woofs_consumed_this_month || 0) + 1 })
+              .eq('id', user.id);
+          }
+          
+          // Appeler l'edge function avec fallback automatique
+          const { data, error } = await supabase.functions.invoke('generate-video', {
+            body: {
+              prompt: args.prompt,
+              aspectRatio: args.aspectRatio || '16:9'
+            }
+          });
+          
+          if (error) throw error;
+          
+          const { id, provider } = data;
+          console.log(`✅ [generate_video] Started with provider: ${provider}, ID: ${id}`);
+          
+          // Créer l'asset dans la DB
+          const { data: asset, error: assetError } = await supabase
+            .from('media_generations')
+            .insert({
+              user_id: user.id,
+              brand_id: activeBrandId,
+              type: 'video',
+              generation_id: id,
+              engine: provider,
+              status: 'processing',
+              prompt: args.prompt,
+              woofs: 1,
+              output_url: '' // Will be updated when complete
+            })
+            .select()
+            .single();
+          
+          if (assetError) throw assetError;
+          
+          // Message de confirmation
+          const providerName = provider === 'sora' ? 'Sora2' : provider === 'seededance' ? 'Seededance' : 'Kling';
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: `🎬 Génération vidéo lancée avec ${providerName} ! (1 Woof)\n\nJe te tiens au courant dès que c'est prêt.`,
+            jobId: asset.id,
+            jobStatus: 'processing' as JobStatus
+          }]);
+          
+          return { success: true, assetId: asset.id, provider };
+          
+        } catch (error: any) {
+          console.error('[generate_video] Error:', error);
+          toast.error("Échec de la génération vidéo");
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: "❌ Désolé, tous les providers vidéo ont échoué. Réessaye dans quelques instants."
+          }]);
+          return { error: error?.message || "Unknown error" };
+        }
       }
 
       case 'show_usage': {

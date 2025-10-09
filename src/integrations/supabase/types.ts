@@ -653,7 +653,7 @@ export type Database = {
           brand_id: string | null
           created_at: string | null
           duration_seconds: number | null
-          engine: Database["public"]["Enums"]["asset_engine"] | null
+          engine: Database["public"]["Enums"]["video_engine"] | null
           expires_at: string | null
           file_size_bytes: number | null
           id: string
@@ -674,7 +674,7 @@ export type Database = {
           brand_id?: string | null
           created_at?: string | null
           duration_seconds?: number | null
-          engine?: Database["public"]["Enums"]["asset_engine"] | null
+          engine?: Database["public"]["Enums"]["video_engine"] | null
           expires_at?: string | null
           file_size_bytes?: number | null
           id?: string
@@ -695,7 +695,7 @@ export type Database = {
           brand_id?: string | null
           created_at?: string | null
           duration_seconds?: number | null
-          engine?: Database["public"]["Enums"]["asset_engine"] | null
+          engine?: Database["public"]["Enums"]["video_engine"] | null
           expires_at?: string | null
           file_size_bytes?: number | null
           id?: string
@@ -1018,6 +1018,7 @@ export type Database = {
       asset_engine: "nano" | "sora" | "veo3"
       brand_plan: "starter" | "pro" | "studio"
       plan_type: "starter" | "pro" | "studio"
+      video_engine: "sora" | "seededance" | "kling"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1149,6 +1150,7 @@ export const Constants = {
       asset_engine: ["nano", "sora", "veo3"],
       brand_plan: ["starter", "pro", "studio"],
       plan_type: ["starter", "pro", "studio"],
+      video_engine: ["sora", "seededance", "kling"],
     },
   },
 } as const

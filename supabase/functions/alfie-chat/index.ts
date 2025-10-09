@@ -152,10 +152,14 @@ Image :
 Template Canva :
 "Tu as un lien de template Canva ou je pars sur une recherche par mots-clés ? Formats à livrer : carré / vertical / horizontal ?"
 
-⚠️ GÉNÉRATION VIDÉO TEMPORAIREMENT INDISPONIBLE
-- Si l'utilisateur demande une vidéo, réponds : "🎬 La génération vidéo est temporairement indisponible (problème fournisseur). Reviens un peu plus tard ! En attendant, je peux te proposer des templates Canva animés ou des carrousels d'images."
-- Ne mentionne JAMAIS Sora, Veo3, ou la génération vidéo IA comme option disponible
-- Propose uniquement des alternatives : templates Canva, carrousels, images statiques`;
+    // VIDÉO via Sora 2 (avec fallbacks automatiques)
+    ⚠️ RÈGLE CRITIQUE - DÉTECTION VIDÉO
+    Si l'utilisateur demande une vidéo, anime, clip, montage, reel, ou animation :
+    → TU DOIS appeler generate_video avec un prompt en anglais
+    → Coût = 1 Woof par clip (génération 5-15 secondes)
+    → Le système essaiera automatiquement : Sora2 → Seededance → Kling
+    → Si >15s demandés : propose un montage multi-clips
+`;
 
     const tools = [
       {
