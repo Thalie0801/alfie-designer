@@ -1,4 +1,4 @@
-// Gestionnaire de quotas mensuels (visuels, vidéos, Woofs)
+// Gestionnaire de quotas mensuels par marque (visuels, vidéos, Woofs)
 
 import { supabase } from '@/integrations/supabase/client';
 
@@ -17,36 +17,39 @@ export interface QuotaStatus {
   };
   woofs: {
     consumed: number;
-    limit: number; // équivalent au quota vidéos
+    limit: number;
     remaining: number;
     canUse: (cost: number) => boolean;
   };
+  brandName?: string;
+  plan?: string;
+  resetsOn?: string;
 }
 
 /**
- * Récupère le statut des quotas pour l'utilisateur
+ * Récupère le statut des quotas pour une marque
  */
-export async function getQuotaStatus(userId: string): Promise<QuotaStatus | null> {
+export async function getQuotaStatus(brandId: string): Promise<QuotaStatus | null> {
   try {
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('generations_this_month, quota_visuals_per_month, videos_this_month, quota_videos, woofs_consumed_this_month')
-      .eq('id', userId)
+    const { data: brand, error } = await supabase
+      .from('brands')
+      .select('name, plan, quota_images, quota_videos, quota_woofs, images_used, videos_used, woofs_used, resets_on')
+      .eq('id', brandId)
       .single();
 
     if (error) throw error;
-    if (!profile) return null;
+    if (!brand) return null;
 
-    const visualsUsed = profile.generations_this_month || 0;
-    const visualsLimit = profile.quota_visuals_per_month || 0;
+    const visualsUsed = brand.images_used || 0;
+    const visualsLimit = brand.quota_images || 0;
     const visualsPercentage = visualsLimit > 0 ? (visualsUsed / visualsLimit) * 100 : 0;
 
-    const videosUsed = profile.videos_this_month || 0;
-    const videosLimit = profile.quota_videos || 0;
+    const videosUsed = brand.videos_used || 0;
+    const videosLimit = brand.quota_videos || 0;
     const videosPercentage = videosLimit > 0 ? (videosUsed / videosLimit) * 100 : 0;
 
-    const woofsConsumed = profile.woofs_consumed_this_month || 0;
-    const woofsLimit = videosLimit; // 1 vidéo = minimum 1 Woof
+    const woofsConsumed = brand.woofs_used || 0;
+    const woofsLimit = brand.quota_woofs || 0;
     const woofsRemaining = Math.max(0, woofsLimit - woofsConsumed);
 
     return {
@@ -67,7 +70,10 @@ export async function getQuotaStatus(userId: string): Promise<QuotaStatus | null
         limit: woofsLimit,
         remaining: woofsRemaining,
         canUse: (cost: number) => woofsRemaining >= cost
-      }
+      },
+      brandName: brand.name,
+      plan: brand.plan,
+      resetsOn: brand.resets_on
     };
   } catch (error) {
     console.error('Error fetching quota status:', error);
@@ -76,18 +82,18 @@ export async function getQuotaStatus(userId: string): Promise<QuotaStatus | null
 }
 
 /**
- * Consomme des quotas (visuels et/ou vidéos + Woofs)
+ * Consomme des quotas pour une marque (images et/ou vidéos + Woofs)
  */
 export async function consumeQuota(
-  userId: string, 
+  brandId: string, 
   type: 'visual' | 'video',
   woofCost?: number
 ): Promise<boolean> {
   try {
-    const { data: profile, error: fetchError } = await supabase
-      .from('profiles')
-      .select('generations_this_month, videos_this_month, woofs_consumed_this_month')
-      .eq('id', userId)
+    const { data: brand, error: fetchError } = await supabase
+      .from('brands')
+      .select('images_used, videos_used, woofs_used')
+      .eq('id', brandId)
       .single();
 
     if (fetchError) throw fetchError;
@@ -95,18 +101,18 @@ export async function consumeQuota(
     const updates: any = {};
 
     if (type === 'visual') {
-      updates.generations_this_month = (profile.generations_this_month || 0) + 1;
+      updates.images_used = (brand.images_used || 0) + 1;
     }
 
     if (type === 'video' && woofCost !== undefined) {
-      updates.videos_this_month = (profile.videos_this_month || 0) + 1;
-      updates.woofs_consumed_this_month = (profile.woofs_consumed_this_month || 0) + woofCost;
+      updates.videos_used = (brand.videos_used || 0) + 1;
+      updates.woofs_used = (brand.woofs_used || 0) + woofCost;
     }
 
     const { error: updateError } = await supabase
-      .from('profiles')
+      .from('brands')
       .update(updates)
-      .eq('id', userId);
+      .eq('id', brandId);
 
     if (updateError) throw updateError;
 
@@ -118,19 +124,19 @@ export async function consumeQuota(
 }
 
 /**
- * Vérifie si l'utilisateur peut générer (avant de lancer)
+ * Vérifie si une marque peut générer un visuel (avant de lancer)
  */
-export async function canGenerateVisual(userId: string): Promise<{ canGenerate: boolean; reason?: string }> {
-  const status = await getQuotaStatus(userId);
+export async function canGenerateVisual(brandId: string): Promise<{ canGenerate: boolean; reason?: string }> {
+  const status = await getQuotaStatus(brandId);
   
   if (!status) {
-    return { canGenerate: false, reason: 'Impossible de récupérer les quotas' };
+    return { canGenerate: false, reason: 'Impossible de récupérer les quotas de la marque' };
   }
 
   if (!status.visuals.canGenerate) {
     return { 
       canGenerate: false, 
-      reason: `Quota visuels atteint (${status.visuals.used}/${status.visuals.limit}). Upgrade ton plan ou attends le reset mensuel !` 
+      reason: `Quota visuels atteint pour ${status.brandName} (${status.visuals.used}/${status.visuals.limit}). Upgrade le plan ou attends le reset le ${status.resetsOn} !` 
     };
   }
 
@@ -138,31 +144,56 @@ export async function canGenerateVisual(userId: string): Promise<{ canGenerate: 
 }
 
 /**
- * Vérifie si l'utilisateur peut générer une vidéo (avec coût Woofs)
+ * Vérifie si une marque peut générer une vidéo (avec coût Woofs)
  */
 export async function canGenerateVideo(
-  userId: string, 
+  brandId: string, 
   woofCost: number
 ): Promise<{ canGenerate: boolean; reason?: string }> {
-  const status = await getQuotaStatus(userId);
+  const status = await getQuotaStatus(brandId);
   
   if (!status) {
-    return { canGenerate: false, reason: 'Impossible de récupérer les quotas' };
+    return { canGenerate: false, reason: 'Impossible de récupérer les quotas de la marque' };
   }
 
   if (!status.videos.canGenerate) {
     return { 
       canGenerate: false, 
-      reason: `Quota vidéos atteint (${status.videos.used}/${status.videos.limit}). Upgrade ton plan pour continuer !` 
+      reason: `Quota vidéos atteint pour ${status.brandName} (${status.videos.used}/${status.videos.limit}). Upgrade le plan pour continuer !` 
     };
   }
 
   if (!status.woofs.canUse(woofCost)) {
     return { 
       canGenerate: false, 
-      reason: `Woofs insuffisants (${status.woofs.remaining} restants, ${woofCost} requis). Achète un Pack Woofs ou upgrade ton plan !` 
+      reason: `Woofs insuffisants pour ${status.brandName} (${status.woofs.remaining} restants, ${woofCost} requis). Achète un Pack Woofs ou upgrade le plan !` 
     };
   }
 
   return { canGenerate: true };
+}
+
+/**
+ * Affiche un alerte si les quotas approchent de la limite (80% ou 100%)
+ */
+export function checkQuotaAlert(status: QuotaStatus): { level: 'warning' | 'error' | null; message: string } | null {
+  const visualsPercent = status.visuals.percentage;
+  const videosPercent = status.videos.percentage;
+  const woofsPercent = status.woofs.limit > 0 ? (status.woofs.consumed / status.woofs.limit) * 100 : 0;
+
+  if (visualsPercent >= 100 || videosPercent >= 100 || woofsPercent >= 100) {
+    return {
+      level: 'error',
+      message: `⚠️ Quotas atteints pour ${status.brandName}! Upgrade ton plan ou attends le reset le ${status.resetsOn}.`
+    };
+  }
+
+  if (visualsPercent >= 80 || videosPercent >= 80 || woofsPercent >= 80) {
+    return {
+      level: 'warning',
+      message: `⚠️ Tu approches de tes limites pour ${status.brandName} (80%+). Pense à upgrader !`
+    };
+  }
+
+  return null;
 }

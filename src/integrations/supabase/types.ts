@@ -336,12 +336,21 @@ export type Database = {
           created_at: string | null
           fonts: Json | null
           id: string
+          images_used: number | null
           logo_url: string | null
           name: string
           palette: Json | null
+          plan: Database["public"]["Enums"]["plan_type"] | null
+          quota_images: number | null
+          quota_videos: number | null
+          quota_woofs: number | null
+          resets_on: string | null
+          stripe_subscription_id: string | null
           updated_at: string | null
           user_id: string
+          videos_used: number | null
           voice: string | null
+          woofs_used: number | null
         }
         Insert: {
           canva_access_token?: string | null
@@ -351,12 +360,21 @@ export type Database = {
           created_at?: string | null
           fonts?: Json | null
           id?: string
+          images_used?: number | null
           logo_url?: string | null
           name: string
           palette?: Json | null
+          plan?: Database["public"]["Enums"]["plan_type"] | null
+          quota_images?: number | null
+          quota_videos?: number | null
+          quota_woofs?: number | null
+          resets_on?: string | null
+          stripe_subscription_id?: string | null
           updated_at?: string | null
           user_id: string
+          videos_used?: number | null
           voice?: string | null
+          woofs_used?: number | null
         }
         Update: {
           canva_access_token?: string | null
@@ -366,12 +384,21 @@ export type Database = {
           created_at?: string | null
           fonts?: Json | null
           id?: string
+          images_used?: number | null
           logo_url?: string | null
           name?: string
           palette?: Json | null
+          plan?: Database["public"]["Enums"]["plan_type"] | null
+          quota_images?: number | null
+          quota_videos?: number | null
+          quota_woofs?: number | null
+          resets_on?: string | null
+          stripe_subscription_id?: string | null
           updated_at?: string | null
           user_id?: string
+          videos_used?: number | null
           voice?: string | null
+          woofs_used?: number | null
         }
         Relationships: [
           {
@@ -555,7 +582,10 @@ export type Database = {
       }
       media_generations: {
         Row: {
+          brand_id: string | null
           created_at: string | null
+          engine: Database["public"]["Enums"]["asset_engine"] | null
+          expires_at: string | null
           id: string
           input_url: string | null
           metadata: Json | null
@@ -565,9 +595,13 @@ export type Database = {
           type: string
           updated_at: string | null
           user_id: string
+          woofs: number | null
         }
         Insert: {
+          brand_id?: string | null
           created_at?: string | null
+          engine?: Database["public"]["Enums"]["asset_engine"] | null
+          expires_at?: string | null
           id?: string
           input_url?: string | null
           metadata?: Json | null
@@ -577,9 +611,13 @@ export type Database = {
           type: string
           updated_at?: string | null
           user_id: string
+          woofs?: number | null
         }
         Update: {
+          brand_id?: string | null
           created_at?: string | null
+          engine?: Database["public"]["Enums"]["asset_engine"] | null
+          expires_at?: string | null
           id?: string
           input_url?: string | null
           metadata?: Json | null
@@ -589,8 +627,17 @@ export type Database = {
           type?: string
           updated_at?: string | null
           user_id?: string
+          woofs?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "media_generations_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       news: {
         Row: {
@@ -836,6 +883,8 @@ export type Database = {
     }
     Enums: {
       app_role: "user" | "admin" | "affiliate"
+      asset_engine: "nano" | "sora" | "veo3"
+      plan_type: "starter" | "pro" | "studio"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -964,6 +1013,8 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["user", "admin", "affiliate"],
+      asset_engine: ["nano", "sora", "veo3"],
+      plan_type: ["starter", "pro", "studio"],
     },
   },
 } as const

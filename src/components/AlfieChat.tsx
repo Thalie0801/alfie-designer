@@ -29,13 +29,13 @@ interface Message {
 const INITIAL_ASSISTANT_MESSAGE = `Salut ! 🐾 Je suis Alfie Designer, ton compagnon créatif IA 🎨
 
 Je peux t'aider à :
-• Créer des images IA (1 crédit + quota visuels) ✨
-• Générer des vidéos (routing auto Sora/Veo3, quota vidéos + Woofs) 🎬
+• Créer des images IA (1 crédit + quota visuels par marque) ✨
+• Générer des vidéos (routing auto Sora/Veo3, quotas par marque) 🎬
 • Adapter templates Canva (GRATUIT, Brand Kit inclus) 🎨
-• Afficher tes quotas mensuels (visuels, vidéos, Woofs) 📊
+• Afficher tes quotas mensuels par marque (visuels, vidéos, Woofs) 📊
 • Préparer tes assets en package ZIP 📦
 
-Les quotas se réinitialisent chaque mois (non reportables).
+Chaque marque a ses propres quotas qui se réinitialisent le 1er du mois (non reportables).
 Alors, qu'est-ce qu'on crée ensemble aujourd'hui ? 😊`;
 
 export function AlfieChat() {
@@ -55,7 +55,7 @@ export function AlfieChat() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { brandKit } = useBrandKit();
+  const { brandKit, activeBrandId } = useBrandKit();
   const { totalCredits, decrementCredits, hasCredits, incrementGenerations } = useAlfieCredits();
   const { searchTemplates } = useTemplateLibrary();
   const { 
@@ -404,13 +404,19 @@ export function AlfieChat() {
           
           const { data: { user } } = await supabase.auth.getUser();
           if (!user) throw new Error("Not authenticated");
+          
+          if (!activeBrandId) {
+            setGenerationStatus(null);
+            toast.error("Aucune marque active. Crée d'abord un Brand Kit !");
+            return { error: "Aucune marque active" };
+          }
 
           // Déterminer durée et style depuis le prompt
           const seconds = args.seconds || estimateVideoDuration(args.prompt);
           const style = args.style || detectVideoStyle(args.prompt);
 
-          // Obtenir le statut des quotas
-          const quotaStatus = await getQuotaStatus(user.id);
+          // Obtenir le statut des quotas de la marque
+          const quotaStatus = await getQuotaStatus(activeBrandId);
           if (!quotaStatus) throw new Error("Impossible de vérifier les quotas");
 
           // Router vers Sora ou Veo3
@@ -423,7 +429,7 @@ export function AlfieChat() {
           console.log('Video routing:', routing);
 
           // Vérifier si on peut générer
-          const canGenerate = await canGenerateVideo(user.id, routing.woofCost);
+          const canGenerate = await canGenerateVideo(activeBrandId, routing.woofCost);
           if (!canGenerate.canGenerate) {
             setGenerationStatus(null);
             toast.error(canGenerate.reason);
@@ -492,8 +498,10 @@ export function AlfieChat() {
                     .eq('id', existingRecords[0].id);
                 }
 
-                // Consommer quota vidéo + Woofs
-                await consumeQuota(user.id, 'video', routing.woofCost);
+                // Consommer quota vidéo + Woofs pour la marque
+                if (activeBrandId) {
+                  await consumeQuota(activeBrandId, 'video', routing.woofCost);
+                }
                 
                 // Déduire les crédits IA (1 par vidéo)
                 await decrementCredits(1, 'video_generation');
@@ -559,12 +567,19 @@ export function AlfieChat() {
         try {
           const { data: { user } } = await supabase.auth.getUser();
           if (!user) throw new Error("Not authenticated");
+          
+          if (!activeBrandId) {
+            return { error: "Aucune marque active. Crée d'abord un Brand Kit !" };
+          }
 
-          const quotaStatus = await getQuotaStatus(user.id);
+          const quotaStatus = await getQuotaStatus(activeBrandId);
           if (!quotaStatus) throw new Error("Impossible de récupérer les quotas");
 
           return {
             success: true,
+            brandName: quotaStatus.brandName,
+            plan: quotaStatus.plan,
+            resetsOn: quotaStatus.resetsOn,
             quotas: {
               visuals: {
                 used: quotaStatus.visuals.used,
