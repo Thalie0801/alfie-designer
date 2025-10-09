@@ -139,12 +139,27 @@ export function useLibraryAssets(userId: string | undefined, type: 'images' | 'v
     toast.success('Téléchargements terminés');
   };
 
+  const cleanupProcessingVideos = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('cleanup-processing-videos');
+      
+      if (error) throw error;
+      
+      toast.success(data.message || 'Vidéos bloquées nettoyées');
+      await fetchAssets();
+    } catch (error) {
+      console.error('Error cleaning up videos:', error);
+      toast.error('Erreur lors du nettoyage');
+    }
+  };
+
   return {
     assets,
     loading,
     deleteAsset,
     downloadAsset,
     downloadMultiple,
+    cleanupProcessingVideos,
     refetch: fetchAssets
   };
 }

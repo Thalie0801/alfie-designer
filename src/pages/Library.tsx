@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -20,10 +20,18 @@ export default function Library() {
     loading, 
     deleteAsset, 
     downloadAsset,
-    downloadMultiple 
+    downloadMultiple,
+    cleanupProcessingVideos
   } = useLibraryAssets(user?.id, activeTab);
 
-  const filteredAssets = assets.filter(asset => 
+  // Auto cleanup on mount if there are processing videos
+  useEffect(() => {
+    if (activeTab === 'videos' && assets.some(a => a.status === 'processing')) {
+      cleanupProcessingVideos();
+    }
+  }, []);
+
+  const filteredAssets = assets.filter(asset =>
     !searchQuery || 
     asset.prompt?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     asset.engine?.toLowerCase().includes(searchQuery.toLowerCase())
