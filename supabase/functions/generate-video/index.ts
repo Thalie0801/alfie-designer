@@ -6,6 +6,9 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  // 🔍 DEBUG: Log immédiat pour confirmer que la fonction est appelée
+  console.log('🎬 [generate-video] Function called at:', new Date().toISOString());
+  
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -13,10 +16,12 @@ serve(async (req) => {
   try {
     const KIE_AI_API_KEY = Deno.env.get('KIE_AI_API_KEY');
     if (!KIE_AI_API_KEY) {
+      console.error('❌ KIE_AI_API_KEY is not set');
       throw new Error('KIE_AI_API_KEY is not set');
     }
 
     const body = await req.json();
+    console.log('📥 [generate-video] Request body:', JSON.stringify(body));
 
     // Check status of existing generation
     if (body.generationId) {
@@ -119,10 +124,24 @@ serve(async (req) => {
     }
 
     const generation = await kieResponse.json();
-    console.log("Sora2 task created:", generation.data?.taskId);
+    console.log("✅ [Kie.ai] Full response:", JSON.stringify(generation));
+    console.log("🔑 [Kie.ai] Task ID extracted:", generation.data?.taskId);
+    
+    // Vérification critique: s'assurer que taskId existe
+    if (!generation.data?.taskId) {
+      console.error('❌ [Kie.ai] No taskId in response:', generation);
+      return new Response(JSON.stringify({ 
+        error: 'Kie.ai n\'a pas retourné de taskId. Réponse: ' + JSON.stringify(generation)
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500,
+      });
+    }
+    
+    console.log("✨ Sora2 task created successfully with ID:", generation.data.taskId);
     
     return new Response(JSON.stringify({ 
-      id: generation.data?.taskId,
+      id: generation.data.taskId,
       status: 'processing'
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -473,6 +473,12 @@ export function AlfieChat() {
           }
 
           // Générer le(s) clip(s) - pour l'instant on génère 1 clip, le montage sera ajouté plus tard
+          console.log('🎬 Calling generate-video edge function with:', { 
+            prompt: args.prompt,
+            clipCount,
+            aspectRatio: '9:16'
+          });
+          
           const { data, error } = await supabase.functions.invoke('generate-video', {
             body: { 
               prompt: args.prompt,
@@ -482,11 +488,30 @@ export function AlfieChat() {
             }
           });
 
-          if (error) throw error;
+          console.log('📦 Edge function response:', { data, error });
+
+          if (error) {
+            console.error('❌ Edge function error:', error);
+            throw error;
+          }
+
+          if (!data?.id) {
+            console.error('❌ No predictionId in response:', data);
+            setGenerationStatus(null);
+            toast.error("Erreur: L'API n'a pas retourné d'ID de génération. Crédits non débités.");
+            
+            setMessages(prev => [...prev, {
+              role: 'assistant',
+              content: "❌ Impossible de démarrer la génération vidéo. L'API n'a pas retourné d'identifiant de tâche. Réessaie dans quelques instants."
+            }]);
+            
+            return { error: "No prediction ID returned" };
+          }
 
           const predictionId = data.id;
+          console.log('✅ Video generation started with ID:', predictionId);
           
-await supabase.from('media_generations').insert({
+          await supabase.from('media_generations').insert({
             user_id: user.id,
             type: 'video',
             prompt: args.prompt,
