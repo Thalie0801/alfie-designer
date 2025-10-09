@@ -337,10 +337,11 @@ export type Database = {
           fonts: Json | null
           id: string
           images_used: number | null
+          is_addon: boolean | null
           logo_url: string | null
           name: string
           palette: Json | null
-          plan: Database["public"]["Enums"]["plan_type"] | null
+          plan: string | null
           quota_images: number | null
           quota_videos: number | null
           quota_woofs: number | null
@@ -361,10 +362,11 @@ export type Database = {
           fonts?: Json | null
           id?: string
           images_used?: number | null
+          is_addon?: boolean | null
           logo_url?: string | null
           name: string
           palette?: Json | null
-          plan?: Database["public"]["Enums"]["plan_type"] | null
+          plan?: string | null
           quota_images?: number | null
           quota_videos?: number | null
           quota_woofs?: number | null
@@ -385,10 +387,11 @@ export type Database = {
           fonts?: Json | null
           id?: string
           images_used?: number | null
+          is_addon?: boolean | null
           logo_url?: string | null
           name?: string
           palette?: Json | null
-          plan?: Database["public"]["Enums"]["plan_type"] | null
+          plan?: string | null
           quota_images?: number | null
           quota_videos?: number | null
           quota_woofs?: number | null
@@ -937,6 +940,7 @@ export type Database = {
     Enums: {
       app_role: "user" | "admin" | "affiliate"
       asset_engine: "nano" | "sora" | "veo3"
+      brand_plan: "starter" | "pro" | "studio"
       plan_type: "starter" | "pro" | "studio"
     }
     CompositeTypes: {
@@ -1067,6 +1071,7 @@ export const Constants = {
     Enums: {
       app_role: ["user", "admin", "affiliate"],
       asset_engine: ["nano", "sora", "veo3"],
+      brand_plan: ["starter", "pro", "studio"],
       plan_type: ["starter", "pro", "studio"],
     },
   },

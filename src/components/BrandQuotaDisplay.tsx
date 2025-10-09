@@ -2,10 +2,14 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { AlertCircle, Info, Zap } from 'lucide-react';
+import { AlertCircle, Info, Zap, ArrowUpCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { getQuotaStatus, checkQuotaAlert, QuotaStatus } from '@/utils/quotaManager';
 import { useBrandKit } from '@/hooks/useBrandKit';
+import { BrandUpgradeDialog } from './BrandUpgradeDialog';
+import { WoofsPackDialog } from './WoofsPackDialog';
+import { BrandTier } from '@/hooks/useBrandManagement';
 
 export function BrandQuotaDisplay() {
   const { activeBrandId, activeBrand } = useBrandKit();
@@ -122,11 +126,30 @@ export function BrandQuotaDisplay() {
         </div>
       </div>
 
-      {/* Message d'upgrade si proche de la limite */}
+      {/* Actions si proche de la limite */}
       {quotaStatus.visuals.percentage >= 80 || quotaStatus.videos.percentage >= 80 || (quotaStatus.woofs.consumed / quotaStatus.woofs.limit) * 100 >= 80 ? (
-        <p className="text-xs text-muted-foreground italic">
-          💡 Pensez à upgrader votre plan ou à ajouter un Pack Woofs pour continuer sans interruption !
-        </p>
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            💡 Approche de la limite ? Plusieurs options :
+          </p>
+          <div className="flex gap-2">
+            {activeBrand && (
+              <>
+                <BrandUpgradeDialog
+                  brandId={activeBrand.id}
+                  brandName={activeBrand.name}
+                  currentTier={(activeBrand as any).plan as BrandTier || 'starter'}
+                  onSuccess={loadQuotas}
+                />
+                <WoofsPackDialog
+                  brandId={activeBrand.id}
+                  brandName={activeBrand.name}
+                  onSuccess={loadQuotas}
+                />
+              </>
+            )}
+          </div>
+        </div>
       ) : null}
     </Card>
   );

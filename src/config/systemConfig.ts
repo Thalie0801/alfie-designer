@@ -20,6 +20,40 @@ export const SYSTEM_CONFIG = {
   // Logs et conformité
   PROMPT_MAX_LOG_LENGTH: 100, // Limite de log des prompts (RGPD)
   LOG_RETENTION_DAYS: 30,
+  
+  // Pricing par marque (EUR/mois)
+  PRICING: {
+    STARTER: 39,
+    PRO: 99,
+    STUDIO: 199,
+    ADDON_BRAND: 39, // Coût pour ajouter une marque
+  },
+  
+  // Différentiels d'upgrade
+  UPGRADE_DIFF: {
+    starter_to_pro: 60,    // 99 - 39
+    starter_to_studio: 160, // 199 - 39
+    pro_to_studio: 100,     // 199 - 99
+  },
+  
+  // Quotas par tier
+  QUOTAS: {
+    starter: {
+      images: 150,
+      videos: 15,
+      woofs: 15,
+    },
+    pro: {
+      images: 450,
+      videos: 45,
+      woofs: 45,
+    },
+    studio: {
+      images: 1000,
+      videos: 100,
+      woofs: 100,
+    },
+  },
 } as const;
 
 // Type-safe config access
