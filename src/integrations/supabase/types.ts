@@ -544,6 +544,59 @@ export type Database = {
           },
         ]
       }
+      generation_logs: {
+        Row: {
+          brand_id: string | null
+          created_at: string
+          duration_seconds: number | null
+          engine: string | null
+          error_code: string | null
+          id: string
+          metadata: Json | null
+          prompt_summary: string | null
+          status: string
+          type: string
+          user_id: string
+          woofs_cost: number | null
+        }
+        Insert: {
+          brand_id?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          engine?: string | null
+          error_code?: string | null
+          id?: string
+          metadata?: Json | null
+          prompt_summary?: string | null
+          status: string
+          type: string
+          user_id: string
+          woofs_cost?: number | null
+        }
+        Update: {
+          brand_id?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          engine?: string | null
+          error_code?: string | null
+          id?: string
+          metadata?: Json | null
+          prompt_summary?: string | null
+          status?: string
+          type?: string
+          user_id?: string
+          woofs_cost?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generation_logs_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jobs: {
         Row: {
           completed_at: string | null

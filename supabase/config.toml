@@ -56,3 +56,9 @@ verify_jwt = false
 
 [functions.generate-ai-image]
 verify_jwt = false
+
+[functions.purge-expired-assets]
+verify_jwt = false
+
+[functions.reset-monthly-quotas]
+verify_jwt = false
