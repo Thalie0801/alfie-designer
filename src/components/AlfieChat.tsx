@@ -15,6 +15,8 @@ import { openInCanva } from '@/services/canvaLinker';
 import { supabase } from '@/integrations/supabase/client';
 import { detectIntent, canHandleLocally, generateLocalResponse } from '@/utils/alfieIntentDetector';
 import { Progress } from '@/components/ui/progress';
+import { getQuotaStatus, consumeQuota, canGenerateVideo } from '@/utils/quotaManager';
+import { routeVideoEngine, estimateVideoDuration, detectVideoStyle } from '@/utils/videoRouting';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -27,11 +29,13 @@ interface Message {
 const INITIAL_ASSISTANT_MESSAGE = `Salut ! 🐾 Je suis Alfie Designer, ton compagnon créatif IA 🎨
 
 Je peux t'aider à :
-• Créer des images IA (1 crédit ✨)
-• Générer des vidéos animées (2 crédits 🎬)
-• Trouver des templates Canva (bientôt 🚀)
-• Adapter au Brand Kit 🎨
+• Créer des images IA (1 crédit + quota visuels) ✨
+• Générer des vidéos (routing auto Sora/Veo3, quota vidéos + Woofs) 🎬
+• Adapter templates Canva (GRATUIT, Brand Kit inclus) 🎨
+• Afficher tes quotas mensuels (visuels, vidéos, Woofs) 📊
+• Préparer tes assets en package ZIP 📦
 
+Les quotas se réinitialisent chaque mois (non reportables).
 Alors, qu'est-ce qu'on crée ensemble aujourd'hui ? 😊`;
 
 export function AlfieChat() {
@@ -398,14 +402,42 @@ export function AlfieChat() {
         try {
           setGenerationStatus({ type: 'video', message: 'Génération de ta vidéo en cours... Cela peut prendre 2-3 minutes 🎬' });
           
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) throw new Error("Not authenticated");
+
+          // Déterminer durée et style depuis le prompt
+          const seconds = args.seconds || estimateVideoDuration(args.prompt);
+          const style = args.style || detectVideoStyle(args.prompt);
+
+          // Obtenir le statut des quotas
+          const quotaStatus = await getQuotaStatus(user.id);
+          if (!quotaStatus) throw new Error("Impossible de vérifier les quotas");
+
+          // Router vers Sora ou Veo3
+          const routing = routeVideoEngine({ 
+            seconds, 
+            style, 
+            remainingWoofs: quotaStatus.woofs.remaining 
+          });
+
+          console.log('Video routing:', routing);
+
+          // Vérifier si on peut générer
+          const canGenerate = await canGenerateVideo(user.id, routing.woofCost);
+          if (!canGenerate.canGenerate) {
+            setGenerationStatus(null);
+            toast.error(canGenerate.reason);
+            return { error: canGenerate.reason };
+          }
+
           const { data, error } = await supabase.functions.invoke('generate-video', {
-            body: { prompt: args.prompt }
+            body: { 
+              prompt: args.prompt,
+              engine: routing.engine // Envoyer le moteur choisi
+            }
           });
 
           if (error) throw error;
-
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) throw new Error("Not authenticated");
 
           const predictionId = data.id;
           
@@ -415,7 +447,7 @@ export function AlfieChat() {
             prompt: args.prompt,
             output_url: '',
             status: 'processing',
-            metadata: { predictionId }
+            metadata: { predictionId, engine: routing.engine, woofCost: routing.woofCost }
           });
 
           // Poll for status (max 10 minutes)
@@ -460,18 +492,18 @@ export function AlfieChat() {
                     .eq('id', existingRecords[0].id);
                 }
 
-                // Déduire les crédits (vidéo = 2 crédits)
-                await decrementCredits(2, 'video_generation');
+                // Consommer quota vidéo + Woofs
+                await consumeQuota(user.id, 'video', routing.woofCost);
                 
-                // Incrémenter le compteur de générations
-                await incrementGenerations();
+                // Déduire les crédits IA (1 par vidéo)
+                await decrementCredits(1, 'video_generation');
 
                 setGenerationStatus(null);
-                toast.success("Vidéo générée avec succès ! 🎉");
+                toast.success(`Vidéo générée avec succès ! (${routing.woofCost} Woofs utilisés, moteur: ${routing.engine}) 🎉`);
                 
                 const videoMessage = {
                   role: 'assistant' as const,
-                  content: `Vidéo générée avec succès ! (2 crédits utilisés) 🎬`,
+                  content: `Vidéo générée avec succès ! (${routing.woofCost} Woofs utilisés via ${routing.engine}) 🎬`,
                   videoUrl
                 };
                 
@@ -499,7 +531,7 @@ export function AlfieChat() {
                 const elapsed = Math.floor((attempts * 5) / 60);
                 setGenerationStatus({
                   type: 'video',
-                  message: `Génération en cours... ${elapsed > 0 ? `(${elapsed} min)` : '(quelques secondes)'} - Les vidéos prennent 2-5 minutes 🎬`
+                  message: `Génération en cours (${routing.engine})... ${elapsed > 0 ? `(${elapsed} min)` : '(quelques secondes)'} - Les vidéos prennent 2-5 minutes 🎬`
                 });
                 setTimeout(checkStatus, 5000);
               }
@@ -514,12 +546,101 @@ export function AlfieChat() {
 
           return {
             success: true,
-            message: "Génération de vidéo lancée ! Patiente quelques minutes... 🎬"
+            message: `Génération de vidéo lancée via ${routing.engine} ! (${routing.woofCost} Woofs) Patiente quelques minutes... 🎬`
           };
         } catch (error: any) {
           console.error('Video generation error:', error);
           setGenerationStatus(null);
           return { error: error.message || "Erreur de génération vidéo" };
+        }
+      }
+
+      case 'show_usage': {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) throw new Error("Not authenticated");
+
+          const quotaStatus = await getQuotaStatus(user.id);
+          if (!quotaStatus) throw new Error("Impossible de récupérer les quotas");
+
+          return {
+            success: true,
+            quotas: {
+              visuals: {
+                used: quotaStatus.visuals.used,
+                limit: quotaStatus.visuals.limit,
+                percentage: quotaStatus.visuals.percentage.toFixed(1)
+              },
+              videos: {
+                used: quotaStatus.videos.used,
+                limit: quotaStatus.videos.limit,
+                percentage: quotaStatus.videos.percentage.toFixed(1)
+              },
+              woofs: {
+                consumed: quotaStatus.woofs.consumed,
+                remaining: quotaStatus.woofs.remaining,
+                limit: quotaStatus.woofs.limit
+              }
+            }
+          };
+        } catch (error: any) {
+          console.error('Show usage error:', error);
+          return { error: error.message || "Erreur d'affichage des quotas" };
+        }
+      }
+
+      case 'adapt_template': {
+        // Adaptation Canva = GRATUIT, pas de quota consommé
+        openInCanva({
+          templateUrl: args.template_url || '',
+          brandKit: brandKit || undefined
+        });
+        return { 
+          success: true, 
+          message: "Template ouvert dans Canva avec ton Brand Kit appliqué ! (Gratuit, pas comptabilisé) 🎨" 
+        };
+      }
+
+      case 'package_download': {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) throw new Error("Not authenticated");
+
+          // Récupérer les assets selon le filtre
+          const filterType = args.filter_type || 'all';
+          let query = supabase
+            .from('media_generations')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('status', 'completed')
+            .order('created_at', { ascending: false });
+
+          if (filterType === 'images') {
+            query = query.in('type', ['image', 'improved_image']);
+          } else if (filterType === 'videos') {
+            query = query.eq('type', 'video');
+          }
+
+          if (args.asset_ids && args.asset_ids.length > 0) {
+            query = query.in('id', args.asset_ids);
+          }
+
+          const { data: assets, error } = await query;
+          if (error) throw error;
+
+          return {
+            success: true,
+            assets: assets?.map(a => ({
+              id: a.id,
+              type: a.type,
+              url: a.output_url,
+              created_at: a.created_at
+            })) || [],
+            message: `Package prêt avec ${assets?.length || 0} assets ! 📦`
+          };
+        } catch (error: any) {
+          console.error('Package download error:', error);
+          return { error: error.message || "Erreur de préparation du package" };
         }
       }
       

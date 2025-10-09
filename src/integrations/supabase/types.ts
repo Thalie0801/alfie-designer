@@ -682,10 +682,13 @@ export type Database = {
           id: string
           plan: string | null
           quota_brands: number | null
+          quota_videos: number | null
           quota_visuals_per_month: number | null
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
           updated_at: string | null
+          videos_this_month: number | null
+          woofs_consumed_this_month: number | null
         }
         Insert: {
           active_brand_id?: string | null
@@ -704,10 +707,13 @@ export type Database = {
           id: string
           plan?: string | null
           quota_brands?: number | null
+          quota_videos?: number | null
           quota_visuals_per_month?: number | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           updated_at?: string | null
+          videos_this_month?: number | null
+          woofs_consumed_this_month?: number | null
         }
         Update: {
           active_brand_id?: string | null
@@ -726,10 +732,13 @@ export type Database = {
           id?: string
           plan?: string | null
           quota_brands?: number | null
+          quota_videos?: number | null
           quota_visuals_per_month?: number | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           updated_at?: string | null
+          videos_this_month?: number | null
+          woofs_consumed_this_month?: number | null
         }
         Relationships: [
           {

@@ -98,11 +98,14 @@ Tu n'es pas qu'un assistant, tu es un véritable compagnon créatif :
 1. browse_templates - Rechercher des templates Canva selon critères (BIENTÔT disponible 🚀)
 2. show_brandkit - Afficher le Brand Kit actuel de l'utilisateur
 3. open_canva - Ouvrir un template dans Canva avec les adaptations demandées (BIENTÔT 🚀)
-4. generate_ai_version - Créer une version IA stylisée (coûte 1 crédit - BIENTÔT 🚀)
-5. check_credits - Vérifier le solde de crédits IA
-6. generate_image - Générer une image depuis un prompt (GRATUIT via Lovable AI)
-7. improve_image - Améliorer une image existante (GRATUIT via Lovable AI)
-8. generate_video - Générer une vidéo depuis un prompt (via Replicate)
+4. adapt_template - Appliquer le Brand Kit sur un template Canva (GRATUIT, pas comptabilisé)
+5. generate_ai_version - Créer une version IA stylisée (coûte 1 crédit - BIENTÔT 🚀)
+6. check_credits - Vérifier le solde de crédits IA
+7. show_usage - Afficher les compteurs de quota de la marque (visuels, vidéos, Woofs)
+8. package_download - Préparer un package ZIP avec liens de téléchargement
+9. generate_image - Générer une image depuis un prompt (1 crédit, compte dans quota visuels)
+10. improve_image - Améliorer une image existante (1 crédit)
+11. generate_video - Générer une vidéo (routing auto Sora/Veo, compte Woofs et quota vidéos)
 
 💬 TON STYLE DE CONVERSATION
 - Tutoiement naturel et chaleureux (jamais robotique)
@@ -121,9 +124,10 @@ Tu n'es pas qu'un assistant, tu es un véritable compagnon créatif :
 4. Tu partages la joie du résultat et mentionnes les crédits restants
 
 🆕 FONCTIONNALITÉS MÉDIA DISPONIBLES
-- Génération d'images : generate_image (1 crédit)
+- Génération d'images : generate_image (1 crédit + compte dans quota visuels)
 - Amélioration d'images : improve_image (1 crédit)
-- Génération de vidéos : generate_video (2 crédits)
+- Génération de vidéos : generate_video (routing auto Sora=1 Woof ou Veo3=4 Woofs, compte dans quota vidéos)
+- Adaptation de template Canva : adapt_template (GRATUIT, pas comptabilisé dans les quotas)
 
 FONCTIONNALITÉS À VENIR BIENTÔT 🚀 :
 - Recherche de templates Canva
@@ -269,13 +273,52 @@ Tu es Alfie : créatif, joyeux, et toujours là pour aider avec le cœur 💛`;
         type: "function",
         function: {
           name: "generate_video",
-          description: "Generate a video from a text prompt (2 crédits)",
+          description: "Generate a video from a text prompt. Routing auto: Sora (1 Woof) ou Veo3 (4 Woofs) selon durée/style. Compte dans quota vidéos mensuel.",
           parameters: {
             type: "object",
             properties: {
-              prompt: { type: "string", description: "Detailed description of the video to generate" }
+              prompt: { type: "string", description: "Detailed description of the video to generate" },
+              seconds: { type: "number", description: "Duration in seconds (default: 8). ≤10s favors Sora, >10s uses Veo3" },
+              style: { type: "string", description: "Video style: 'reel', 'loop', 'intro' (Sora) OR 'cinématique', 'ads', 'visage' (Veo3)" }
             },
             required: ["prompt"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "show_usage",
+          description: "Show the user's current quota usage (visuals, videos, Woofs) for their active brand",
+          parameters: { type: "object", properties: {} }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "adapt_template",
+          description: "Apply Brand Kit to a Canva template (colors, logo, fonts). FREE, not counted in quotas.",
+          parameters: {
+            type: "object",
+            properties: {
+              template_id: { type: "string", description: "Canva template ID" },
+              template_title: { type: "string", description: "Template title for confirmation" }
+            },
+            required: ["template_id"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "package_download",
+          description: "Prepare a ZIP package with download links for user's generated assets",
+          parameters: {
+            type: "object",
+            properties: {
+              asset_ids: { type: "array", items: { type: "string" }, description: "Asset IDs to include in package (optional, all if empty)" },
+              filter_type: { type: "string", description: "Filter by type: 'images', 'videos', or 'all' (default)" }
+            }
           }
         }
       }

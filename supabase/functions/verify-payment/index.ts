@@ -78,6 +78,7 @@ serve(async (req) => {
           plan,
           quota_brands: planConfig.quota_brands,
           quota_visuals_per_month: planConfig.quota_visuals,
+          quota_videos: planConfig.quota_videos,
           stripe_customer_id: session.customer as string,
           stripe_subscription_id: session.subscription as string,
         })
@@ -99,6 +100,7 @@ serve(async (req) => {
             plan,
             quota_brands: planConfig.quota_brands,
             quota_visuals_per_month: planConfig.quota_visuals,
+            quota_videos: planConfig.quota_videos,
             stripe_customer_id: session.customer as string,
             stripe_subscription_id: session.subscription as string,
           })
