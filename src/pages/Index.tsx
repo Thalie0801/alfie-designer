@@ -198,10 +198,10 @@ export default function AlfieLanding() {
           <PriceCard 
             title="Starter" 
             planKey="starter"
-            price={calculatePrice(29)} 
+            price={calculatePrice(39)} 
             priceLabel={getPriceLabel()}
             isAnnual={isAnnual}
-            bullets={["1 marque","25 vidéos + 100 images/mois","150 crédits IA/mois","100 requêtes Alfie/mois","Générateur de contenu IA intégré","2 templates"]} 
+            bullets={["1 Brand Kit dédié","150 visuels/mois","15 vidéos/mois (15 Woofs)","Canva inclus","Stockage 30j","Téléchargement illimité"]} 
             cta="Essayer Starter"
             onSelect={() => createCheckout('starter')}
             loading={checkoutLoading}
@@ -209,11 +209,11 @@ export default function AlfieLanding() {
           <PriceCard 
             title="Pro" 
             planKey="pro"
-            price={calculatePrice(79)} 
+            price={calculatePrice(99)} 
             priceLabel={getPriceLabel()}
             isAnnual={isAnnual}
             highlight 
-            bullets={["3 marques","40 vidéos + 295 images/mois","375 crédits IA/mois","250 requêtes Alfie/mois","Générateur de contenu IA intégré","-20% sur packs de crédits","4 templates + Reels"]} 
+            bullets={["1 Brand Kit dédié","450 visuels/mois","45 vidéos/mois (45 Woofs)","Canva inclus","Add-on : Marque +39€","Packs Woofs","Support prioritaire"]} 
             cta="Choisir Pro"
             onSelect={() => createCheckout('pro')}
             loading={checkoutLoading}
@@ -221,10 +221,10 @@ export default function AlfieLanding() {
           <PriceCard 
             title="Studio" 
             planKey="studio"
-            price={calculatePrice(149)} 
+            price={calculatePrice(199)} 
             priceLabel={getPriceLabel()}
             isAnnual={isAnnual}
-            bullets={["Multi-marques (5 max)","150 vidéos + 450 images/mois","750 crédits IA/mois","500 requêtes Alfie/mois","Générateur de contenu IA intégré","-20% sur packs de crédits","Reels avancés","Analytics"]} 
+            bullets={["1 Brand Kit dédié","1000 visuels/mois","100 vidéos/mois (100 Woofs)","Canva inclus","Add-on : Marque +39€","Packs Woofs (+50, +100)","Analytics","Support prioritaire"]} 
             cta="Passer Studio"
             onSelect={() => createCheckout('studio')}
             loading={checkoutLoading}
@@ -235,7 +235,7 @@ export default function AlfieLanding() {
             price="Sur mesure"
             priceLabel=""
             isAnnual={false}
-            bullets={["Marques illimitées","Visuels illimités","Crédits IA sur mesure","Alfie illimité","Générateur de contenu IA intégré","API & SSO","White-label","Support dédié 24/7"]} 
+            bullets={["Marques illimitées","Visuels illimités","Vidéos illimitées","Canva inclus","API & SSO","White-label","Support dédié 24/7"]} 
             cta="Nous contacter"
             onSelect={() => window.location.href = '/contact'}
             loading={false}
