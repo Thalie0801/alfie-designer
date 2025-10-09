@@ -973,10 +973,10 @@ export function AlfieChat() {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-[calc(100vh-180px)]">
       {/* Chat Messages - scroll area qui prend tout l'espace */}
       <ScrollArea className="flex-1 pr-4" ref={scrollRef}>
-        <div className="space-y-4 pb-4 px-4">
+        <div className="space-y-4 pb-4 px-4 min-h-[200px]">
           {messages.map((message, index) => (
             <div
               key={index}
@@ -1098,18 +1098,6 @@ export function AlfieChat() {
 
       {/* Composer - sticky bottom */}
       <div className="sticky bottom-0 border-t bg-background pt-4 space-y-2">
-        {/* Badges de statut */}
-        <div className="flex gap-2 flex-wrap mb-2">
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-xs">
-            <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
-            <span>Veo 3 : bientôt disponible</span>
-          </div>
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-xs">
-            <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
-            <span>Canva API : bientôt</span>
-          </div>
-        </div>
-
         {/* Chips durée vidéo */}
         {input.toLowerCase().includes('vidéo') || input.toLowerCase().includes('tiktok') || input.toLowerCase().includes('reel') ? (
           <div className="mb-2 space-y-2">

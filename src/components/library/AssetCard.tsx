@@ -84,7 +84,14 @@ export function AssetCard({
         <div className="relative aspect-video bg-muted overflow-hidden rounded-t-lg">
           {asset.type === 'video' ? (
             <>
-              {asset.thumbnail_url && !imageError ? (
+              {asset.output_url && !imageError ? (
+                <video 
+                  src={asset.output_url} 
+                  className="w-full h-full object-cover"
+                  controls
+                  onError={() => setImageError(true)}
+                />
+              ) : asset.thumbnail_url && !imageError ? (
                 <img 
                   src={asset.thumbnail_url} 
                   alt="Video thumbnail" 
@@ -92,16 +99,21 @@ export function AssetCard({
                   onError={() => setImageError(true)}
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/10 to-secondary/10">
-                  <PlayCircle className="h-16 w-16 text-muted-foreground" />
+                <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-primary/10 to-secondary/10">
+                  <PlayCircle className="h-16 w-16 text-muted-foreground mb-2" />
+                  <p className="text-xs text-muted-foreground text-center px-4">
+                    {asset.status === 'processing' ? '⏳ Génération en cours... (2-5 min)' : 'Aperçu indisponible'}
+                  </p>
                 </div>
               )}
-              <div className="absolute bottom-2 left-2">
-                <Badge className="bg-black/70 text-white text-xs">
-                  <PlayCircle className="h-3 w-3 mr-1" />
-                  {formatDuration(asset.duration_seconds)}
-                </Badge>
-              </div>
+              {asset.duration_seconds && (
+                <div className="absolute bottom-2 left-2">
+                  <Badge className="bg-black/70 text-white text-xs">
+                    <PlayCircle className="h-3 w-3 mr-1" />
+                    {formatDuration(asset.duration_seconds)}
+                  </Badge>
+                </div>
+              )}
             </>
           ) : (
             <>
