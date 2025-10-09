@@ -86,7 +86,6 @@ export function JobPlaceholder({
       <CardContent className="space-y-3">
         {/* Status */}
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Statut :</span>
           <Badge className={config.color}>
             {config.label}
           </Badge>

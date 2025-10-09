@@ -41,7 +41,7 @@ export function AppSidebar() {
     badge?: string;
   }> = [
     { path: '/app', label: 'Créer', icon: Sparkles },
-    { path: '/templates', label: 'Catalogue Canva', icon: Layers, badge: 'Bientôt' },
+    { path: '/templates', label: 'Catalogue', icon: Layers, badge: 'Bientôt' },
     { path: '/library', label: 'Bibliothèque', icon: FolderOpen },
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/profile', label: 'Profil', icon: UserCircle },
