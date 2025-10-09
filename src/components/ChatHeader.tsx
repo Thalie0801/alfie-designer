@@ -15,17 +15,22 @@ import { Separator } from '@/components/ui/separator';
 export function ChatHeader() {
   const { brandKit, activeBrandId } = useBrandKit();
   const [quotaStatus, setQuotaStatus] = useState<QuotaStatus | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (activeBrandId) {
       loadQuotas();
+    } else {
+      setLoading(false);
     }
   }, [activeBrandId]);
 
   const loadQuotas = async () => {
     if (!activeBrandId) return;
+    setLoading(true);
     const status = await getQuotaStatus(activeBrandId);
     setQuotaStatus(status);
+    setLoading(false);
   };
 
   const getProgressColor = (percentage: number) => {
@@ -34,12 +39,12 @@ export function ChatHeader() {
     return 'bg-primary';
   };
 
-  if (!brandKit || !quotaStatus) {
+  if (loading || !brandKit || !quotaStatus) {
     return (
       <div className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 py-3">
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
-            Aucune marque active
+            {loading ? 'Chargement...' : 'Aucune marque active'}
           </div>
         </div>
       </div>
