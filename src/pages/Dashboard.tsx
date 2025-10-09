@@ -4,12 +4,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { ExternalLink, Trash2, Palette, Sparkles, Zap, MessageSquare } from 'lucide-react';
+import { ExternalLink, Trash2, Palette, Sparkles, MessageSquare } from 'lucide-react';
 import { BrandDialog } from '@/components/BrandDialog';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { useAlfieCredits } from '@/hooks/useAlfieCredits';
 import { BrandManager } from '@/components/BrandManager';
+import { BrandQuotaDisplay } from '@/components/BrandQuotaDisplay';
 import { NewsFeed } from '@/components/NewsFeed';
 import {
   AlertDialog,
@@ -26,7 +26,6 @@ import {
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { totalCredits } = useAlfieCredits();
   const [posts, setPosts] = useState<any[]>([]);
   const [brands, setBrands] = useState<any[]>([]);
   const [generations, setGenerations] = useState<any[]>([]);
@@ -132,15 +131,8 @@ export default function Dashboard() {
           </div>
         </CardHeader>
         <CardContent className="pt-6">
-          <div className="grid md:grid-cols-3 gap-4">
+          <div className="grid md:grid-cols-2 gap-4">
             <div className="flex items-center gap-3 p-4 rounded-lg border-2 border-primary/20 bg-background/50">
-              <Zap className="h-8 w-8 text-primary" />
-              <div>
-                <p className="text-2xl font-bold">{totalCredits}</p>
-                <p className="text-sm text-muted-foreground">Crédits IA</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 p-4 rounded-lg border-2 border-secondary/20 bg-background/50">
               <Palette className="h-8 w-8 text-secondary" />
               <div>
                 <p className="text-2xl font-bold">{brands.length}</p>
@@ -150,19 +142,22 @@ export default function Dashboard() {
             <div className="flex items-center gap-3 p-4 rounded-lg border-2 border-accent/20 bg-background/50">
               <Sparkles className="h-8 w-8 text-accent" />
               <div>
-                <p className="text-2xl font-bold">{posts.length}</p>
-                <p className="text-sm text-muted-foreground">Créations</p>
+                <p className="text-2xl font-bold">{generations.length}</p>
+                <p className="text-sm text-muted-foreground">Générations récentes</p>
               </div>
             </div>
           </div>
           <div className="mt-4 p-4 rounded-lg bg-primary/5 border border-primary/10">
             <p className="text-sm text-muted-foreground">
-              💡 <strong>Astuce :</strong> Discute avec Alfie pour trouver des templates Canva, les adapter à ton style, 
-              ou générer des versions IA personnalisées. Chaque génération IA coûte 1 crédit.
+              💡 <strong>Astuce :</strong> Discute avec Alfie pour générer des visuels IA ou adapter des templates Canva à ton Brand Kit. 
+              Les quotas (visuels, vidéos, Woofs) sont gérés par marque.
             </p>
           </div>
         </CardContent>
       </Card>
+
+      {/* Quotas de la marque active */}
+      <BrandQuotaDisplay />
 
       {/* Brand Manager */}
       <BrandManager />
