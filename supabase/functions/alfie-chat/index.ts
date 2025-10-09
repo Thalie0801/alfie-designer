@@ -259,26 +259,22 @@ Template Canva :
           }
         }
       },
-      // VIDÉO DÉSACTIVÉE - Outil generate_video retiré temporairement (problème IP whitelist Kie.ai)
-      // {
-      //   type: "function",
-      //   function: {
-      //     name: "generate_video",
-      //     description: "Generate a video from a text prompt using Sora2. Each clip = 1 Woof. For >15s, propose multi-clip montage (2 clips ~20s = 2 Woofs, 3 clips ~30s = 3 Woofs). Compte dans quota vidéos mensuel.",
-      //     parameters: {
-      //       type: "object",
-      //       properties: {
-      //         prompt: { type: "string", description: "Detailed description of the video to generate (in English for best quality)" },
-      //         clipCount: { type: "number", description: "Number of clips for montage (1 clip = 10-15s, 2 clips = ~20s, 3 clips = ~30s). Default: 1" },
-      //         duration: { type: "number", description: "Approximate total duration in seconds (10-15s for 1 clip, ~20s for 2 clips, ~30s for 3 clips)" },
-      //         imageUrl: { type: "string", description: "Optional: URL of uploaded image to use as video base (image→video)" },
-      //         subtitles: { type: "boolean", description: "Whether to add French subtitles (default: true)" },
-      //         voiceOver: { type: "boolean", description: "Whether to add French voice-over (default: false)" }
-      //       },
-      //       required: ["prompt"]
-      //     }
-      //   }
-      // },
+      {
+        type: "function",
+        function: {
+          name: "generate_video",
+          description: "Generate a video from a text prompt. Uses Sora2 → Seededance → Kling fallback. Cost: 1 Woof per video (5-15s). For >15s, suggest multi-clip approach.",
+          parameters: {
+            type: "object",
+            properties: {
+              prompt: { type: "string", description: "Detailed description of the video to generate (in English for best quality)" },
+              aspectRatio: { type: "string", description: "Video aspect ratio: '16:9' (landscape) or '9:16' (portrait). Default: '16:9'" },
+              imageUrl: { type: "string", description: "Optional: URL of uploaded image to use as video base (image→video)" }
+            },
+            required: ["prompt"]
+          }
+        }
+      },
       {
         type: "function",
         function: {
