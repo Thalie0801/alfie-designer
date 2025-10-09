@@ -152,12 +152,10 @@ Image :
 Template Canva :
 "Tu as un lien de template Canva ou je pars sur une recherche par mots-clés ? Formats à livrer : carré / vertical / horizontal ?"
 
-⚠️ RÈGLE CRITIQUE - DÉTECTION VIDÉO
-SI l'utilisateur mentionne : "vidéo", "video", "animé", "anime", "animation", "clip", "film", "mouvement", "bouge", "animer"
-→ TU DOIS appeler IMMÉDIATEMENT l'outil generate_video
-→ NE propose JAMAIS de template Canva pour une vidéo
-→ NE demande PAS plus de détails
-→ Exemple : utilisateur dit "anime le chien" → tu appelles generate_video({ prompt: "Golden retriever in Halloween setting with animated playful movement" })`;
+⚠️ GÉNÉRATION VIDÉO TEMPORAIREMENT INDISPONIBLE
+- Si l'utilisateur demande une vidéo, réponds : "🎬 La génération vidéo est temporairement indisponible (problème fournisseur). Reviens un peu plus tard ! En attendant, je peux te proposer des templates Canva animés ou des carrousels d'images."
+- Ne mentionne JAMAIS Sora, Veo3, ou la génération vidéo IA comme option disponible
+- Propose uniquement des alternatives : templates Canva, carrousels, images statiques`;
 
     const tools = [
       {
@@ -257,25 +255,26 @@ SI l'utilisateur mentionne : "vidéo", "video", "animé", "anime", "animation", 
           }
         }
       },
-      {
-        type: "function",
-        function: {
-          name: "generate_video",
-          description: "Generate a video from a text prompt using Sora2. Each clip = 1 Woof. For >15s, propose multi-clip montage (2 clips ~20s = 2 Woofs, 3 clips ~30s = 3 Woofs). Compte dans quota vidéos mensuel.",
-          parameters: {
-            type: "object",
-            properties: {
-              prompt: { type: "string", description: "Detailed description of the video to generate (in English for best quality)" },
-              clipCount: { type: "number", description: "Number of clips for montage (1 clip = 10-15s, 2 clips = ~20s, 3 clips = ~30s). Default: 1" },
-              duration: { type: "number", description: "Approximate total duration in seconds (10-15s for 1 clip, ~20s for 2 clips, ~30s for 3 clips)" },
-              imageUrl: { type: "string", description: "Optional: URL of uploaded image to use as video base (image→video)" },
-              subtitles: { type: "boolean", description: "Whether to add French subtitles (default: true)" },
-              voiceOver: { type: "boolean", description: "Whether to add French voice-over (default: false)" }
-            },
-            required: ["prompt"]
-          }
-        }
-      },
+      // VIDÉO DÉSACTIVÉE - Outil generate_video retiré temporairement (problème IP whitelist Kie.ai)
+      // {
+      //   type: "function",
+      //   function: {
+      //     name: "generate_video",
+      //     description: "Generate a video from a text prompt using Sora2. Each clip = 1 Woof. For >15s, propose multi-clip montage (2 clips ~20s = 2 Woofs, 3 clips ~30s = 3 Woofs). Compte dans quota vidéos mensuel.",
+      //     parameters: {
+      //       type: "object",
+      //       properties: {
+      //         prompt: { type: "string", description: "Detailed description of the video to generate (in English for best quality)" },
+      //         clipCount: { type: "number", description: "Number of clips for montage (1 clip = 10-15s, 2 clips = ~20s, 3 clips = ~30s). Default: 1" },
+      //         duration: { type: "number", description: "Approximate total duration in seconds (10-15s for 1 clip, ~20s for 2 clips, ~30s for 3 clips)" },
+      //         imageUrl: { type: "string", description: "Optional: URL of uploaded image to use as video base (image→video)" },
+      //         subtitles: { type: "boolean", description: "Whether to add French subtitles (default: true)" },
+      //         voiceOver: { type: "boolean", description: "Whether to add French voice-over (default: false)" }
+      //       },
+      //       required: ["prompt"]
+      //     }
+      //   }
+      // },
       {
         type: "function",
         function: {

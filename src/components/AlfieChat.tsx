@@ -433,12 +433,13 @@ export function AlfieChat() {
       }
       
       case 'generate_video': {
-        // ⚠️ Génération vidéo temporairement désactivée (problème IP whitelist avec Kie.ai)
+        // Fonctionnalité désactivée côté backend
         setMessages(prev => [...prev, {
           role: 'assistant',
-          content: "🎬 La génération vidéo est temporairement indisponible (problème fournisseur). Reviens un peu plus tard !"
+          content: "🎬 Oups, la génération vidéo est temporairement indisponible. Je ne peux pas traiter cette demande pour le moment."
         }]);
-        return { error: "Video generation temporarily unavailable" };
+        toast.error("Génération vidéo indisponible");
+        return { error: "Video generation disabled" };
       }
 
       case 'show_usage': {
