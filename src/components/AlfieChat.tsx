@@ -28,6 +28,8 @@ interface Message {
   videoUrl?: string;
   created_at?: string;
   jobId?: string;
+  jobStatus?: JobStatus;
+  progress?: number;
   assetId?: string;
   assetType?: 'image' | 'video';
 }
@@ -468,7 +470,7 @@ export function AlfieChat() {
 
           const predictionId = data.id;
           
-          await supabase.from('media_generations').insert({
+await supabase.from('media_generations').insert({
             user_id: user.id,
             type: 'video',
             prompt: args.prompt,
@@ -477,14 +479,28 @@ export function AlfieChat() {
             metadata: { predictionId, clipCount, woofCost: totalWoofCost }
           });
 
+          // Afficher un placeholder de job dans le chat
+          setMessages(prev => [
+            ...prev,
+            {
+              role: 'assistant' as const,
+              content: '',
+              jobId: predictionId,
+              jobStatus: 'running' as JobStatus,
+              progress: 0,
+              assetType: 'video'
+            }
+          ]);
+
           // Poll for status (max 10 minutes)
           let attempts = 0;
           const maxAttempts = 120; // 10 minutes
           
           const checkStatus = async () => {
-            if (attempts >= maxAttempts) {
+if (attempts >= maxAttempts) {
               setGenerationStatus(null);
               toast.error("La génération prend trop de temps. Vérifie ton historique dans quelques minutes.");
+              setMessages(prev => prev.map(m => m.jobId === predictionId ? { ...m, jobStatus: 'failed' as JobStatus, content: 'La génération prend plus de temps que prévu. Vérifie la bibliothèque dans quelques minutes.' } : m));
               return;
             }
 
@@ -502,68 +518,79 @@ export function AlfieChat() {
 
               console.log('Video status check:', statusData.status, 'Attempt:', attempts);
 
-              if (statusData.status === 'succeeded') {
-                const videoUrl = Array.isArray(statusData.output) ? statusData.output[0] : statusData.output;
-                
-                const { data: existingRecords } = await supabase
-                  .from('media_generations')
-                  .select('id')
-                  .eq('user_id', user.id)
-                  .eq('type', 'video')
-                  .order('created_at', { ascending: false })
-                  .limit(1);
-                
-                if (existingRecords && existingRecords.length > 0) {
-                  await supabase.from('media_generations')
-                    .update({ output_url: videoUrl, status: 'completed' })
-                    .eq('id', existingRecords[0].id);
-                }
+if (statusData.status === 'succeeded') {
+  const videoUrl = Array.isArray(statusData.output) ? statusData.output[0] : statusData.output;
+  
+  const { data: existingRecords } = await supabase
+    .from('media_generations')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('type', 'video')
+    .order('created_at', { ascending: false })
+    .limit(1);
+  
+  if (existingRecords && existingRecords.length > 0) {
+    await supabase.from('media_generations')
+      .update({ output_url: videoUrl, status: 'completed' })
+      .eq('id', existingRecords[0].id);
+  }
 
-                // Consommer quota vidéo + Woofs pour la marque
-                if (activeBrandId) {
-                  await consumeQuota(activeBrandId, 'video', totalWoofCost);
-                }
-                
-                // Déduire les crédits IA (1 par vidéo)
-                await decrementCredits(1, 'video_generation');
+  // Mettre à jour le placeholder en "ready"
+  setMessages(prev => prev.map(m => m.jobId === predictionId ? { ...m, jobStatus: 'ready' as JobStatus, progress: 100 } : m));
 
-                setGenerationStatus(null);
-                toast.success(`Vidéo générée avec succès ! (${totalWoofCost} Woofs utilisés, ${clipCount} clip(s) Sora2) 🎉`);
-                
-                const videoMessage = {
-                  role: 'assistant' as const,
-                  content: `Vidéo générée avec succès ! (${totalWoofCost} Woofs utilisés via ${clipCount} clip(s) Sora2) 🎬`,
-                  videoUrl
-                };
-                
-                setMessages(prev => [...prev, videoMessage]);
-                
-                // Persister le message vidéo en base
-                if (conversationId) {
-                  await supabase.from('alfie_messages').insert({
-                    conversation_id: conversationId,
-                    role: 'assistant',
-                    content: videoMessage.content,
-                    video_url: videoUrl
-                  });
-                }
-              } else if (statusData.status === 'failed') {
-                setGenerationStatus(null);
-                toast.error("La génération de vidéo a échoué");
-                setMessages(prev => [...prev, {
-                  role: 'assistant',
-                  content: `La génération de vidéo a échoué 😔 Réessaie avec un prompt différent.`
-                }]);
-              } else {
-                // Still processing - update status message
-                attempts++;
-                const elapsed = Math.floor((attempts * 5) / 60);
-                setGenerationStatus({
-                  type: 'video',
-                  message: `Génération en cours (${clipCount} clip(s) Sora2)... ${elapsed > 0 ? `(${elapsed} min)` : '(quelques secondes)'} - Les vidéos prennent 2-5 minutes 🎬`
-                });
-                setTimeout(checkStatus, 5000);
-              }
+  // Consommer quota vidéo + Woofs pour la marque
+  if (activeBrandId) {
+    await consumeQuota(activeBrandId, 'video', totalWoofCost);
+  }
+  
+  // Déduire les crédits IA (1 par vidéo)
+  await decrementCredits(1, 'video_generation');
+
+  setGenerationStatus(null);
+  toast.success(`Vidéo générée avec succès ! (${totalWoofCost} Woofs utilisés, ${clipCount} clip(s) Sora2) 🎉`);
+  
+  const videoMessage = {
+    role: 'assistant' as const,
+    content: `Vidéo générée avec succès ! (${totalWoofCost} Woofs utilisés via ${clipCount} clip(s) Sora2) 🎬`,
+    videoUrl
+  };
+  
+  setMessages(prev => [...prev, videoMessage]);
+  
+  // Persister le message vidéo en base
+  if (conversationId) {
+    await supabase.from('alfie_messages').insert({
+      conversation_id: conversationId,
+      role: 'assistant',
+      content: videoMessage.content,
+      video_url: videoUrl
+    });
+  }
+} else if (statusData.status === 'failed') {
+  setGenerationStatus(null);
+  toast.error("La génération de vidéo a échoué");
+  // Mettre à jour le placeholder en "failed"
+  setMessages(prev => prev.map(m => m.jobId === predictionId ? { ...m, jobStatus: 'failed' as JobStatus } : m));
+  setMessages(prev => [...prev, {
+    role: 'assistant',
+    content: `La génération de vidéo a échoué 😔 Réessaie avec un prompt différent.`
+  }]);
+} else {
+  // Still processing - update status message + placeholder
+  attempts++;
+  const elapsed = Math.floor((attempts * 5) / 60);
+  setGenerationStatus({
+    type: 'video',
+    message: `Génération en cours (${clipCount} clip(s) Sora2)... ${elapsed > 0 ? `(${elapsed} min)` : '(quelques secondes)'} - Les vidéos prennent 2-5 minutes 🎬`
+  });
+  // Update placeholder status to checking with a rough progress indicator
+  setMessages(prev => prev.map(m => m.jobId === predictionId ? { 
+    ...m, 
+    jobStatus: 'checking' as JobStatus,
+    progress: Math.min(99, Math.round((attempts / maxAttempts) * 100))
+  } : m));
+  setTimeout(checkStatus, 5000);
+}
             } catch (err) {
               console.error('Video status error:', err);
               setGenerationStatus(null);
@@ -987,73 +1014,83 @@ export function AlfieChat() {
                   <img src={alfieMain} alt="Alfie" className="object-cover" />
                 </Avatar>
               )}
-               <Card
-                className={`p-4 max-w-[75%] ${
-                  message.role === 'user'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted'
-                }`}
-              >
-               {message.imageUrl && (
-                  <div className="relative group">
-                    <img 
-                      src={message.imageUrl} 
-                      alt="Image générée" 
-                      className="max-w-full rounded-lg mb-2"
-                    />
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => {
-                        const link = document.createElement('a');
-                        link.href = message.imageUrl!;
-                        link.download = `alfie-image-${Date.now()}.png`;
-                        link.click();
-                      }}
-                    >
-                      <Download className="h-4 w-4 mr-1" />
-                      Télécharger
-                    </Button>
-                  </div>
-                )}
-                {message.videoUrl && (
-                  <div className="relative group">
-                    <video 
-                      src={message.videoUrl} 
-                      controls
-                      className="max-w-full rounded-lg mb-2"
-                    />
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => {
-                        const link = document.createElement('a');
-                        link.href = message.videoUrl!;
-                        link.download = `alfie-video-${Date.now()}.mp4`;
-                        link.click();
-                      }}
-                    >
-                      <Download className="h-4 w-4 mr-1" />
-                      Télécharger
-                    </Button>
-                  </div>
-                )}
-                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                {message.created_at && (
-                  <p className="text-xs opacity-60 mt-2">
-                    {new Date(message.created_at).toLocaleDateString('fr-FR', {
-                      day: '2-digit',
-                      month: '2-digit',
-                      year: 'numeric',
-                      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
-                    })} à {new Date(message.created_at).toLocaleTimeString('fr-FR', {
-                      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
-                    })}
-                  </p>
-                )}
-              </Card>
+{message.jobId ? (
+  <JobPlaceholder
+    jobId={message.jobId}
+    shortId={message.jobId.slice(-6).toUpperCase()}
+    status={message.jobStatus || 'running'}
+    progress={message.progress}
+    type={message.assetType === 'image' ? 'image' : 'video'}
+  />
+) : (
+  <Card
+    className={`p-4 max-w-[75%] ${
+      message.role === 'user'
+        ? 'bg-primary text-primary-foreground'
+        : 'bg-muted'
+    }`}
+  >
+   {message.imageUrl && (
+      <div className="relative group">
+        <img 
+          src={message.imageUrl} 
+          alt="Image générée" 
+          className="max-w-full rounded-lg mb-2"
+        />
+        <Button
+          size="sm"
+          variant="secondary"
+          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={() => {
+            const link = document.createElement('a');
+            link.href = message.imageUrl!;
+            link.download = `alfie-image-${Date.now()}.png`;
+            link.click();
+          }}
+        >
+          <Download className="h-4 w-4 mr-1" />
+          Télécharger
+        </Button>
+      </div>
+    )}
+    {message.videoUrl && (
+      <div className="relative group">
+        <video 
+          src={message.videoUrl} 
+          controls
+          className="max-w-full rounded-lg mb-2"
+        />
+        <Button
+          size="sm"
+          variant="secondary"
+          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={() => {
+            const link = document.createElement('a');
+            link.href = message.videoUrl!;
+            link.download = `alfie-video-${Date.now()}.mp4`;
+            link.click();
+          }}
+        >
+          <Download className="h-4 w-4 mr-1" />
+          Télécharger
+        </Button>
+      </div>
+    )}
+    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+    {message.created_at && (
+      <p className="text-xs opacity-60 mt-2">
+        {new Date(message.created_at).toLocaleDateString('fr-FR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        })} à {new Date(message.created_at).toLocaleTimeString('fr-FR', {
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        })}
+      </p>
+    )}
+  </Card>
+)}
               {message.role === 'user' && (
                 <Avatar className="h-8 w-8 flex-shrink-0 bg-secondary">
                   <div className="flex items-center justify-center h-full text-secondary-foreground">
