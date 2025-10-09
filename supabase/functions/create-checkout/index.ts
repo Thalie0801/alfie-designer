@@ -8,10 +8,10 @@ const corsHeaders = {
 };
 
 const PRICE_IDS = {
-  starter: "price_1SEtRuQvcbGhgt8SzSFWCC3L",
-  pro: "price_1SEtTMQvcbGhgt8SYQ0RV10U",
-  studio: "price_1SEtTeQvcbGhgt8SZ8X8LR4e",
-  enterprise: "price_1SEtTxQvcbGhgt8S6xO8OFSj",
+  starter: "price_1SGDCEQvcbGhgt8SB4SyubJd",    // 39€/mois
+  pro: "price_1SGDDFQvcbGhgt8Sxc5AD69b",        // 99€/mois
+  studio: "price_1SGDLmQvcbGhgt8SKWpBTjCg",     // 199€/mois
+  enterprise: "price_1SEtTxQvcbGhgt8S6xO8OFSj", // 299€/mois
 };
 
 // Plan configuration (quotas are applied in verify-payment after successful payment)
