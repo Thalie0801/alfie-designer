@@ -5,6 +5,7 @@
 export const FEATURE_FLAGS = {
   VEO3_ENABLED: false,
   CANVA_API_ENABLED: false,
+  VIDEO_GENERATION_ENABLED: false, // Désactivé: problème IP whitelist Kie.ai
 } as const;
 
 export const SYSTEM_CONFIG = {

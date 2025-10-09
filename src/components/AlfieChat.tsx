@@ -433,214 +433,12 @@ export function AlfieChat() {
       }
       
       case 'generate_video': {
-        try {
-          setGenerationStatus({ type: 'video', message: 'Génération de ta vidéo en cours... Cela peut prendre 2-3 minutes 🎬' });
-          
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) throw new Error("Not authenticated");
-          
-          if (!activeBrandId) {
-            setGenerationStatus(null);
-            toast.error("Aucune marque active. Crée d'abord un Brand Kit !");
-            return { error: "Aucune marque active" };
-          }
-
-          // Déterminer le nombre de clips (multi-clip montage support)
-          const clipCount = args.clipCount || 1;
-          const duration = args.duration || (clipCount === 1 ? 10 : clipCount === 2 ? 20 : 30);
-
-          // Obtenir le statut des quotas de la marque
-          const quotaStatus = await getQuotaStatus(activeBrandId);
-          if (!quotaStatus) throw new Error("Impossible de vérifier les quotas");
-
-          // Chaque clip Sora = 1 Woof
-          const totalWoofCost = clipCount;
-
-          console.log(`Video routing: ${clipCount} clip(s) Sora2, ${totalWoofCost} Woofs, ~${duration}s total`);
-
-          // Vérifier si on peut générer
-          const canGenerate = await canGenerateVideo(activeBrandId, totalWoofCost);
-          if (!canGenerate.canGenerate) {
-            setGenerationStatus(null);
-            toast.error(canGenerate.reason);
-            
-            setMessages(prev => [...prev, {
-              role: 'assistant',
-              content: canGenerate.reason
-            }]);
-            
-            return { error: canGenerate.reason };
-          }
-
-          // Générer le(s) clip(s) - pour l'instant on génère 1 clip, le montage sera ajouté plus tard
-          console.log('🎬 Calling generate-video edge function with:', { 
-            prompt: args.prompt,
-            clipCount,
-            aspectRatio: '9:16'
-          });
-          
-          const { data, error } = await supabase.functions.invoke('generate-video', {
-            body: { 
-              prompt: args.prompt,
-              imageUrl: args.imageUrl, // Support image→video
-              clipCount,
-              aspectRatio: '9:16' // Vertical par défaut pour TikTok/Reels
-            }
-          });
-
-          console.log('📦 Edge function response:', { data, error });
-
-          if (error) {
-            console.error('❌ Edge function error:', error);
-            throw error;
-          }
-
-          if (!data?.id) {
-            console.error('❌ No predictionId in response:', data);
-            setGenerationStatus(null);
-            toast.error("Erreur: L'API n'a pas retourné d'ID de génération. Crédits non débités.");
-            
-            setMessages(prev => [...prev, {
-              role: 'assistant',
-              content: "❌ Impossible de démarrer la génération vidéo. L'API n'a pas retourné d'identifiant de tâche. Réessaie dans quelques instants."
-            }]);
-            
-            return { error: "No prediction ID returned" };
-          }
-
-          const predictionId = data.id;
-          console.log('✅ Video generation started with ID:', predictionId);
-          
-          await supabase.from('media_generations').insert({
-            user_id: user.id,
-            type: 'video',
-            prompt: args.prompt,
-            output_url: '',
-            status: 'processing',
-            metadata: { predictionId, clipCount, woofCost: totalWoofCost }
-          });
-
-          // Afficher un placeholder de job dans le chat
-          setMessages(prev => [
-            ...prev,
-            {
-              role: 'assistant' as const,
-              content: '',
-              jobId: predictionId,
-              jobStatus: 'running' as JobStatus,
-              progress: 0,
-              assetType: 'video'
-            }
-          ]);
-
-          // Poll for status (max 10 minutes)
-          let attempts = 0;
-          const maxAttempts = 120; // 10 minutes
-          
-          const checkStatus = async () => {
-if (attempts >= maxAttempts) {
-              setGenerationStatus(null);
-              toast.error("La génération prend trop de temps. Vérifie ton historique dans quelques minutes.");
-              setMessages(prev => prev.map(m => m.jobId === predictionId ? { ...m, jobStatus: 'failed' as JobStatus, content: 'La génération prend plus de temps que prévu. Vérifie la bibliothèque dans quelques minutes.' } : m));
-              return;
-            }
-
-            try {
-              const { data: statusData, error: statusError } = await supabase.functions.invoke('generate-video', {
-                body: { generationId: predictionId }
-              });
-
-              if (statusError) {
-                console.error('Status check error:', statusError);
-                setGenerationStatus(null);
-                toast.error("Erreur lors de la vérification du statut");
-                return;
-              }
-
-              console.log('Video status check:', statusData.status, 'Attempt:', attempts);
-
-if (statusData.status === 'succeeded') {
-  const videoUrl = Array.isArray(statusData.output) ? statusData.output[0] : statusData.output;
-  
-  // Mettre à jour l'asset correspondant (par predictionId) et le marquer comme "completed"
-  await supabase
-    .from('media_generations')
-    .update({ output_url: videoUrl, status: 'completed' })
-    .eq('user_id', user.id)
-    .eq('type', 'video')
-    .contains('metadata', { predictionId });
-
-  // Remplacer le placeholder par la carte vidéo (dans le même message)
-  setMessages(prev => prev.map(m => m.jobId === predictionId ? {
-    role: 'assistant',
-    content: 'Vidéo prête ✅ — Consommation : ' + `–${totalWoofCost} Woof(s) — Expire J+30`,
-    videoUrl,
-    created_at: new Date().toISOString()
-  } : m));
-
-  // Consommer quota vidéo + Woofs pour la marque
-  if (activeBrandId) {
-    await consumeQuota(activeBrandId, 'video', totalWoofCost);
-  }
-  
-  // Déduire les crédits IA (1 par vidéo)
-  await decrementCredits(1, 'video_generation');
-
-  setGenerationStatus(null);
-  toast.success(`Vidéo générée avec succès ! (${totalWoofCost} Woofs utilisés, ${clipCount} clip(s) Sora2) 🎉`);
-  
-  // Persister le message vidéo en base
-  if (conversationId) {
-    await supabase.from('alfie_messages').insert({
-      conversation_id: conversationId,
-      role: 'assistant',
-      content: `Vidéo prête ✅ — Consommation : –${totalWoofCost} Woof(s) — Expire J+30`,
-      video_url: videoUrl
-    });
-  }
-} else if (statusData.status === 'failed') {
-  setGenerationStatus(null);
-  toast.error("La génération de vidéo a échoué");
-  // Mettre à jour le placeholder en "failed"
-  setMessages(prev => prev.map(m => m.jobId === predictionId ? { ...m, jobStatus: 'failed' as JobStatus } : m));
-  setMessages(prev => [...prev, {
-    role: 'assistant',
-    content: `La génération de vidéo a échoué 😔 Réessaie avec un prompt différent.`
-  }]);
-} else {
-  // Still processing - update status message + placeholder
-  attempts++;
-  const elapsed = Math.floor((attempts * 5) / 60);
-  setGenerationStatus({
-    type: 'video',
-    message: `Génération en cours (${clipCount} clip(s) Sora2)... ${elapsed > 0 ? `(${elapsed} min)` : '(quelques secondes)'} - Les vidéos prennent 2-5 minutes 🎬`
-  });
-  // Update placeholder status to checking with a rough progress indicator
-  setMessages(prev => prev.map(m => m.jobId === predictionId ? { 
-    ...m, 
-    jobStatus: 'checking' as JobStatus,
-    progress: Math.min(99, Math.round((attempts / maxAttempts) * 100))
-  } : m));
-  setTimeout(checkStatus, 5000);
-}
-            } catch (err) {
-              console.error('Video status error:', err);
-              setGenerationStatus(null);
-              toast.error("Erreur lors de la vérification");
-            }
-          };
-
-          setTimeout(checkStatus, 5000);
-
-          return {
-            success: true,
-            message: `Génération de vidéo lancée via ${clipCount} clip(s) Sora2 ! (${totalWoofCost} Woofs) Patiente quelques minutes... 🎬`
-          };
-        } catch (error: any) {
-          console.error('Video generation error:', error);
-          setGenerationStatus(null);
-          return { error: error.message || "Erreur de génération vidéo" };
-        }
+        // ⚠️ Génération vidéo temporairement désactivée (problème IP whitelist avec Kie.ai)
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: "🎬 La génération vidéo est temporairement indisponible (problème fournisseur). Reviens un peu plus tard !"
+        }]);
+        return { error: "Video generation temporarily unavailable" };
       }
 
       case 'show_usage': {
@@ -1207,20 +1005,11 @@ if (statusData.status === 'succeeded') {
               </span>
             </div>
 
-            <div className="flex items-center justify-between">
+            {/* Bouton désactivé temporairement - problème IP whitelist Kie.ai */}
+            <div className="flex items-center justify-center p-4 bg-muted/50 rounded-lg">
               <span className="text-xs text-muted-foreground">
-                {selectedDuration === 'short' ? 'Estimation ≈ 1–2 min' : selectedDuration === 'medium' ? 'Estimation ≈ 2–3 min' : 'Estimation ≈ 3–4 min'}
+                🎬 Génération vidéo temporairement indisponible
               </span>
-              <Button
-                size="sm"
-                onClick={() => {
-                  const clipCount = selectedDuration === 'short' ? 1 : selectedDuration === 'medium' ? 2 : 3;
-                  void handleToolCall('generate_video', { prompt: input, imageUrl: uploadedImage, clipCount });
-                }}
-                disabled={!input.trim()}
-              >
-                Générer la vidéo
-              </Button>
             </div>
           </div>
         ) : null}

@@ -23,6 +23,28 @@ serve(async (req) => {
     const body = await req.json();
     console.log('📥 [generate-video] Request body:', JSON.stringify(body));
 
+    // 🔧 MODE DIAGNOSTIC: Retourne l'IP sortante du backend pour whitelist Kie.ai
+    if (body.diagnose === true) {
+      try {
+        const ipResponse = await fetch('https://api.ipify.org?format=json');
+        const ipData = await ipResponse.json();
+        console.log('🌐 [Diagnostic] Outbound IP:', ipData.ip);
+        return new Response(JSON.stringify({ 
+          diagnostic: true,
+          outboundIp: ipData.ip,
+          message: 'Ajoute cette IP à la whitelist Kie.ai: https://kie.ai/settings'
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } catch (diagError) {
+        console.error('❌ [Diagnostic] Failed to get IP:', diagError);
+        return new Response(JSON.stringify({ error: 'Failed to retrieve IP' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500,
+        });
+      }
+    }
+
     // Check status of existing generation
     if (body.generationId) {
       console.log("Checking video generation status:", body.generationId);
@@ -119,7 +141,30 @@ serve(async (req) => {
 
     if (!kieResponse.ok) {
       const errorText = await kieResponse.text();
-      console.error("Kie AI error:", kieResponse.status, errorText);
+      console.error("❌ [Kie AI] HTTP error:", kieResponse.status, errorText);
+      
+      // Tenter de parser l'erreur JSON
+      let errorData: any = {};
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { msg: errorText };
+      }
+      
+      // 🚨 Détection spécifique de l'erreur IP whitelist
+      if (kieResponse.status === 401 && errorData.msg?.includes('Illegal IP')) {
+        console.error('🚨 [Kie.ai] IP NOT WHITELISTED - Backend IP needs to be added to Kie.ai whitelist');
+        return new Response(JSON.stringify({
+          error: 'PROVIDER_IP_WHITELIST',
+          message: 'L\'IP sortante du backend n\'est pas whitelistée chez Kie.ai',
+          details: errorData.msg,
+          help: 'Appelle generate-video avec { diagnose: true } pour obtenir l\'IP à whitelister'
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 401,
+        });
+      }
+      
       throw new Error(`Kie AI API error: ${errorText}`);
     }
 
@@ -131,7 +176,9 @@ serve(async (req) => {
     if (!generation.data?.taskId) {
       console.error('❌ [Kie.ai] No taskId in response:', generation);
       return new Response(JSON.stringify({ 
-        error: 'Kie.ai n\'a pas retourné de taskId. Réponse: ' + JSON.stringify(generation)
+        error: 'NO_TASK_ID',
+        message: 'Kie.ai n\'a pas retourné de taskId',
+        kieResponse: generation
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
