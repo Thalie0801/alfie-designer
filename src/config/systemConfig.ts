@@ -1,6 +1,12 @@
 // Configuration système pour quotas et retention
 // Ces valeurs peuvent être ajustées par l'admin
 
+// Feature flags
+export const FEATURE_FLAGS = {
+  VEO3_ENABLED: false,      // Veo 3 en attente de Lovable AI
+  CANVA_API_ENABLED: false, // API Canva en attente
+} as const;
+
 export const SYSTEM_CONFIG = {
   // Coûts vidéo en Woofs
   VEO3_WOOF_FACTOR: 4,

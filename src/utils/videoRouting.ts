@@ -24,15 +24,15 @@ export interface VideoRequest {
  * 
  * Règles actuelles:
  * - Sora2 uniquement pour l'instant (via Kie AI)
- * - Veo 3 sera activé quand Lovable AI l'ouvrira
+ * - Veo 3 sera activé quand FEATURE_FLAGS.VEO3_ENABLED=true
  */
 export function routeVideoEngine(request: VideoRequest): VideoRoutingDecision {
   // Pour l'instant, toujours utiliser Sora2
-  // TODO: Activer Veo 3 quand Lovable AI sera disponible
+  // TODO: Activer Veo 3 quand FEATURE_FLAGS.VEO3_ENABLED=true
   return {
     engine: 'sora',
     woofCost: SORA_WOOF_FACTOR,
-    reason: 'Sora2 via Kie AI (Veo 3 en attente de Lovable AI)'
+    reason: 'Sora2 via Kie AI (Veo 3 en attente - FEATURE_FLAGS.VEO3_ENABLED=false)'
   };
 }
 

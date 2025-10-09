@@ -30,10 +30,19 @@ const INITIAL_ASSISTANT_MESSAGE = `Salut ! 🐾 Je suis Alfie Designer, ton comp
 
 Je peux t'aider à :
 • Créer des images IA (1 crédit + quota visuels par marque) ✨
-• Générer des vidéos (routing auto Sora/Veo3, quotas par marque) 🎬
+• Générer des vidéos Sora2 (1 clip = 1 Woof, montage multi-clips possible) 🎬
 • Adapter templates Canva (GRATUIT, Brand Kit inclus) 🎨
 • Afficher tes quotas mensuels par marque (visuels, vidéos, Woofs) 📊
 • Préparer tes assets en package ZIP 📦
+
+📸 Tu peux me joindre une image pour :
+• Faire une variation stylisée (image→image)
+• Créer une vidéo à partir de l'image (image→vidéo)
+
+🎬 Pour les vidéos :
+• 10-12s loop = 1 Woof (1 clip Sora)
+• ~20s = 2 Woofs (montage 2 clips)
+• ~30s = 3 Woofs (montage 3 clips)
 
 Chaque marque a ses propres quotas qui se réinitialisent le 1er du mois (non reportables).
 Alors, qu'est-ce qu'on crée ensemble aujourd'hui ? 😊`;
@@ -52,6 +61,7 @@ export function AlfieChat() {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [generationStatus, setGenerationStatus] = useState<{ type: string; message: string } | null>(null);
+  const [selectedDuration, setSelectedDuration] = useState<'short' | 'medium' | 'long'>('short');
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -411,50 +421,40 @@ export function AlfieChat() {
             return { error: "Aucune marque active" };
           }
 
-          // Déterminer durée et style depuis le prompt
-          const seconds = args.seconds || estimateVideoDuration(args.prompt);
-          const style = args.style || detectVideoStyle(args.prompt);
+          // Déterminer le nombre de clips (multi-clip montage support)
+          const clipCount = args.clipCount || 1;
+          const duration = args.duration || (clipCount === 1 ? 10 : clipCount === 2 ? 20 : 30);
 
           // Obtenir le statut des quotas de la marque
           const quotaStatus = await getQuotaStatus(activeBrandId);
           if (!quotaStatus) throw new Error("Impossible de vérifier les quotas");
 
-          // Router vers Sora ou Veo3
-          const routing = routeVideoEngine({ 
-            seconds, 
-            style, 
-            remainingWoofs: quotaStatus.woofs.remaining 
-          });
+          // Chaque clip Sora = 1 Woof
+          const totalWoofCost = clipCount;
 
-          console.log('Video routing:', routing);
+          console.log(`Video routing: ${clipCount} clip(s) Sora2, ${totalWoofCost} Woofs, ~${duration}s total`);
 
           // Vérifier si on peut générer
-          const canGenerate = await canGenerateVideo(activeBrandId, routing.woofCost);
+          const canGenerate = await canGenerateVideo(activeBrandId, totalWoofCost);
           if (!canGenerate.canGenerate) {
             setGenerationStatus(null);
-            
-            // Si c'est un problème de budget pour Veo3, afficher le message de fallback
-            if (canGenerate.fallbackMessage) {
-              toast.warning(canGenerate.fallbackMessage);
-            }
-            
             toast.error(canGenerate.reason);
             
-            // Retourner un message assistant avec le contexte
             setMessages(prev => [...prev, {
               role: 'assistant',
-              content: canGenerate.fallbackMessage 
-                ? `${canGenerate.reason}\n\n💡 ${canGenerate.fallbackMessage}`
-                : canGenerate.reason
+              content: canGenerate.reason
             }]);
             
             return { error: canGenerate.reason };
           }
 
+          // Générer le(s) clip(s) - pour l'instant on génère 1 clip, le montage sera ajouté plus tard
           const { data, error } = await supabase.functions.invoke('generate-video', {
             body: { 
               prompt: args.prompt,
-              engine: routing.engine // Envoyer le moteur choisi
+              imageUrl: args.imageUrl, // Support image→video
+              clipCount,
+              aspectRatio: '9:16' // Vertical par défaut pour TikTok/Reels
             }
           });
 
@@ -468,7 +468,7 @@ export function AlfieChat() {
             prompt: args.prompt,
             output_url: '',
             status: 'processing',
-            metadata: { predictionId, engine: routing.engine, woofCost: routing.woofCost }
+            metadata: { predictionId, clipCount, woofCost: totalWoofCost }
           });
 
           // Poll for status (max 10 minutes)
@@ -484,7 +484,7 @@ export function AlfieChat() {
 
             try {
               const { data: statusData, error: statusError } = await supabase.functions.invoke('generate-video', {
-                body: { predictionId }
+                body: { generationId: predictionId }
               });
 
               if (statusError) {
@@ -515,18 +515,18 @@ export function AlfieChat() {
 
                 // Consommer quota vidéo + Woofs pour la marque
                 if (activeBrandId) {
-                  await consumeQuota(activeBrandId, 'video', routing.woofCost);
+                  await consumeQuota(activeBrandId, 'video', totalWoofCost);
                 }
                 
                 // Déduire les crédits IA (1 par vidéo)
                 await decrementCredits(1, 'video_generation');
 
                 setGenerationStatus(null);
-                toast.success(`Vidéo générée avec succès ! (${routing.woofCost} Woofs utilisés, moteur: ${routing.engine}) 🎉`);
+                toast.success(`Vidéo générée avec succès ! (${totalWoofCost} Woofs utilisés, ${clipCount} clip(s) Sora2) 🎉`);
                 
                 const videoMessage = {
                   role: 'assistant' as const,
-                  content: `Vidéo générée avec succès ! (${routing.woofCost} Woofs utilisés via ${routing.engine}) 🎬`,
+                  content: `Vidéo générée avec succès ! (${totalWoofCost} Woofs utilisés via ${clipCount} clip(s) Sora2) 🎬`,
                   videoUrl
                 };
                 
@@ -554,7 +554,7 @@ export function AlfieChat() {
                 const elapsed = Math.floor((attempts * 5) / 60);
                 setGenerationStatus({
                   type: 'video',
-                  message: `Génération en cours (${routing.engine})... ${elapsed > 0 ? `(${elapsed} min)` : '(quelques secondes)'} - Les vidéos prennent 2-5 minutes 🎬`
+                  message: `Génération en cours (${clipCount} clip(s) Sora2)... ${elapsed > 0 ? `(${elapsed} min)` : '(quelques secondes)'} - Les vidéos prennent 2-5 minutes 🎬`
                 });
                 setTimeout(checkStatus, 5000);
               }
@@ -569,7 +569,7 @@ export function AlfieChat() {
 
           return {
             success: true,
-            message: `Génération de vidéo lancée via ${routing.engine} ! (${routing.woofCost} Woofs) Patiente quelques minutes... 🎬`
+            message: `Génération de vidéo lancée via ${clipCount} clip(s) Sora2 ! (${totalWoofCost} Woofs) Patiente quelques minutes... 🎬`
           };
         } catch (error: any) {
           console.error('Video generation error:', error);
@@ -1092,6 +1092,58 @@ export function AlfieChat() {
 
       {/* Composer - sticky bottom */}
       <div className="sticky bottom-0 border-t bg-background pt-4 space-y-2">
+        {/* Badges de statut */}
+        <div className="flex gap-2 flex-wrap mb-2">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-xs">
+            <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+            <span>Veo 3 : bientôt (en attente Lovable AI)</span>
+          </div>
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-xs">
+            <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+            <span>Canva API : bientôt</span>
+          </div>
+        </div>
+
+        {/* Chips durée vidéo */}
+        {input.toLowerCase().includes('vidéo') || input.toLowerCase().includes('tiktok') || input.toLowerCase().includes('reel') ? (
+          <div className="flex gap-2 items-center mb-2">
+            <span className="text-xs text-muted-foreground">Durée :</span>
+            <button
+              onClick={() => setSelectedDuration('short')}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                selectedDuration === 'short'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted hover:bg-muted/80'
+              }`}
+            >
+              10-12s loop (1 Woof)
+            </button>
+            <button
+              onClick={() => setSelectedDuration('medium')}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                selectedDuration === 'medium'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted hover:bg-muted/80'
+              }`}
+            >
+              ~20s (2 Woofs)
+            </button>
+            <button
+              onClick={() => setSelectedDuration('long')}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                selectedDuration === 'long'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted hover:bg-muted/80'
+              }`}
+            >
+              ~30s (3 Woofs)
+            </button>
+            <span className="text-xs text-muted-foreground ml-2">
+              💡 1 clip Sora = 1 Woof
+            </span>
+          </div>
+        ) : null}
+        
         {/* Image preview si uploadée */}
         {uploadedImage && (
           <div className="relative inline-block">
@@ -1108,6 +1160,9 @@ export function AlfieChat() {
             >
               <X className="h-3 w-3" />
             </Button>
+            <div className="mt-1 text-xs text-muted-foreground">
+              ✅ Utiliser cette image comme base
+            </div>
           </div>
         )}
         
@@ -1124,8 +1179,13 @@ export function AlfieChat() {
             size="lg"
             onClick={() => fileInputRef.current?.click()}
             disabled={isLoading || uploadingImage}
+            title="Glissez une image ou cliquez pour téléverser"
           >
-            <ImagePlus className="h-5 w-5" />
+            {uploadingImage ? (
+              <Sparkles className="h-5 w-5 animate-spin" />
+            ) : (
+              <ImagePlus className="h-5 w-5" />
+            )}
           </Button>
           <Textarea
             placeholder="Décris ton idée à Alfie..."
