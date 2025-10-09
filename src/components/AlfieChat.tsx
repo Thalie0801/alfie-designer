@@ -206,6 +206,22 @@ export function AlfieChat() {
         .getPublicUrl(fileName);
 
       setUploadedImage(publicUrl);
+      
+      // Indexer l'image uploadée comme "source" (non comptée dans les quotas)
+      try {
+        await supabase.from('media_generations').insert({
+          user_id: user.id,
+          type: 'image',
+          prompt: 'Upload source depuis le chat',
+          output_url: publicUrl,
+          is_source_upload: true,
+          status: 'completed',
+          brand_id: activeBrandId || null
+        });
+      } catch (e) {
+        console.warn('Insertion source upload échouée (non bloquant):', e);
+      }
+
       toast.success('Image ajoutée ! 📸');
     } catch (error: any) {
       console.error('Upload error:', error);
@@ -521,22 +537,21 @@ if (attempts >= maxAttempts) {
 if (statusData.status === 'succeeded') {
   const videoUrl = Array.isArray(statusData.output) ? statusData.output[0] : statusData.output;
   
-  const { data: existingRecords } = await supabase
+  // Mettre à jour l'asset correspondant (par predictionId) et le marquer comme "completed"
+  await supabase
     .from('media_generations')
-    .select('id')
+    .update({ output_url: videoUrl, status: 'completed' })
     .eq('user_id', user.id)
     .eq('type', 'video')
-    .order('created_at', { ascending: false })
-    .limit(1);
-  
-  if (existingRecords && existingRecords.length > 0) {
-    await supabase.from('media_generations')
-      .update({ output_url: videoUrl, status: 'completed' })
-      .eq('id', existingRecords[0].id);
-  }
+    .contains('metadata', { predictionId });
 
-  // Mettre à jour le placeholder en "ready"
-  setMessages(prev => prev.map(m => m.jobId === predictionId ? { ...m, jobStatus: 'ready' as JobStatus, progress: 100 } : m));
+  // Remplacer le placeholder par la carte vidéo (dans le même message)
+  setMessages(prev => prev.map(m => m.jobId === predictionId ? {
+    role: 'assistant',
+    content: 'Vidéo prête ✅ — Consommation : ' + `–${totalWoofCost} Woof(s) — Expire J+30`,
+    videoUrl,
+    created_at: new Date().toISOString()
+  } : m));
 
   // Consommer quota vidéo + Woofs pour la marque
   if (activeBrandId) {
@@ -549,20 +564,12 @@ if (statusData.status === 'succeeded') {
   setGenerationStatus(null);
   toast.success(`Vidéo générée avec succès ! (${totalWoofCost} Woofs utilisés, ${clipCount} clip(s) Sora2) 🎉`);
   
-  const videoMessage = {
-    role: 'assistant' as const,
-    content: `Vidéo générée avec succès ! (${totalWoofCost} Woofs utilisés via ${clipCount} clip(s) Sora2) 🎬`,
-    videoUrl
-  };
-  
-  setMessages(prev => [...prev, videoMessage]);
-  
   // Persister le message vidéo en base
   if (conversationId) {
     await supabase.from('alfie_messages').insert({
       conversation_id: conversationId,
       role: 'assistant',
-      content: videoMessage.content,
+      content: `Vidéo prête ✅ — Consommation : –${totalWoofCost} Woof(s) — Expire J+30`,
       video_url: videoUrl
     });
   }

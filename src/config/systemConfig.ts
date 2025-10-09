@@ -1,20 +1,32 @@
 // Configuration système pour quotas et retention
 // Ces valeurs peuvent être ajustées par l'admin
 
-// Feature flags
+// Feature flags (produit)
 export const FEATURE_FLAGS = {
-  VEO3_ENABLED: false,      // Veo 3 en attente de Lovable AI
-  CANVA_API_ENABLED: false, // API Canva en attente
+  VEO3_ENABLED: false,
+  CANVA_API_ENABLED: false,
 } as const;
 
 export const SYSTEM_CONFIG = {
   // Coûts vidéo en Woofs
   VEO3_WOOF_FACTOR: 4,
   SORA_WOOF_FACTOR: 1,
+
+  // Vidéo (qualité/latence)
+  VIDEO: {
+    SORA_CLIP_MAX_SEC: 12,
+    SORA_MONTAGE_MAX_CLIPS: 3,
+  },
   
   // Quotas et alertes
   HARD_STOP_MULTIPLIER: 1.10, // 110% du quota
   ALERT_THRESHOLD: 0.80, // Alerte à 80%
+  
+  // Modèle de comptage (consommation)
+  COUNT_MODEL: {
+    video_output_consumes: 1,     // 1 vidéo finale = 1 vidéo consommée
+    sora_clip_consumes_woof: 1,   // 1 clip Sora = 1 Woof
+  },
   
   // Rétention et reset
   ASSET_RETENTION_DAYS: 30,

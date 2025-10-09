@@ -17,6 +17,7 @@ export interface LibraryAsset {
   is_source_upload: boolean;
   brand_id?: string;
   status?: string;
+  metadata?: any;
 }
 
 export function useLibraryAssets(userId: string | undefined, type: 'images' | 'videos') {
@@ -40,6 +41,27 @@ export function useLibraryAssets(userId: string | undefined, type: 'images' | 'v
       if (error) throw error;
 
       setAssets((data || []) as LibraryAsset[]);
+
+      // Vérifier et débloquer les vidéos "processing" (si prédiction connue)
+      if (type === 'videos' && data && data.length > 0) {
+        const processing = (data as any[]).filter(a => a.type === 'video' && ((a.status === 'processing') || !a.output_url) && a.metadata?.predictionId);
+        for (const a of processing) {
+          try {
+            const { data: statusData, error: statusError } = await supabase.functions.invoke('generate-video', {
+              body: { generationId: a.metadata.predictionId }
+            });
+            if (!statusError && statusData?.status === 'succeeded') {
+              const videoUrl = Array.isArray(statusData.output) ? statusData.output[0] : statusData.output;
+              await supabase
+                .from('media_generations')
+                .update({ output_url: videoUrl, status: 'completed' })
+                .eq('id', a.id);
+            }
+          } catch (e) {
+            console.warn('Verification vidéo échouée pour', a.id, e);
+          }
+        }
+      }
     } catch (error) {
       console.error('Error fetching assets:', error);
       toast.error('Erreur lors du chargement des assets');
