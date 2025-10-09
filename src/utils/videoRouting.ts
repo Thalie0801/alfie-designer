@@ -27,12 +27,12 @@ export interface VideoRequest {
  * - Veo 3 sera activé quand FEATURE_FLAGS.VEO3_ENABLED=true
  */
 export function routeVideoEngine(request: VideoRequest): VideoRoutingDecision {
-  // Pour l'instant, toujours utiliser Sora2
+  // Sora 2 via Kie AI (disponible depuis décembre 2024)
   // TODO: Activer Veo 3 quand FEATURE_FLAGS.VEO3_ENABLED=true
   return {
     engine: 'sora',
     woofCost: SORA_WOOF_FACTOR,
-    reason: 'Sora2 via Kie AI (Veo 3 en attente - FEATURE_FLAGS.VEO3_ENABLED=false)'
+    reason: 'Sora 2 via Kie AI (disponible depuis décembre 2024)'
   };
 }
 

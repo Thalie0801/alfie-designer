@@ -22,8 +22,8 @@ serve(async (req) => {
     if (body.generationId) {
       console.log("Checking video generation status:", body.generationId);
       
-      // Kie AI status endpoint format
-      const statusResponse = await fetch(`https://api.kie.ai/api/v1/video/${body.generationId}`, {
+      // Kie AI recordInfo endpoint
+      const statusResponse = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${body.generationId}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${KIE_AI_API_KEY}`,
@@ -37,9 +37,38 @@ serve(async (req) => {
       }
 
       const statusData = await statusResponse.json();
-      console.log("Video status:", JSON.stringify(statusData));
+      console.log("Kie.ai status:", JSON.stringify(statusData));
       
-      return new Response(JSON.stringify(statusData), {
+      // Parse Kie.ai response format
+      let finalResponse: any = {
+        status: 'processing'
+      };
+
+      if (statusData.data?.state === 'success') {
+        const resultJson = JSON.parse(statusData.data.resultJson);
+        finalResponse = {
+          status: 'succeeded',
+          output: resultJson.resultUrls?.[0] || null
+        };
+      } else if (statusData.data?.state === 'fail') {
+        console.error("Kie.ai generation failed:", {
+          failCode: statusData.data.failCode,
+          failMsg: statusData.data.failMsg,
+          taskId: body.generationId
+        });
+        finalResponse = {
+          status: 'failed',
+          error: statusData.data.failMsg || 'Generation failed'
+        };
+      } else {
+        // waiting, queuing, generating
+        finalResponse = {
+          status: 'processing',
+          progress: statusData.data?.state === 'generating' ? 50 : 10
+        };
+      }
+      
+      return new Response(JSON.stringify(finalResponse), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -57,21 +86,24 @@ serve(async (req) => {
 
     console.log("Starting Sora2 video generation with prompt:", body.prompt);
     
-    // Kie AI Sora2 endpoint
+    // Kie AI createTask endpoint for Sora 2
+    const aspectRatio = body.aspectRatio === '9:16' ? 'portrait' : 'landscape';
     const payload: any = {
-      prompt: body.prompt,
-      aspectRatio: body.aspectRatio || '16:9',
-      duration: 10, // Sora2 default
+      model: "sora-2-text-to-video",
+      input: {
+        prompt: body.prompt,
+        aspect_ratio: aspectRatio
+      }
     };
 
-    // Support image→video
+    // Support image→video (if available in Sora 2)
     if (body.imageUrl) {
-      payload.image = body.imageUrl;
+      payload.input.image = body.imageUrl;
     }
 
-    console.log("Kie AI payload:", JSON.stringify(payload));
+    console.log("Kie AI createTask payload:", JSON.stringify(payload));
     
-    const kieResponse = await fetch('https://api.kie.ai/api/v1/video/sora2', {
+    const kieResponse = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${KIE_AI_API_KEY}`,
@@ -87,8 +119,12 @@ serve(async (req) => {
     }
 
     const generation = await kieResponse.json();
-    console.log("Sora2 video generation started:", generation.id);
-    return new Response(JSON.stringify(generation), {
+    console.log("Sora2 task created:", generation.data?.taskId);
+    
+    return new Response(JSON.stringify({ 
+      id: generation.data?.taskId,
+      status: 'processing'
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     });
