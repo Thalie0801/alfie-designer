@@ -62,3 +62,12 @@ verify_jwt = false
 
 [functions.reset-monthly-quotas]
 verify_jwt = false
+
+[functions.track-job-status]
+verify_jwt = false
+
+[functions.verify-video-generation]
+verify_jwt = false
+
+[functions.generate-sora-montage]
+verify_jwt = false

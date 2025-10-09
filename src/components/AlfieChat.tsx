@@ -17,6 +17,9 @@ import { detectIntent, canHandleLocally, generateLocalResponse } from '@/utils/a
 import { Progress } from '@/components/ui/progress';
 import { getQuotaStatus, consumeQuota, canGenerateVideo, checkQuotaAlert, formatExpirationMessage } from '@/utils/quotaManager';
 import { routeVideoEngine, estimateVideoDuration, detectVideoStyle } from '@/utils/videoRouting';
+import { JobPlaceholder, JobStatus } from '@/components/chat/JobPlaceholder';
+import { AssetMessage } from '@/components/chat/AssetMessage';
+import { FileUploader } from '@/components/chat/FileUploader';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -24,6 +27,9 @@ interface Message {
   imageUrl?: string;
   videoUrl?: string;
   created_at?: string;
+  jobId?: string;
+  assetId?: string;
+  assetType?: 'image' | 'video';
 }
 
 const INITIAL_ASSISTANT_MESSAGE = `Salut ! 🐾 Je suis Alfie Designer, ton compagnon créatif IA 🎨
