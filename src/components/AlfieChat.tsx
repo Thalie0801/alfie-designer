@@ -17,7 +17,6 @@ import { detectIntent, canHandleLocally, generateLocalResponse } from '@/utils/a
 import { Progress } from '@/components/ui/progress';
 import { getQuotaStatus, consumeQuota, canGenerateVideo, checkQuotaAlert, formatExpirationMessage } from '@/utils/quotaManager';
 import { routeVideoEngine, estimateVideoDuration, detectVideoStyle } from '@/utils/videoRouting';
-import { BrandQuotaDisplay } from '@/components/BrandQuotaDisplay';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -968,15 +967,10 @@ export function AlfieChat() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-12rem)] max-w-5xl mx-auto w-full">
-      {/* Quota Display */}
-      <div className="mb-4">
-        <BrandQuotaDisplay />
-      </div>
-      
-      {/* Chat Messages */}
+    <div className="flex flex-col h-full">
+      {/* Chat Messages - scroll area qui prend tout l'espace */}
       <ScrollArea className="flex-1 pr-4" ref={scrollRef}>
-        <div className="space-y-4 pb-4">
+        <div className="space-y-4 pb-4 px-4">
           {messages.map((message, index) => (
             <div
               key={index}
@@ -1096,7 +1090,8 @@ export function AlfieChat() {
         </div>
       </ScrollArea>
 
-      <div className="space-y-2 pt-4 border-t">
+      {/* Composer - sticky bottom */}
+      <div className="sticky bottom-0 border-t bg-background pt-4 space-y-2">
         {/* Image preview si uploadée */}
         {uploadedImage && (
           <div className="relative inline-block">
