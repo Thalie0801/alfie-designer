@@ -21,7 +21,9 @@ serve(async (req) => {
     // Check status of existing generation
     if (body.generationId) {
       console.log("Checking video generation status:", body.generationId);
-      const statusResponse = await fetch(`https://api.kie.ai/api/v1/veo/generate/${body.generationId}`, {
+      
+      // Kie AI status endpoint format
+      const statusResponse = await fetch(`https://api.kie.ai/api/v1/video/${body.generationId}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${KIE_AI_API_KEY}`,
@@ -29,11 +31,14 @@ serve(async (req) => {
       });
 
       if (!statusResponse.ok) {
+        const errorText = await statusResponse.text();
+        console.error("Kie AI status check error:", statusResponse.status, errorText);
         throw new Error(`Status check failed: ${statusResponse.statusText}`);
       }
 
       const statusData = await statusResponse.json();
-      console.log("Video status:", statusData);
+      console.log("Video status:", JSON.stringify(statusData));
+      
       return new Response(JSON.stringify(statusData), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -52,17 +57,27 @@ serve(async (req) => {
 
     console.log("Starting Sora2 video generation with prompt:", body.prompt);
     
-    const kieResponse = await fetch('https://api.kie.ai/api/v1/veo/generate', {
+    // Kie AI Sora2 endpoint
+    const payload: any = {
+      prompt: body.prompt,
+      aspectRatio: body.aspectRatio || '16:9',
+      duration: 10, // Sora2 default
+    };
+
+    // Support image→video
+    if (body.imageUrl) {
+      payload.image = body.imageUrl;
+    }
+
+    console.log("Kie AI payload:", JSON.stringify(payload));
+    
+    const kieResponse = await fetch('https://api.kie.ai/api/v1/video/sora2', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${KIE_AI_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        prompt: body.prompt,
-        model: 'sora2',
-        aspectRatio: body.aspectRatio || '16:9',
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!kieResponse.ok) {
