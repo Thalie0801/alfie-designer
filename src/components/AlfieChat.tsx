@@ -1096,7 +1096,7 @@ export function AlfieChat() {
         <div className="flex gap-2 flex-wrap mb-2">
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-xs">
             <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
-            <span>Veo 3 : bientôt (en attente Lovable AI)</span>
+            <span>Veo 3 : bientôt disponible</span>
           </div>
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-xs">
             <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
