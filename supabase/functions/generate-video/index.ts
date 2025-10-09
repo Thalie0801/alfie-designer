@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import Replicate from "https://esm.sh/replicate@0.25.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,23 +11,30 @@ serve(async (req) => {
   }
 
   try {
-    const REPLICATE_API_TOKEN = Deno.env.get('REPLICATE_API_TOKEN') || Deno.env.get('REPLICATE_API_KEY');
-    if (!REPLICATE_API_TOKEN) {
-      throw new Error('REPLICATE_API_TOKEN is not set');
+    const KIE_AI_API_KEY = Deno.env.get('KIE_AI_API_KEY');
+    if (!KIE_AI_API_KEY) {
+      throw new Error('KIE_AI_API_KEY is not set');
     }
-
-    const replicate = new Replicate({
-      auth: REPLICATE_API_TOKEN,
-    });
 
     const body = await req.json();
 
-    // Check status of existing prediction
-    if (body.predictionId) {
-      console.log("Checking video generation status:", body.predictionId);
-      const prediction = await replicate.predictions.get(body.predictionId);
-      console.log("Video status:", prediction.status);
-      return new Response(JSON.stringify(prediction), {
+    // Check status of existing generation
+    if (body.generationId) {
+      console.log("Checking video generation status:", body.generationId);
+      const statusResponse = await fetch(`https://api.kie.ai/api/v1/veo/generate/${body.generationId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${KIE_AI_API_KEY}`,
+        },
+      });
+
+      if (!statusResponse.ok) {
+        throw new Error(`Status check failed: ${statusResponse.statusText}`);
+      }
+
+      const statusData = await statusResponse.json();
+      console.log("Video status:", statusData);
+      return new Response(JSON.stringify(statusData), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -44,17 +50,30 @@ serve(async (req) => {
       );
     }
 
-    console.log("Starting video generation with prompt:", body.prompt);
+    console.log("Starting Sora2 video generation with prompt:", body.prompt);
     
-    const prediction = await replicate.predictions.create({
-      model: "minimax/video-01",
-      input: {
+    const kieResponse = await fetch('https://api.kie.ai/api/v1/veo/generate', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${KIE_AI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
         prompt: body.prompt,
-      }
+        model: 'sora2',
+        aspectRatio: body.aspectRatio || '16:9',
+      }),
     });
 
-    console.log("Video generation started:", prediction.id);
-    return new Response(JSON.stringify(prediction), {
+    if (!kieResponse.ok) {
+      const errorText = await kieResponse.text();
+      console.error("Kie AI error:", kieResponse.status, errorText);
+      throw new Error(`Kie AI API error: ${errorText}`);
+    }
+
+    const generation = await kieResponse.json();
+    console.log("Sora2 video generation started:", generation.id);
+    return new Response(JSON.stringify(generation), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     });
