@@ -8,6 +8,7 @@ import { useLibraryAssets } from '@/hooks/useLibraryAssets';
 import { AssetCard } from '@/components/library/AssetCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { VideoDiagnostic } from '@/components/VideoDiagnostic';
 
 export default function Library() {
   const { user } = useAuth();
@@ -83,6 +84,9 @@ export default function Library() {
           Toutes vos créations en un seul endroit. Stockage 30 jours.
         </p>
       </div>
+
+      {/* Video Diagnostic */}
+      <VideoDiagnostic />
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'images' | 'videos')}>

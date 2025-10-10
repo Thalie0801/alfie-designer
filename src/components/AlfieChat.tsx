@@ -461,7 +461,15 @@ export function AlfieChat() {
             }
           });
           
-          if (error) throw error;
+          if (error) {
+            console.error('Edge function error:', error);
+            throw new Error(error.message || 'Erreur backend');
+          }
+
+          if (data?.error) {
+            console.error('Provider error:', data.error);
+            throw new Error(data.error);
+          }
           
           const { id, provider } = data;
           console.log(`✅ [generate_video] Started with provider: ${provider}, ID: ${id}`);
@@ -498,12 +506,13 @@ export function AlfieChat() {
           
         } catch (error: any) {
           console.error('[generate_video] Error:', error);
-          toast.error("Échec de la génération vidéo");
+          const errorMessage = error?.message || "Erreur inconnue";
+          toast.error(`Échec génération vidéo: ${errorMessage}`);
           setMessages(prev => [...prev, {
             role: 'assistant',
-            content: "❌ Désolé, tous les providers vidéo ont échoué. Réessaye dans quelques instants."
+            content: `❌ Erreur vidéo: ${errorMessage}\n\nVérifie les logs et les secrets backend (KIE_AI_API_KEY, REPLICATE_API_TOKEN).`
           }]);
-          return { error: error?.message || "Unknown error" };
+          return { error: errorMessage };
         }
       }
 

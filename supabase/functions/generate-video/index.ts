@@ -15,9 +15,22 @@ serve(async (req) => {
 
   try {
     const KIE_AI_API_KEY = Deno.env.get('KIE_AI_API_KEY');
+    const REPLICATE_API_TOKEN = Deno.env.get('REPLICATE_API_TOKEN');
+    
     if (!KIE_AI_API_KEY) {
       console.error('❌ KIE_AI_API_KEY is not set');
-      throw new Error('KIE_AI_API_KEY is not set');
+      return new Response(
+        JSON.stringify({ error: 'KIE_AI_API_KEY non configuré. Configure-le dans les Secrets backend.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!REPLICATE_API_TOKEN) {
+      console.error('❌ REPLICATE_API_TOKEN is not set');
+      return new Response(
+        JSON.stringify({ error: 'REPLICATE_API_TOKEN non configuré. Configure-le dans les Secrets backend.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const body = await req.json();
@@ -30,8 +43,7 @@ serve(async (req) => {
         const ipData = await ipResponse.json();
         console.log('🌐 [Diagnostic] Outbound IP:', ipData.ip);
         return new Response(JSON.stringify({ 
-          diagnostic: true,
-          outboundIp: ipData.ip,
+          ip: ipData.ip,
           message: 'Ajoute cette IP à la whitelist Kie.ai: https://kie.ai/settings'
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -209,12 +221,6 @@ serve(async (req) => {
     }
     
     // 2️⃣ FALLBACK SEEDEDANCE (Replicate/ByteDance)
-    const REPLICATE_API_TOKEN = Deno.env.get('REPLICATE_API_TOKEN');
-    if (!REPLICATE_API_TOKEN) {
-      console.error('❌ REPLICATE_API_TOKEN not set');
-      throw new Error('REPLICATE_API_TOKEN not configured');
-    }
-    
     try {
       console.log("🎬 [Seededance] Attempting generation...");
       
