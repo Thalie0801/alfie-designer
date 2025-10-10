@@ -193,12 +193,19 @@ serve(async (req) => {
             status: 200,
           });
         }
+      } else {
+        const errorText = await kieResponse.text();
+        console.error(`❌ [Sora2] HTTP ${kieResponse.status}: ${errorText}`);
       }
       
-      console.warn("⚠️ [Sora2] Failed, trying Seededance...");
+      console.warn("⚠️ [Sora2] Failed or timeout, trying Seededance...");
       
     } catch (soraError: any) {
-      console.error("❌ [Sora2] Error:", soraError?.message || soraError);
+      if (soraError.name === 'AbortError') {
+        console.warn("⏱️ [Sora2] Timeout (5s), trying Seededance...");
+      } else {
+        console.error("❌ [Sora2] Exception:", soraError?.message || soraError);
+      }
     }
     
     // 2️⃣ FALLBACK SEEDEDANCE (Replicate/ByteDance)
@@ -218,7 +225,7 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          version: "bytedance/seedance-1-pro:latest",
+          version: "fcc89eae3420a0476cfa109f8afbd8304327acb7e0d4ddcf63a980e870898a6b",
           input: {
             prompt: body.prompt,
             aspect_ratio: body.aspectRatio || '16:9',
@@ -240,29 +247,37 @@ serve(async (req) => {
         });
       }
       
+      const errorText = await seededanceResponse.text();
+      console.error(`❌ [Seededance] HTTP ${seededanceResponse.status}: ${errorText}`);
       console.warn("⚠️ [Seededance] Failed, trying Kling...");
       
     } catch (seededanceError: any) {
-      console.error("❌ [Seededance] Error:", seededanceError?.message || seededanceError);
+      console.error("❌ [Seededance] Exception:", seededanceError?.message || seededanceError);
     }
     
     // 3️⃣ FALLBACK FINAL : KLING (Replicate)
     try {
       console.log("🎬 [Kling] Attempting generation (final fallback)...");
       
-      const klingResponse = await fetch('https://api.replicate.com/v1/predictions', {
+      const klingPayload = {
+        model: "kwaivgi/kling-v2.5-turbo-pro",
+        input: {
+          prompt: body.prompt,
+          aspect_ratio: body.aspectRatio || '16:9',
+          duration: 5
+        }
+      };
+      
+      console.log("📤 [Kling] Payload:", JSON.stringify(klingPayload));
+      
+      const klingResponse = await fetch('https://api.replicate.com/v1/models/kwaivgi/kling-v2.5-turbo-pro/predictions', {
         method: 'POST',
         headers: {
           'Authorization': `Token ${REPLICATE_API_TOKEN}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          version: "kwaivgi/kling-v2.5-turbo-pro:latest",
-          input: {
-            prompt: body.prompt,
-            aspect_ratio: body.aspectRatio || '16:9',
-            duration: 5
-          }
+          input: klingPayload.input
         })
       });
       
@@ -279,10 +294,12 @@ serve(async (req) => {
         });
       }
       
-      throw new Error("Kling generation failed");
+      const errorText = await klingResponse.text();
+      console.error(`❌ [Kling] HTTP ${klingResponse.status}: ${errorText}`);
+      throw new Error(`Kling generation failed: ${klingResponse.status}`);
       
     } catch (klingError: any) {
-      console.error("❌ [Kling] Error:", klingError?.message || klingError);
+      console.error("❌ [Kling] Exception:", klingError?.message || klingError);
       throw new Error("All video providers failed");
     }
   } catch (error) {
