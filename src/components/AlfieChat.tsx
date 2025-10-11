@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
@@ -86,14 +86,11 @@ export function AlfieChat() {
 
   const activeAssetIdsKey = useMemo(() => {
     const ids = messages
-      .filter(message =>
-        message.assetId && (message.jobStatus === 'processing' || message.jobStatus === 'running'))
-      .map(message => message.assetId as string);
+      .filter(m => m.assetId && (m.jobStatus === 'processing' || m.jobStatus === 'running'))
+      .map(m => m.assetId as string);
 
     if (ids.length === 0) return '';
-
-    const unique = Array.from(new Set(ids)).sort();
-    return unique.join(',');
+    return Array.from(new Set(ids)).sort().join(',');
   }, [messages]);
 
   const applyMediaGenerationUpdate = useCallback((assetId: string, row: {
@@ -153,14 +150,14 @@ export function AlfieChat() {
         }
 
         if (!messageChanged) return msg;
-
         mutated = true;
         return { ...msg, ...updates };
       });
 
       return mutated ? next : prev;
     });
-  }, []);
+  }, [setMessages]);
+
 
   useEffect(() => {
     const init = async () => {
@@ -267,11 +264,7 @@ export function AlfieChat() {
     });
 
     return () => {
-      channels.forEach(channel => {
-        if (channel) {
-          supabase.removeChannel(channel);
-        }
-      });
+      channels.forEach(ch => ch && supabase.removeChannel(ch));
     };
   }, [activeAssetIdsKey, applyMediaGenerationUpdate]);
 
