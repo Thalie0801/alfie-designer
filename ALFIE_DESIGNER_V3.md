@@ -86,7 +86,7 @@ Brief utilisateur (FR) → Alfie traduit en ANGLAIS → Moteur IA → Contenu FR
    - Cadrage et mouvements de caméra
    - Lumière et rythme
 2. **Routage automatique** selon durée et style :
-   - **SORA** : ≤10s, reels/loops/intro, style simple → **1 Woof**
+  - **SORA** : ≤10s, reels/loops/intro, style simple → **2 Woofs**
    - **VEO3** : >10s, cinématique/publicité/visage → **4 Woofs**
 3. Génère la vidéo
 4. Ajoute voix off/sous-titres FR si demandé
@@ -99,14 +99,14 @@ Brief utilisateur (FR) → Alfie traduit en ANGLAIS → Moteur IA → Contenu FR
 
 **Coût :**
 - 1 vidéo dans quota **VIDÉOS** mensuel
-- **1 Woof** (Sora) ou **4 Woofs** (Veo3)
+- **2 Woofs** (Sora) ou **4 Woofs** (Veo3)
 
 **Stockage :** 30 jours, puis purge automatique
 **Sortie :** MP4 + MP3/SRT séparé si nécessaire
 
 **Fallback :** Si Woofs insuffisants pour Veo3 → Sora + message :
 ```
-"Tu n'as pas assez de Woofs pour Veo3 (4 requis), mais je peux utiliser Sora (1 Woof) pour une vidéo plus courte !"
+"Tu n'as pas assez de Woofs pour Veo3 (4 requis), mais je peux utiliser Sora (2 Woofs) pour une vidéo plus courte !"
 ```
 
 ---
@@ -117,7 +117,7 @@ Alfie ne doit poser que les questions **essentielles** si l'info manque. Sinon, 
 
 ### Vidéo
 ```
-"Tu préfères voix off FR ou sous-titres FR ? Durée 10 s (Sora) ou 15–20 s (Veo3) ?"
+"Tu préfères voix off FR ou sous-titres FR ? Durée 10 s (Sora, 2 Woofs) ou 15–20 s (Veo3, 4 Woofs) ?"
 ```
 
 ### Image

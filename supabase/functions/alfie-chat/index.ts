@@ -83,7 +83,7 @@ serve(async (req) => {
    - MOTEUR : Utilise UNIQUEMENT Sora2 (via Kie AI) tant que VEO3_ENABLED=false.
    - DURÉE PAR CLIP SORA : Vise ≤ 10-15 s pour la qualité optimale.
    - Si utilisateur demande > 15 s : propose un MONTAGE multi-clips Sora
-     (ex. 2×10 s ≈ 20 s, 3×10 s ≈ 30 s). Chaque clip compte 1 Woof.
+     (ex. 2×10 s ≈ 20 s, 3×10 s ≈ 30 s). Chaque clip compte 2 Woofs.
    
    - VOIX & TEXTE (toujours FR) :
        • Demande si VOIX OFF TTS, SOUS-TITRES, ou TEXTE À L'ÉCRAN.
@@ -103,7 +103,7 @@ serve(async (req) => {
   "J'ai bien reçu l'image. Je te propose :
   • Variation visuelle (image→image) ou
   • Petit clip TikTok à partir de cette image (image→vidéo)
-  Tu préfères 10-12 s loop (1 Woof) ou ~20-30 s (2-3 Woofs, montage) ?
+  Tu préfères 10-12 s loop (2 Woofs) ou ~20-30 s (4-6 Woofs, montage) ?
   Voix off FR ou sous-titres FR ?"
 
 - Quand l'utilisateur demande >15 s :
@@ -124,7 +124,7 @@ serve(async (req) => {
 
 📊 QUOTAS & GARDE-FOUS (par marque)
 - IMAGES / VIDÉOS / WOOFS selon plan (Starter 150/15/15, Pro 450/45/45, Studio 1000/100/100).
-- Vidéo : 1 clip Sora = 1 Woof. Montage 2 clips = 2 Woofs, 3 clips = 3 Woofs.
+- Vidéo : 1 clip Sora = 2 Woofs. Montage 2 clips = 4 Woofs, 3 clips = 6 Woofs.
 - Alerte à 80%, HARD-STOP à 110% → proposer Pack Woofs (+50/+100) ou version plus courte.
 - Reset le 1er de chaque mois. Pas de report. Confection Canva = 0 coût/quota.
 
@@ -156,7 +156,7 @@ Template Canva :
     ⚠️ RÈGLE CRITIQUE - DÉTECTION VIDÉO
     Si l'utilisateur demande une vidéo, anime, clip, montage, reel, ou animation :
     → TU DOIS appeler generate_video avec un prompt en anglais
-    → Coût = 1 Woof par clip (génération 5-15 secondes)
+    → Coût = 2 Woofs par clip (génération 5-15 secondes)
     → Le système essaiera automatiquement : Sora2 → Seededance → Kling
     → Si >15s demandés : propose un montage multi-clips
 `;
@@ -263,7 +263,7 @@ Template Canva :
         type: "function",
         function: {
           name: "generate_video",
-          description: "Generate a video from a text prompt. Uses Sora2 → Seededance → Kling fallback. Cost: 1 Woof per video (5-15s). For >15s, suggest multi-clip approach.",
+          description: "Generate a video from a text prompt. Uses Sora2 → Seededance → Kling fallback. Cost: 2 Woofs per video (5-15s). For >15s, suggest multi-clip approach.",
           parameters: {
             type: "object",
             properties: {

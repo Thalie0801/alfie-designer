@@ -60,7 +60,7 @@ export function BrandQuotaDisplay() {
             </TooltipTrigger>
             <TooltipContent className="max-w-xs">
               <p className="font-semibold mb-1">💡 Coûts vidéo</p>
-              <p className="text-sm">Veo 3 = 4 Woofs · Sora = 1 Woof</p>
+              <p className="text-sm">Veo 3 = 4 Woofs · Sora = 2 Woofs</p>
               <p className="text-sm mt-2">Les quotas se réinitialisent chaque 1er du mois et ne sont pas reportables.</p>
             </TooltipContent>
           </Tooltip>

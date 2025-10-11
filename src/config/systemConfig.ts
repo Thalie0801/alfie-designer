@@ -11,9 +11,9 @@ export const FEATURE_FLAGS = {
 export const SYSTEM_CONFIG = {
   // Coûts vidéo en Woofs (coût unifié pour tous les providers)
   VEO3_WOOF_FACTOR: 4,
-  SORA_WOOF_FACTOR: 1,
-  SEEDEDANCE_WOOF_FACTOR: 1, // ByteDance Seededance (Replicate)
-  KLING_WOOF_FACTOR: 1, // Kling v2.5-turbo-pro (Replicate)
+  SORA_WOOF_FACTOR: 2,
+  SEEDEDANCE_WOOF_FACTOR: 2, // ByteDance Seededance (Replicate)
+  KLING_WOOF_FACTOR: 2, // Kling v2.5-turbo-pro (Replicate)
 
   // Vidéo (qualité/latence)
   VIDEO: {
@@ -28,7 +28,7 @@ export const SYSTEM_CONFIG = {
   // Modèle de comptage (consommation)
   COUNT_MODEL: {
     video_output_consumes: 1,     // 1 vidéo finale = 1 vidéo consommée
-    sora_clip_consumes_woof: 1,   // 1 clip Sora = 1 Woof
+    sora_clip_consumes_woof: 2,   // 1 vidéo Sora = 2 Woofs
   },
   
   // Rétention et reset

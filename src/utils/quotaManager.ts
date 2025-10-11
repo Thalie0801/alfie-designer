@@ -172,10 +172,10 @@ export async function canGenerateVideo(
   if (!status.woofs.canUse(woofCost)) {
     // Si Veo3 demandé mais pas assez de Woofs, suggérer Sora
     if (woofCost === 4) {
-      return { 
-        canGenerate: false, 
-        reason: `Veo 3 consomme 4 Woofs, budget insuffisant pour ${status.brandName}. Utilisez Sora (1 Woof) ou ajoutez un Pack Woofs (+50 / +100).`,
-        fallbackMessage: `Il vous reste ${status.woofs.remaining} Woofs. Veo 3 nécessite 4 Woofs, mais Sora n'en utilise qu'1.`
+      return {
+        canGenerate: false,
+        reason: `Veo 3 consomme 4 Woofs, budget insuffisant pour ${status.brandName}. Utilisez Sora (2 Woofs) ou ajoutez un Pack Woofs (+50 / +100).`,
+        fallbackMessage: `Il vous reste ${status.woofs.remaining} Woofs. Veo 3 nécessite 4 Woofs, mais Sora n'en utilise que 2.`
       };
     }
     

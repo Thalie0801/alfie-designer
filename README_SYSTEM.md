@@ -7,7 +7,7 @@ Tous les paramètres système sont centralisés et peuvent être ajustés :
 ```typescript
 SYSTEM_CONFIG = {
   VEO3_WOOF_FACTOR: 4,           // Coût Veo 3 en Woofs
-  SORA_WOOF_FACTOR: 1,           // Coût Sora en Woofs
+  SORA_WOOF_FACTOR: 2,           // Coût Sora en Woofs
   HARD_STOP_MULTIPLIER: 1.10,    // Hard-stop à 110% des quotas
   ALERT_THRESHOLD: 0.80,         // Alerte à 80% des quotas
   ASSET_RETENTION_DAYS: 30,      // Rétention assets (J+30)
@@ -51,7 +51,7 @@ SYSTEM_CONFIG = {
 - user_id: uuid (FK)
 - type: text (image|video)
 - engine: asset_engine (nano|sora|veo3)
-- woofs: int (0 pour images, 1 pour Sora, 4 pour Veo3)
+- woofs: int (0 pour images, 2 pour Sora, 4 pour Veo3)
 - prompt: text
 - output_url: text
 - expires_at: timestamp (created_at + 30j)
@@ -107,7 +107,7 @@ Message d'avertissement affiché à J-7.
 
 ### Règles de Décision (videoRouting.ts)
 
-1. **Sora par défaut** (1 Woof)
+1. **Sora par défaut** (2 Woofs)
    - Vidéos ≤ 10 secondes
    - Styles : reel, loop, intro, quick
 
@@ -161,7 +161,7 @@ await logGeneration({
   type: 'video',
   engine: 'sora',
   prompt: userPrompt,
-  woofsCost: 1,
+  woofsCost: 2,
   status: 'success',
   durationSeconds: 120,
   metadata: { aspect_ratio: '16:9' }

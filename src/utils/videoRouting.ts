@@ -1,5 +1,5 @@
 // Routing vidéo intelligent (Sora vs Veo 3)
-// Règles: Sora = 1 Woof, Veo 3 = 4 Woofs
+// Règles: Sora = 2 Woofs, Veo 3 = 4 Woofs
 import { SYSTEM_CONFIG } from '@/config/systemConfig';
 
 export const VEO3_WOOF_FACTOR = SYSTEM_CONFIG.VEO3_WOOF_FACTOR;

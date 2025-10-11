@@ -282,13 +282,27 @@ serve(async (req) => {
             .eq("id", jobId);
 
           if (videoOutput && jobStatus === "ready") {
-            await supabaseAdmin
-              .from("media_generations")
-              .update({
-                status: "completed",
-                output_url: videoOutput,
-              })
-              .eq("job_id", jobId);
+            const filters: string[] = [];
+            const escapeForFilter = (value: string) => value.replace(/"/g, '\\"').replace(/,/g, '\\,');
+
+            if (jobId) {
+              filters.push(`job_id.eq."${escapeForFilter(jobId)}"`);
+            }
+
+            const predictionId = typeof prediction?.id === "string" ? prediction.id : undefined;
+            if (predictionId) {
+              filters.push(`metadata->>predictionId.eq."${escapeForFilter(predictionId)}"`);
+            }
+
+            if (filters.length > 0) {
+              await supabaseAdmin
+                .from("media_generations")
+                .update({
+                  status: "completed",
+                  output_url: videoOutput,
+                })
+                .or(filters.join(","));
+            }
           }
         }
 

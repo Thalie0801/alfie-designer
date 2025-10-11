@@ -127,7 +127,7 @@ serve(async (req) => {
           input_url: job.input_data.imageUrl,
           output_url: videoUrl,
           status: 'completed',
-          woofs: job.input_data.woofCost || 1,
+          woofs: job.input_data.woofCost || 2,
           engine: 'sora',
           duration_seconds: Math.ceil(prediction.metrics?.predict_time || 10),
           metadata: {
@@ -138,7 +138,7 @@ serve(async (req) => {
 
       // Consume brand quota
       if (job.input_data.brandId) {
-        const woofCost = job.input_data.woofCost || 1;
+        const woofCost = job.input_data.woofCost || 2;
         await supabase.rpc('consume_brand_quota', {
           p_brand_id: job.input_data.brandId,
           p_woofs: woofCost,

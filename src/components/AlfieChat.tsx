@@ -38,7 +38,7 @@ const INITIAL_ASSISTANT_MESSAGE = `Salut ! 🐾 Je suis Alfie Designer, ton comp
 
 Je peux t'aider à :
 • Créer des images IA (1 crédit + quota visuels par marque) ✨
-• Générer des vidéos Sora2 (1 clip = 1 Woof, montage multi-clips possible) 🎬
+• Générer des vidéos Sora2 (1 vidéo = 2 Woofs, montage multi-clips possible) 🎬
 • Adapter templates Canva (GRATUIT, Brand Kit inclus) 🎨
 • Afficher tes quotas mensuels par marque (visuels, vidéos, Woofs) 📊
 • Préparer tes assets en package ZIP 📦
@@ -48,9 +48,9 @@ Je peux t'aider à :
 • Créer une vidéo à partir de l'image (image→vidéo)
 
 🎬 Pour les vidéos :
-• 10-12s loop = 1 Woof (1 clip Sora)
-• ~20s = 2 Woofs (montage 2 clips)
-• ~30s = 3 Woofs (montage 3 clips)
+• 10-12s loop = 1 vidéo (2 Woofs)
+• ~20s = 4 Woofs (montage 2 clips)
+• ~30s = 6 Woofs (montage 3 clips)
 
 Chaque marque a ses propres quotas qui se réinitialisent le 1er du mois (non reportables).
 Alors, qu'est-ce qu'on crée ensemble aujourd'hui ? 😊`;
@@ -462,7 +462,11 @@ export function AlfieChat() {
             ((data as any).metadata && str(((data as any).metadata as any).provider));
           const provider = providerRaw?.toLowerCase();
 
-          const jobIdentifier = str((data as any).jobId) || str((data as any).job_id) || predictionId;
+          const jobIdentifier =
+            str((data as any).jobId) ||
+            str((data as any).job_id) ||
+            str((data as any).task_id) ||
+            predictionId;
           const jobShortId = str((data as any).jobShortId);
 
           if (!predictionId || !provider) {
@@ -480,7 +484,7 @@ export function AlfieChat() {
               engine: provider,
               status: 'processing',
               prompt: args.prompt,
-              woofs: 1,
+              woofs: 2,
               output_url: '',
               job_id: jobIdentifier ?? null,
               metadata: {
@@ -505,7 +509,7 @@ export function AlfieChat() {
           if (profile) {
             await supabase
               .from('profiles')
-              .update({ woofs_consumed_this_month: (profile.woofs_consumed_this_month || 0) + 1 })
+              .update({ woofs_consumed_this_month: (profile.woofs_consumed_this_month || 0) + 2 })
               .eq('id', user.id);
           }
 
@@ -517,7 +521,7 @@ export function AlfieChat() {
 
           setMessages(prev => [...prev, {
             role: 'assistant',
-            content: `🎬 Génération vidéo lancée avec ${providerName} ! (1 Woof)\n\nJe te tiens au courant dès que c'est prêt.`,
+            content: `🎬 Génération vidéo lancée avec ${providerName} ! (2 Woofs)\n\nJe te tiens au courant dès que c'est prêt.`,
             jobId: jobIdentifier ?? predictionId,
             jobShortId,
             assetId: asset.id,
@@ -1085,7 +1089,7 @@ export function AlfieChat() {
                     : 'bg-muted hover:bg-muted/80'
                 }`}
               >
-                10-12s loop (1 Woof)
+                10-12s loop (2 Woofs)
               </button>
               <button
                 onClick={() => setSelectedDuration('medium')}
@@ -1095,7 +1099,7 @@ export function AlfieChat() {
                     : 'bg-muted hover:bg-muted/80'
                 }`}
               >
-                ~20s (2 Woofs)
+                ~20s (4 Woofs)
               </button>
               <button
                 onClick={() => setSelectedDuration('long')}
@@ -1105,10 +1109,10 @@ export function AlfieChat() {
                     : 'bg-muted hover:bg-muted/80'
                 }`}
               >
-                ~30s (3 Woofs)
+                ~30s (6 Woofs)
               </button>
               <span className="text-xs text-muted-foreground ml-2">
-                💡 1 clip Sora = 1 Woof
+                💡 1 vidéo = 2 Woofs
               </span>
             </div>
 

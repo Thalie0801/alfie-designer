@@ -122,7 +122,7 @@ export function ChatHeader() {
                     className={getProgressColor((quotaStatus.woofs.consumed / quotaStatus.woofs.limit) * 100)}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Veo3 = 4 Woofs • Sora = 1 Woof
+                    Veo3 = 4 Woofs • Sora = 2 Woofs
                   </p>
                 </div>
               </div>

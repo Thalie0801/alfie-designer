@@ -39,7 +39,7 @@ Pour augmenter temporairement le quota de Woofs :
 
 - **Visuels IA** (Nano/Banana) : comptés dans le quota `images`
 - **Vidéos IA** : comptées dans `videos` + consomment des `woofs`
-  - Sora : 1 Woof
+  - Sora : 2 Woofs
   - Veo 3 : 4 Woofs
 - **Confection Canva** (adaptation template) : **GRATUITE** (jamais comptée)
 

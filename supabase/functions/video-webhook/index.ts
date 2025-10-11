@@ -186,11 +186,25 @@ serve(async (req) => {
       .update(jobUpdate)
       .eq("id", jobId);
 
-    const { data: asset } = await supabaseAdmin
-      .from("media_generations")
-      .select("id, metadata")
-      .eq("job_id", jobId)
-      .maybeSingle();
+    const matchValues: string[] = [];
+    const escapeForFilter = (value: string) => value.replace(/"/g, '\\"').replace(/,/g, '\\,');
+
+    if (jobId) {
+      matchValues.push(`job_id.eq."${escapeForFilter(jobId)}"`);
+    }
+
+    const predictionId = typeof payload["id"] === "string" ? payload["id"] : undefined;
+    if (predictionId) {
+      matchValues.push(`metadata->>predictionId.eq."${escapeForFilter(predictionId)}"`);
+    }
+
+    const { data: asset } = matchValues.length > 0
+      ? await supabaseAdmin
+          .from("media_generations")
+          .select("id, metadata")
+          .or(matchValues.join(","))
+          .maybeSingle()
+      : { data: null };
 
     if (asset) {
       const metadata = (asset.metadata as Record<string, unknown>) || {};
