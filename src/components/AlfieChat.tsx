@@ -15,10 +15,7 @@ import { openInCanva } from '@/services/canvaLinker';
 import { supabase } from '@/integrations/supabase/client';
 import { detectIntent, canHandleLocally, generateLocalResponse } from '@/utils/alfieIntentDetector';
 import { getQuotaStatus, consumeQuota, canGenerateVideo, checkQuotaAlert, formatExpirationMessage } from '@/utils/quotaManager';
-import { routeVideoEngine, estimateVideoDuration, detectVideoStyle } from '@/utils/videoRouting';
 import { JobPlaceholder, JobStatus } from '@/components/chat/JobPlaceholder';
-import { AssetMessage } from '@/components/chat/AssetMessage';
-import { FileUploader } from '@/components/chat/FileUploader';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -76,15 +73,17 @@ export function AlfieChat() {
   const { brandKit, activeBrandId } = useBrandKit();
   const { totalCredits, decrementCredits, hasCredits, incrementGenerations } = useAlfieCredits();
   const { searchTemplates } = useTemplateLibrary();
-  const { 
-    checkQuota, 
-    getCachedResponse, 
-    setCachedResponse, 
+  const {
+    checkQuota,
+    getCachedResponse,
+    setCachedResponse,
     incrementRequests,
     requestsThisMonth,
     quota,
     quotaPercentage
   } = useAlfieOptimizations();
+
+  const durationWoofCost = selectedDuration === 'long' ? 3 : selectedDuration === 'medium' ? 2 : 1;
 
   useEffect(() => {
     const init = async () => {
@@ -444,7 +443,9 @@ export function AlfieChat() {
             body: {
               prompt: args.prompt,
               aspectRatio: args.aspectRatio || '16:9',
-              imageUrl: args.imageUrl
+              imageUrl: args.imageUrl,
+              durationPreference: selectedDuration,
+              woofCost: durationWoofCost
             }
           });
 
@@ -480,14 +481,17 @@ export function AlfieChat() {
               engine: provider,
               status: 'processing',
               prompt: args.prompt,
-              woofs: 1,
+              woofs: durationWoofCost,
               output_url: '',
               job_id: jobIdentifier ?? null,
               metadata: {
                 predictionId,
                 provider: providerRaw ?? provider,
                 jobId: jobIdentifier ?? null,
-                jobShortId: jobShortId ?? null
+                jobShortId: jobShortId ?? null,
+                durationPreference: selectedDuration,
+                aspectRatio: args.aspectRatio || '16:9',
+                woofCost: durationWoofCost
               }
             })
             .select()
@@ -517,11 +521,12 @@ export function AlfieChat() {
 
           setMessages(prev => [...prev, {
             role: 'assistant',
-            content: `🎬 Génération vidéo lancée avec ${providerName} ! (1 Woof)\n\nJe te tiens au courant dès que c'est prêt.`,
+            content: `🎬 Génération vidéo lancée avec ${providerName} ! (${durationWoofCost} ${durationWoofCost > 1 ? 'Woofs' : 'Woof'})\n\nJe te tiens au courant dès que c'est prêt.`,
             jobId: jobIdentifier ?? predictionId,
             jobShortId,
             assetId: asset.id,
-            jobStatus: 'processing' as JobStatus
+            jobStatus: 'processing' as JobStatus,
+            assetType: 'video'
           }]);
 
           return { success: true, assetId: asset.id, provider };
@@ -531,7 +536,7 @@ export function AlfieChat() {
           toast.error(`Échec génération vidéo: ${errorMessage}`);
           setMessages(prev => [...prev, {
             role: 'assistant',
-            content: `❌ Erreur vidéo: ${errorMessage}\n\nVérifie les logs et les secrets backend (KIE_AI_API_KEY, REPLICATE_API_TOKEN).`
+            content: `❌ Erreur vidéo: ${errorMessage}\n\nVérifie les logs et les secrets backend (KIE_API_KEY, REPLICATE_API_TOKEN).`
           }]);
           return { error: errorMessage };
         }
@@ -814,8 +819,11 @@ export function AlfieChat() {
     }
   };
 
-  const handleSend = async () => {
+  const handleSend = async (options?: { forceVideo?: boolean; forceImage?: boolean }) => {
     if (!input.trim() || isLoading || !loaded) return;
+
+    const forceVideo = options?.forceVideo ?? false;
+    const forceImage = options?.forceImage ?? false;
 
     const userMessage = input.trim();
     const imageUrl = uploadedImage;
@@ -894,16 +902,22 @@ export function AlfieChat() {
     }
 
     // 2.5 Fallback local: si l'utilisateur demande clairement une image, lance la génération directe
-    if (wantsImageFromText(userMessage)) {
+    if (!forceVideo && (forceImage || wantsImageFromText(userMessage))) {
       const aspect = detectAspectRatioFromText(userMessage);
       await handleToolCall('generate_image', { prompt: userMessage, aspect_ratio: aspect });
       return;
     }
 
     // 2.6 Fallback local: si l'utilisateur demande clairement une vidéo, lance la génération directe
-    if (wantsVideoFromText(userMessage)) {
+    if (forceVideo || wantsVideoFromText(userMessage)) {
       const aspect = detectAspectRatioFromText(userMessage);
-      await handleToolCall('generate_video', { prompt: userMessage, aspectRatio: aspect, imageUrl });
+      await handleToolCall('generate_video', {
+        prompt: userMessage,
+        aspectRatio: aspect,
+        imageUrl,
+        durationPreference: selectedDuration,
+        woofCost: durationWoofCost
+      });
       return;
     }
 
@@ -951,83 +965,83 @@ export function AlfieChat() {
                   <img src={alfieMain} alt="Alfie" className="object-cover" />
                 </Avatar>
               )}
-{message.jobId ? (
-  <JobPlaceholder
-    jobId={message.jobId}
-    shortId={message.jobShortId}
-    status={message.jobStatus || 'running'}
-    progress={message.progress}
-    type={message.assetType === 'image' ? 'image' : 'video'}
-  />
-) : (
-  <Card
-    className={`p-4 max-w-[75%] ${
-      message.role === 'user'
-        ? 'bg-primary text-primary-foreground'
-        : 'bg-muted'
-    }`}
-  >
-   {message.imageUrl && (
-      <div className="relative group">
-        <img 
-          src={message.imageUrl} 
-          alt="Image générée" 
-          className="max-w-full rounded-lg mb-2"
-        />
-        <Button
-          size="sm"
-          variant="secondary"
-          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-          onClick={() => {
-            const link = document.createElement('a');
-            link.href = message.imageUrl!;
-            link.download = `alfie-image-${Date.now()}.png`;
-            link.click();
-          }}
-        >
-          <Download className="h-4 w-4 mr-1" />
-          Télécharger
-        </Button>
-      </div>
-    )}
-    {message.videoUrl && (
-      <div className="relative group">
-        <video 
-          src={message.videoUrl} 
-          controls
-          className="max-w-full rounded-lg mb-2"
-        />
-        <Button
-          size="sm"
-          variant="secondary"
-          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-          onClick={() => {
-            const link = document.createElement('a');
-            link.href = message.videoUrl!;
-            link.download = `alfie-video-${Date.now()}.mp4`;
-            link.click();
-          }}
-        >
-          <Download className="h-4 w-4 mr-1" />
-          Télécharger
-        </Button>
-      </div>
-    )}
-    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-    {message.created_at && (
-      <p className="text-xs opacity-60 mt-2">
-        {new Date(message.created_at).toLocaleDateString('fr-FR', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
-        })} à {new Date(message.created_at).toLocaleTimeString('fr-FR', {
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
-        })}
-      </p>
-    )}
-  </Card>
-)}
+              {message.jobId ? (
+                <JobPlaceholder
+                  jobId={message.jobId}
+                  shortId={message.jobShortId}
+                  status={message.jobStatus || 'processing'}
+                  progress={message.progress}
+                  type={message.assetType === 'image' ? 'image' : 'video'}
+                />
+              ) : (
+                <Card
+                  className={`p-4 max-w-[75%] ${
+                    message.role === 'user'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted'
+                  }`}
+                >
+                  {message.imageUrl && (
+                    <div className="relative group">
+                      <img
+                        src={message.imageUrl}
+                        alt="Image générée"
+                        className="max-w-full rounded-lg mb-2"
+                      />
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => {
+                          const link = document.createElement('a');
+                          link.href = message.imageUrl!;
+                          link.download = `alfie-image-${Date.now()}.png`;
+                          link.click();
+                        }}
+                      >
+                        <Download className="h-4 w-4 mr-1" />
+                        Télécharger
+                      </Button>
+                    </div>
+                  )}
+                  {message.videoUrl && (
+                    <div className="relative group">
+                      <video
+                        src={message.videoUrl}
+                        controls
+                        className="max-w-full rounded-lg mb-2"
+                      />
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => {
+                          const link = document.createElement('a');
+                          link.href = message.videoUrl!;
+                          link.download = `alfie-video-${Date.now()}.mp4`;
+                          link.click();
+                        }}
+                      >
+                        <Download className="h-4 w-4 mr-1" />
+                        Télécharger
+                      </Button>
+                    </div>
+                  )}
+                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                  {message.created_at && (
+                    <p className="text-xs opacity-60 mt-2">
+                      {new Date(message.created_at).toLocaleDateString('fr-FR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                      })} à {new Date(message.created_at).toLocaleTimeString('fr-FR', {
+                        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                      })}
+                    </p>
+                  )}
+                </Card>
+              )}
               {message.role === 'user' && (
                 <Avatar className="h-8 w-8 flex-shrink-0 bg-secondary">
                   <div className="flex items-center justify-center h-full text-secondary-foreground">
@@ -1112,11 +1126,19 @@ export function AlfieChat() {
               </span>
             </div>
 
-            {/* Bouton désactivé temporairement - problème IP whitelist Kie.ai */}
-            <div className="flex items-center justify-center p-4 bg-muted/50 rounded-lg">
-              <span className="text-xs text-muted-foreground">
-                🎬 Génération vidéo temporairement indisponible
-              </span>
+            <div className="flex flex-col gap-2 rounded-lg bg-muted/40 p-3 md:flex-row md:items-center md:justify-between">
+              <p className="text-xs text-muted-foreground">
+                🎬 Lance la génération vidéo directement depuis le chat.
+              </p>
+              <Button
+                size="sm"
+                className="gap-2"
+                disabled={isLoading || !input.trim()}
+                onClick={() => handleSend({ forceVideo: true })}
+              >
+                <Sparkles className="h-4 w-4" />
+                Générer la vidéo ({durationWoofCost} {durationWoofCost > 1 ? 'Woofs' : 'Woof'})
+              </Button>
             </div>
           </div>
         ) : null}
@@ -1173,7 +1195,7 @@ export function AlfieChat() {
             disabled={isLoading}
           />
           <Button
-            onClick={handleSend}
+            onClick={() => handleSend()}
             disabled={!input.trim() || isLoading}
             size="lg"
             className="gap-2"

@@ -1,70 +1,153 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-type JobStatus = "pending" | "queued" | "running" | "checking" | "ready" | "failed" | "canceled";
-
-type Provider = "sora" | "seededance" | "kling";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
 };
 
-const mapReplicateStatus = (status: string): JobStatus => {
-  switch (status) {
-    case "succeeded":
-      return "ready";
-    case "failed":
-      return "failed";
-    case "canceled":
-      return "canceled";
-    case "queued":
-      return "queued";
-    case "starting":
-    case "processing":
-    default:
-      return "running";
-  }
+type JsonValue = Record<string, unknown> | string | null | undefined;
+
+type PayloadRecord = Record<string, unknown> & {
+  id?: string;
+  status?: string;
+  state?: string;
+  output?: JsonValue;
+  error?: unknown;
 };
 
-const statusToProgress = (status: string): number => {
-  switch (status) {
-    case "queued":
-      return 5;
-    case "starting":
-      return 15;
-    case "processing":
-      return 60;
-    case "succeeded":
-    case "failed":
-    case "canceled":
-      return 100;
-    default:
-      return 10;
+const jsonResponse = (body: string, status = 200) =>
+  new Response(body, { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+const normalizeStatus = (payload: PayloadRecord): "processing" | "completed" | "failed" => {
+  const candidates: Array<string | undefined> = [
+    typeof payload.status === "string" ? payload.status : undefined,
+    typeof payload.state === "string" ? payload.state : undefined,
+    typeof (payload.data as Record<string, unknown> | undefined)?.status === "string"
+      ? (payload.data as Record<string, unknown>).status as string
+      : undefined,
+    typeof (payload.data as Record<string, unknown> | undefined)?.state === "string"
+      ? (payload.data as Record<string, unknown>).state as string
+      : undefined
+  ];
+
+  const value = candidates.find((item) => item && item.trim().length > 0)?.toLowerCase();
+  if (!value) return "processing";
+
+  if (["succeeded", "success", "completed", "ready", "finished"].includes(value)) {
+    return "completed";
   }
+  if (["failed", "fail", "error", "cancelled", "canceled"].includes(value)) {
+    return "failed";
+  }
+
+  return "processing";
 };
 
-const extractVideoUrl = (payload: unknown): string | null => {
-  if (!payload || typeof payload !== "object") return null;
-  const data = payload as Record<string, unknown>;
-  const output = data.output;
+const isLikelyJson = (value: string) => {
+  const trimmed = value.trim();
+  return (trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"));
+};
 
-  if (typeof output === "string") {
-    return output;
+const extractUrlFromValue = (value: JsonValue): string | null => {
+  if (!value) return null;
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed.startsWith("http")) {
+      return trimmed;
+    }
+    if (isLikelyJson(trimmed)) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return extractUrlFromValue(parsed as JsonValue);
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
   }
 
-  if (Array.isArray(output) && output.length > 0) {
-    const first = output[0];
-    if (typeof first === "string") return first;
-    if (first && typeof first === "object" && "url" in first) {
-      const url = (first as { url?: unknown }).url;
-      if (typeof url === "string") return url;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const extracted = extractUrlFromValue(item as JsonValue);
+      if (extracted) return extracted;
+    }
+    return null;
+  }
+
+  if (typeof value === "object") {
+    const objectValue = value as Record<string, unknown>;
+    const preferredKeys = [
+      "video",
+      "video_url",
+      "url",
+      "mp4",
+      "src",
+      "href"
+    ];
+
+    for (const key of preferredKeys) {
+      const candidate = objectValue[key];
+      const extracted = extractUrlFromValue(candidate as JsonValue);
+      if (extracted) {
+        return extracted;
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(objectValue, "resultUrls")) {
+      const extracted = extractUrlFromValue(objectValue.resultUrls as JsonValue);
+      if (extracted) return extracted;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(objectValue, "data")) {
+      const extracted = extractUrlFromValue(objectValue.data as JsonValue);
+      if (extracted) return extracted;
     }
   }
 
-  if (output && typeof output === "object" && "video" in output) {
-    const video = (output as { video?: unknown }).video;
-    if (typeof video === "string") return video;
+  return null;
+};
+
+const extractOutputUrl = (payload: PayloadRecord): string | null => {
+  const directKeys: Array<keyof PayloadRecord> = ["output"];
+
+  for (const key of directKeys) {
+    const extracted = extractUrlFromValue(payload[key] as JsonValue);
+    if (extracted) return extracted;
+  }
+
+  const nestedSources: JsonValue[] = [
+    (payload.urls as JsonValue) ?? null,
+    (payload.video as JsonValue) ?? null,
+    (payload.result as JsonValue) ?? null,
+    (payload.result_url as JsonValue) ?? null,
+    (payload.resultUrls as JsonValue) ?? null
+  ];
+
+  for (const source of nestedSources) {
+    const extracted = extractUrlFromValue(source);
+    if (extracted) return extracted;
+  }
+
+  const data = payload.data as Record<string, unknown> | undefined;
+  if (data) {
+    const candidates: JsonValue[] = [
+      data.output as JsonValue,
+      data.result as JsonValue,
+      data.resultUrls as JsonValue,
+      data.video as JsonValue,
+      data.video_url as JsonValue
+    ];
+
+    if (typeof data.resultJson === "string") {
+      candidates.push(data.resultJson as string);
+    }
+
+    for (const candidate of candidates) {
+      const extracted = extractUrlFromValue(candidate);
+      if (extracted) return extracted;
+    }
   }
 
   return null;
@@ -72,177 +155,87 @@ const extractVideoUrl = (payload: unknown): string | null => {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response("ok", { headers: corsHeaders });
   }
 
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405, headers: corsHeaders });
   }
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-  if (!supabaseUrl || !supabaseKey) {
-    console.error("❌ Missing Supabase configuration for webhook");
-    return new Response(JSON.stringify({ error: "Configuration serveur manquante" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
-  const supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-
-  const url = new URL(req.url);
-  const jobId = url.searchParams.get("jobId");
-  const provider = (url.searchParams.get("provider") as Provider) || "seededance";
-
-  if (!jobId) {
-    return new Response(JSON.stringify({ error: "jobId manquant" }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
-  const expectedSecret = Deno.env.get("VIDEO_WEBHOOK_SECRET");
-  if (expectedSecret) {
-    const receivedSecret =
-      req.headers.get("x-webhook-secret") ||
-      req.headers.get("replicate-webhook-secret") ||
-      req.headers.get("webhook-secret");
-
-    if (!receivedSecret || receivedSecret !== expectedSecret) {
-      console.warn("⚠️ Invalid webhook secret for job", jobId);
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-  }
-
   try {
-    const payload = (await req.json()) as Record<string, unknown>;
-    console.log("📬 [video-webhook] Payload received for job", jobId, JSON.stringify(payload));
+    const payload = (await req.json()) as PayloadRecord;
+    const id = typeof payload.id === "string" ? payload.id : undefined;
 
-    let jobStatus: JobStatus = "running";
-    let progress = 50;
-    let errorMessage: string | null = null;
-    let videoUrl: string | null = null;
-
-    if (provider === "sora") {
-      const state = typeof payload["state"] === "string"
-        ? (payload["state"] as string)
-        : typeof payload["status"] === "string"
-          ? (payload["status"] as string)
-          : "running";
-      if (state === "success") {
-        jobStatus = "ready";
-        progress = 100;
-        videoUrl = extractVideoUrl(payload["result"]);
-      } else if (state === "fail") {
-        jobStatus = "failed";
-        progress = 100;
-        const failMsg = payload["failMsg"];
-        const error = payload["error"];
-        errorMessage = typeof failMsg === "string" ? failMsg : typeof error === "string" ? error : "Generation failed";
-      } else {
-        jobStatus = "running";
-        progress = state === "generating" ? 60 : 30;
-      }
-    } else {
-      const replicateStatus = typeof payload["status"] === "string" ? (payload["status"] as string) : "processing";
-      jobStatus = mapReplicateStatus(replicateStatus);
-      progress = statusToProgress(replicateStatus);
-      videoUrl = extractVideoUrl(payload);
-      if (jobStatus === "failed") {
-        const err = payload["error"];
-        errorMessage = typeof err === "string" ? err : "Generation failed";
-      }
+    if (!id) {
+      return jsonResponse(JSON.stringify({ error: "missing id" }), 400);
     }
 
-    const outputData: Record<string, unknown> = {
-      provider,
-      payload,
-    };
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    if (videoUrl) {
-      outputData.videoUrl = videoUrl;
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error("Missing Supabase configuration");
     }
 
-    const jobUpdate: Record<string, unknown> = {
-      status: jobStatus,
-      progress,
-      error: errorMessage,
-      output_data: outputData,
-    };
+    const admin = createClient(supabaseUrl, supabaseKey, {
+      auth: { autoRefreshToken: false, persistSession: false }
+    });
 
-    if (jobStatus === "ready" || jobStatus === "failed" || jobStatus === "canceled") {
-      jobUpdate.completed_at = new Date().toISOString();
-    }
-
-    await supabaseAdmin
-      .from("jobs")
-      .update(jobUpdate)
-      .eq("id", jobId);
-
-    const { data: asset } = await supabaseAdmin
+    const { data: record, error: selectError } = await admin
       .from("media_generations")
-      .select("id, metadata")
-      .eq("job_id", jobId)
+      .select("id, metadata, output_url")
+      .or(`job_id.eq.${id},metadata->>predictionId.eq.${id}`)
       .maybeSingle();
 
-    if (asset) {
-      const metadata = (asset.metadata as Record<string, unknown>) || {};
-      const updatedMetadata = {
-        ...metadata,
-        provider,
-        predictionId: (typeof payload["id"] === "string" ? payload["id"] : metadata?.predictionId) as string | undefined,
-        webhookPayload: payload,
-      };
-
-      const assetUpdate: Record<string, unknown> = {
-        metadata: updatedMetadata,
-      };
-
-      if (videoUrl) {
-        assetUpdate.output_url = videoUrl;
-      }
-
-      if (jobStatus === "ready") {
-        assetUpdate.status = "completed";
-        assetUpdate.engine = provider;
-        const metrics = payload["metrics"] as Record<string, unknown> | undefined;
-        const input = payload["input"] as Record<string, unknown> | undefined;
-        const durationSeconds = Math.round(
-          (metrics?.predict_time as number | undefined) ??
-            (metrics?.duration as number | undefined) ??
-            (payload["output_duration"] as number | undefined) ??
-            (input?.duration as number | undefined) ??
-            0,
-        );
-        assetUpdate.duration_seconds = durationSeconds;
-      }
-
-      if (jobStatus === "failed") {
-        assetUpdate.status = "failed";
-      }
-
-      await supabaseAdmin
-        .from("media_generations")
-        .update(assetUpdate)
-        .eq("id", asset.id);
+    if (selectError) {
+      console.error("video-webhook select error", selectError);
+      return jsonResponse(JSON.stringify({ error: "select failed" }), 500);
     }
 
-    return new Response(JSON.stringify({ success: true }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    if (!record) {
+      console.warn("video-webhook: no media_generation found for", id);
+      return jsonResponse("\"ok\"");
+    }
+
+    const existingMetadata = (record.metadata as Record<string, unknown> | null) ?? {};
+    const normalizedStatus = normalizeStatus(payload);
+    const outputUrl = extractOutputUrl(payload);
+
+    const metadata: Record<string, unknown> = {
+      ...existingMetadata,
+      lastWebhookAt: new Date().toISOString(),
+      lastWebhookStatus: payload.status ?? payload.state ?? normalizedStatus,
+      webhookPayload: payload
+    };
+
+    if (payload.error) {
+      metadata.error = payload.error;
+    }
+
+    const update: Record<string, unknown> = {
+      status: normalizedStatus,
+      updated_at: new Date().toISOString(),
+      metadata
+    };
+
+    if (outputUrl) {
+      update.output_url = outputUrl;
+    }
+
+    const { error: updateError } = await admin
+      .from("media_generations")
+      .update(update)
+      .eq("id", record.id);
+
+    if (updateError) {
+      console.error("video-webhook update error", updateError);
+      return jsonResponse(JSON.stringify({ error: "update failed" }), 500);
+    }
+
+    return jsonResponse("\"ok\"");
   } catch (error) {
-    console.error("❌ [video-webhook] Error processing webhook:", error);
-    return new Response(JSON.stringify({ error: "Webhook processing failed" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("video-webhook error", error);
+    const message = error instanceof Error ? error.message : "webhook error";
+    return jsonResponse(JSON.stringify({ error: message }), 500);
   }
 });
