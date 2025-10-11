@@ -74,3 +74,6 @@ verify_jwt = false
 
 [functions.cleanup-processing-videos]
 verify_jwt = false
+
+[functions.video-webhook]
+verify_jwt = false

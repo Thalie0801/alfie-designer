@@ -28,6 +28,7 @@ interface Message {
   videoUrl?: string;
   created_at?: string;
   jobId?: string;
+  jobShortId?: string;
   jobStatus?: JobStatus;
   progress?: number;
   assetId?: string;
@@ -471,10 +472,18 @@ export function AlfieChat() {
             console.error('Provider error:', data.error);
             throw new Error(data.error);
           }
-          
-          const { id, provider } = data;
-          console.log(`✅ [generate_video] Started with provider: ${provider}, ID: ${id}`);
-          
+
+          const predictionId = data?.id as string | undefined;
+          const provider = data?.provider as 'sora' | 'seededance' | 'kling' | undefined;
+          const jobIdentifier = data?.jobId as string | undefined;
+          const jobShortId = data?.jobShortId as string | undefined;
+
+          if (!predictionId || !provider || !jobIdentifier) {
+            throw new Error('Réponse vidéo invalide (id ou job manquant)');
+          }
+
+          console.log(`✅ [generate_video] Started with provider: ${provider}, prediction: ${predictionId}, job: ${jobIdentifier}`);
+
           // Créer l'asset dans la DB
           const { data: asset, error: assetError } = await supabase
             .from('media_generations')
@@ -487,7 +496,8 @@ export function AlfieChat() {
               prompt: args.prompt,
               woofs: 1,
               output_url: '', // sera mis à jour quand prêt
-              metadata: { predictionId: id, provider }
+              job_id: jobIdentifier,
+              metadata: { predictionId, provider, jobId: jobIdentifier, jobShortId }
             })
             .select()
             .single();
@@ -499,10 +509,12 @@ export function AlfieChat() {
           setMessages(prev => [...prev, {
             role: 'assistant',
             content: `🎬 Génération vidéo lancée avec ${providerName} ! (1 Woof)\n\nJe te tiens au courant dès que c'est prêt.`,
-            jobId: asset.id,
+            jobId: jobIdentifier,
+            jobShortId,
+            assetId: asset.id,
             jobStatus: 'processing' as JobStatus
           }]);
-          
+
           return { success: true, assetId: asset.id, provider };
           
         } catch (error: any) {
@@ -934,7 +946,7 @@ export function AlfieChat() {
 {message.jobId ? (
   <JobPlaceholder
     jobId={message.jobId}
-    shortId={message.jobId.slice(-6).toUpperCase()}
+    shortId={message.jobShortId}
     status={message.jobStatus || 'running'}
     progress={message.progress}
     type={message.assetType === 'image' ? 'image' : 'video'}

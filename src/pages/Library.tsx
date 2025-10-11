@@ -90,7 +90,15 @@ export default function Library() {
         toast.error(`Échec génération: ${msg}`);
         return;
       }
-      const { id, provider } = data;
+      const predictionId = data?.id as string | undefined;
+      const provider = data?.provider as 'sora' | 'seededance' | 'kling' | undefined;
+      const jobId = data?.jobId as string | undefined;
+      const jobShortId = data?.jobShortId as string | undefined;
+
+      if (!predictionId || !provider || !jobId) {
+        toast.error('Réponse invalide du backend (identifiants manquants)');
+        return;
+      }
       await supabase
         .from('media_generations')
         .insert({
@@ -101,7 +109,8 @@ export default function Library() {
           prompt,
           woofs: 1,
           output_url: '',
-          metadata: { predictionId: id, provider }
+          job_id: jobId,
+          metadata: { predictionId, provider, jobId, jobShortId }
         });
       toast.success(`Génération vidéo lancée (${provider})`);
     } catch (e: any) {
