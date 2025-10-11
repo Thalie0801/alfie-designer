@@ -1,4 +1,6 @@
--- Support provider job identifiers that are not UUIDs
+ALTER TABLE media_generations
+  DROP CONSTRAINT IF EXISTS media_generations_job_id_fkey;
+
 ALTER TABLE media_generations
   ALTER COLUMN job_id TYPE text USING job_id::text;
 

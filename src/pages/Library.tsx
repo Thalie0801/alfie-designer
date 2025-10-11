@@ -90,12 +90,22 @@ export default function Library() {
         toast.error(`Échec génération: ${msg}`);
         return;
       }
-      const predictionId = data?.id as string | undefined;
-      const provider = data?.provider as 'sora' | 'seededance' | 'kling' | undefined;
-      const jobId = data?.jobId as string | undefined;
-      const jobShortId = data?.jobShortId as string | undefined;
+      const str = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : undefined);
 
-      if (!predictionId || !provider || !jobId) {
+      const predictionId = str((data as any)?.id) || str((data as any)?.predictionId) || str((data as any)?.prediction_id);
+      const providerRaw =
+        str((data as any)?.provider) ||
+        str((data as any)?.engine) ||
+        (((data as any)?.metadata as any) && str(((data as any)?.metadata as any)?.provider));
+      const provider = providerRaw?.toLowerCase() as 'sora' | 'seededance' | 'kling' | undefined;
+      const jobId =
+        str((data as any)?.jobId) ||
+        str((data as any)?.job_id) ||
+        str((data as any)?.task_id) ||
+        predictionId;
+      const jobShortId = str((data as any)?.jobShortId);
+
+      if (!predictionId || !provider) {
         toast.error('Réponse invalide du backend (identifiants manquants)');
         return;
       }
@@ -107,12 +117,12 @@ export default function Library() {
           engine: provider,
           status: 'processing',
           prompt,
-          woofs: 1,
+          woofs: 2,
           output_url: '',
-          job_id: jobId,
-          metadata: { predictionId, provider, jobId, jobShortId }
+          job_id: jobId ?? null,
+          metadata: { predictionId, provider: providerRaw ?? provider, jobId: jobId ?? null, jobShortId: jobShortId ?? null }
         });
-      toast.success(`Génération vidéo lancée (${provider})`);
+      toast.success(`Génération vidéo lancée (${provider}) (2 Woofs)`);
     } catch (e: any) {
       console.error('Debug generate error:', e);
       toast.error(e.message || 'Erreur lors du lancement');

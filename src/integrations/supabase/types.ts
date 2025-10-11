@@ -720,13 +720,6 @@ export type Database = {
             referencedRelation: "brands"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "media_generations_job_id_fkey"
-            columns: ["job_id"]
-            isOneToOne: false
-            referencedRelation: "jobs"
-            referencedColumns: ["id"]
-          },
         ]
       }
       news: {
