@@ -474,7 +474,7 @@ export function AlfieChat() {
             throw new Error('Réponse vidéo invalide (id prédiction ou provider manquant). Vérifie les secrets Lovable Cloud.');
           }
 
-          // Créer l'asset en DB (status processing)
+          // Créer l'asset en DB (status processing) — 2 Woofs / vidéo
           const { data: asset, error: assetError } = await supabase
             .from('media_generations')
             .insert({
@@ -491,7 +491,10 @@ export function AlfieChat() {
                 predictionId,
                 provider: providerRaw ?? provider,
                 jobId: jobIdentifier ?? null,
-                jobShortId: jobShortId ?? null
+                jobShortId: jobShortId ?? null,
+                durationPreference: selectedDuration,
+                aspectRatio: args.aspectRatio || '16:9',
+                woofCost: 2
               }
             })
             .select()
@@ -525,7 +528,8 @@ export function AlfieChat() {
             jobId: jobIdentifier ?? predictionId,
             jobShortId,
             assetId: asset.id,
-            jobStatus: 'processing' as JobStatus
+            jobStatus: 'processing' as JobStatus,
+            assetType: 'video'
           }]);
 
           return { success: true, assetId: asset.id, provider };
