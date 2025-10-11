@@ -653,7 +653,7 @@ export type Database = {
           brand_id: string | null
           created_at: string | null
           duration_seconds: number | null
-          engine: Database["public"]["Enums"]["video_engine"] | null
+          engine: string | null
           expires_at: string | null
           file_size_bytes: number | null
           id: string
@@ -662,6 +662,7 @@ export type Database = {
           job_id: string | null
           metadata: Json | null
           output_url: string
+          progress: number
           prompt: string | null
           status: string
           thumbnail_url: string | null
@@ -674,7 +675,7 @@ export type Database = {
           brand_id?: string | null
           created_at?: string | null
           duration_seconds?: number | null
-          engine?: Database["public"]["Enums"]["video_engine"] | null
+          engine?: string | null
           expires_at?: string | null
           file_size_bytes?: number | null
           id?: string
@@ -683,6 +684,7 @@ export type Database = {
           job_id?: string | null
           metadata?: Json | null
           output_url: string
+          progress?: number
           prompt?: string | null
           status?: string
           thumbnail_url?: string | null
@@ -695,7 +697,7 @@ export type Database = {
           brand_id?: string | null
           created_at?: string | null
           duration_seconds?: number | null
-          engine?: Database["public"]["Enums"]["video_engine"] | null
+          engine?: string | null
           expires_at?: string | null
           file_size_bytes?: number | null
           id?: string
@@ -704,6 +706,7 @@ export type Database = {
           job_id?: string | null
           metadata?: Json | null
           output_url?: string
+          progress?: number
           prompt?: string | null
           status?: string
           thumbnail_url?: string | null
@@ -718,13 +721,6 @@ export type Database = {
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "media_generations_job_id_fkey"
-            columns: ["job_id"]
-            isOneToOne: false
-            referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
         ]

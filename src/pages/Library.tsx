@@ -109,7 +109,8 @@ export default function Library() {
           prompt,
           woofs: 1,
           output_url: '',
-          job_id: jobId,
+          job_id: null, // HOTFIX: éviter tout cast UUID pendant la migration
+          progress: 5,
           metadata: { predictionId, provider, jobId, jobShortId }
         });
       toast.success(`Génération vidéo lancée (${provider})`);

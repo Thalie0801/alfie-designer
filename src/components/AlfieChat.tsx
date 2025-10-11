@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
@@ -16,6 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { detectIntent, canHandleLocally, generateLocalResponse } from '@/utils/alfieIntentDetector';
 import { getQuotaStatus, consumeQuota, canGenerateVideo, checkQuotaAlert, formatExpirationMessage } from '@/utils/quotaManager';
 import { JobPlaceholder, JobStatus } from '@/components/chat/JobPlaceholder';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -83,7 +84,83 @@ export function AlfieChat() {
     quotaPercentage
   } = useAlfieOptimizations();
 
-  const durationWoofCost = selectedDuration === 'long' ? 3 : selectedDuration === 'medium' ? 2 : 1;
+  const activeAssetIdsKey = useMemo(() => {
+    const ids = messages
+      .filter(message =>
+        message.assetId && (message.jobStatus === 'processing' || message.jobStatus === 'running'))
+      .map(message => message.assetId as string);
+
+    if (ids.length === 0) return '';
+
+    const unique = Array.from(new Set(ids)).sort();
+    return unique.join(',');
+  }, [messages]);
+
+  const applyMediaGenerationUpdate = useCallback((assetId: string, row: {
+    status?: string | null;
+    progress?: number | null;
+    output_url?: string | null;
+  }) => {
+    setMessages(prev => {
+      let mutated = false;
+
+      const next = prev.map(msg => {
+        if (msg.assetId !== assetId) return msg;
+
+        const updates: Partial<Message> = {};
+        let messageChanged = false;
+
+        const numericProgress = typeof row.progress === 'number' && Number.isFinite(row.progress)
+          ? Math.max(0, Math.min(100, Math.round(row.progress)))
+          : undefined;
+
+        let mappedStatus: JobStatus | undefined;
+        if (typeof row.status === 'string' && row.status.trim().length > 0) {
+          const normalized = row.status.toLowerCase();
+          if (['queued', 'pending'].includes(normalized)) {
+            mappedStatus = 'queued';
+          } else if (['checking', 'verifying'].includes(normalized)) {
+            mappedStatus = 'checking';
+          } else if (['running', 'processing', 'generating', 'in_progress', 'starting'].includes(normalized)) {
+            mappedStatus = 'processing';
+          } else if (['succeeded', 'success', 'completed', 'ready', 'finished'].includes(normalized)) {
+            mappedStatus = 'completed';
+          } else if (['failed', 'error'].includes(normalized)) {
+            mappedStatus = 'failed';
+          } else if (['canceled', 'cancelled'].includes(normalized)) {
+            mappedStatus = 'canceled';
+          }
+        }
+
+        let finalProgress = numericProgress;
+        if ((mappedStatus === 'completed' || mappedStatus === 'failed') && (finalProgress === undefined || finalProgress < 100)) {
+          finalProgress = 100;
+        }
+
+        if (finalProgress !== undefined && msg.progress !== finalProgress) {
+          updates.progress = finalProgress;
+          messageChanged = true;
+        }
+
+        if (mappedStatus && msg.jobStatus !== mappedStatus) {
+          updates.jobStatus = mappedStatus;
+          messageChanged = true;
+        }
+
+        if (typeof row.output_url === 'string' && row.output_url.trim().length > 0 && msg.videoUrl !== row.output_url) {
+          updates.videoUrl = row.output_url;
+          messageChanged = true;
+        }
+
+        if (!messageChanged) return msg;
+
+        mutated = true;
+        return { ...msg, ...updates };
+      });
+
+      return mutated ? next : prev;
+    });
+  }, []);
 
   useEffect(() => {
     const init = async () => {
@@ -164,6 +241,74 @@ export function AlfieChat() {
 
     init();
   }, []);
+
+  useEffect(() => {
+    if (!activeAssetIdsKey) return;
+
+    const assetIds = activeAssetIdsKey.split(',').filter(Boolean);
+    if (assetIds.length === 0) return;
+
+    const channels: RealtimeChannel[] = assetIds.map(assetId => {
+      const channel = supabase
+        .channel(`media_generations_${assetId}`)
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'media_generations',
+          filter: `id=eq.${assetId}`
+        }, payload => {
+          const row = payload.new as { status?: string | null; progress?: number | null; output_url?: string | null } | null;
+          if (!row) return;
+          applyMediaGenerationUpdate(assetId, row);
+        })
+        .subscribe();
+
+      return channel;
+    });
+
+    return () => {
+      channels.forEach(channel => {
+        if (channel) {
+          supabase.removeChannel(channel);
+        }
+      });
+    };
+  }, [activeAssetIdsKey, applyMediaGenerationUpdate]);
+
+  useEffect(() => {
+    if (!activeAssetIdsKey) return;
+
+    const assetIds = activeAssetIdsKey.split(',').filter(Boolean);
+    if (assetIds.length === 0) return;
+
+    let cancelled = false;
+
+    const fetchLatest = async () => {
+      const { data, error } = await supabase
+        .from('media_generations')
+        .select('id,status,progress,output_url')
+        .in('id', assetIds);
+
+      if (error || !data || cancelled) {
+        if (error) {
+          console.warn('media_generations polling error', error);
+        }
+        return;
+      }
+
+      for (const row of data as Array<{ id: string; status?: string | null; progress?: number | null; output_url?: string | null }>) {
+        applyMediaGenerationUpdate(row.id, row);
+      }
+    };
+
+    const interval = setInterval(fetchLatest, 3500);
+    fetchLatest();
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [activeAssetIdsKey, applyMediaGenerationUpdate]);
 
   // Scroll automatique avec scrollIntoView
   useEffect(() => {
@@ -445,7 +590,7 @@ export function AlfieChat() {
               aspectRatio: args.aspectRatio || '16:9',
               imageUrl: args.imageUrl,
               durationPreference: selectedDuration,
-              woofCost: durationWoofCost
+              woofCost: 2
             }
           });
 
@@ -456,14 +601,24 @@ export function AlfieChat() {
           const str = (v: unknown) => (typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined);
 
           // Compat payloads (Replicate/Kie/agrégateurs)
-          const predictionId = str((data as any).id) || str((data as any).predictionId) || str((data as any).prediction_id);
+          const predictionId =
+            str((data as any).id) ||
+            str((data as any).predictionId) ||
+            str((data as any).prediction_id);
+
           const providerRaw =
             str((data as any).provider) ||
             str((data as any).engine) ||
             ((data as any).metadata && str(((data as any).metadata as any).provider));
-          const provider = providerRaw?.toLowerCase();
 
-          const jobIdentifier = str((data as any).jobId) || str((data as any).job_id) || predictionId;
+          const provider = providerRaw?.toLowerCase(); // 'replicate' | 'kling' | 'sora' | 'seededance'...
+
+          const jobIdentifier =
+            str((data as any).jobId) ||
+            str((data as any).job_id) ||
+            str((data as any).task_id) ||
+            predictionId;
+
           const jobShortId = str((data as any).jobShortId);
 
           if (!predictionId || !provider) {
@@ -471,7 +626,7 @@ export function AlfieChat() {
             throw new Error('Réponse vidéo invalide (id prédiction ou provider manquant). Vérifie les secrets Lovable Cloud.');
           }
 
-          // Créer l'asset en DB (status processing)
+          // Créer l'asset en DB (status processing) — 2 Woofs / vidéo
           const { data: asset, error: assetError } = await supabase
             .from('media_generations')
             .insert({
@@ -481,9 +636,10 @@ export function AlfieChat() {
               engine: provider,
               status: 'processing',
               prompt: args.prompt,
-              woofs: durationWoofCost,
+              woofs: 2, // ← coût fixe demandé
               output_url: '',
-              job_id: jobIdentifier ?? null,
+              job_id: null, // HOTFIX: éviter tout cast UUID pendant la migration
+              progress: 5,
               metadata: {
                 predictionId,
                 provider: providerRaw ?? provider,
@@ -491,7 +647,7 @@ export function AlfieChat() {
                 jobShortId: jobShortId ?? null,
                 durationPreference: selectedDuration,
                 aspectRatio: args.aspectRatio || '16:9',
-                woofCost: durationWoofCost
+                woofCost: 2
               }
             })
             .select()
@@ -509,7 +665,7 @@ export function AlfieChat() {
           if (profile) {
             await supabase
               .from('profiles')
-              .update({ woofs_consumed_this_month: (profile.woofs_consumed_this_month || 0) + 1 })
+              .update({ woofs_consumed_this_month: (profile.woofs_consumed_this_month || 0) + 2 })
               .eq('id', user.id);
           }
 
@@ -521,12 +677,13 @@ export function AlfieChat() {
 
           setMessages(prev => [...prev, {
             role: 'assistant',
-            content: `🎬 Génération vidéo lancée avec ${providerName} ! (${durationWoofCost} ${durationWoofCost > 1 ? 'Woofs' : 'Woof'})\n\nJe te tiens au courant dès que c'est prêt.`,
+            content: `🎬 Génération vidéo lancée avec ${providerName} ! (2 Woofs)\n\nJe te tiens au courant dès que c'est prêt.`,
             jobId: jobIdentifier ?? predictionId,
             jobShortId,
             assetId: asset.id,
             jobStatus: 'processing' as JobStatus,
-            assetType: 'video'
+            assetType: 'video',
+            progress: 5
           }]);
 
           return { success: true, assetId: asset.id, provider };
@@ -916,7 +1073,7 @@ export function AlfieChat() {
         aspectRatio: aspect,
         imageUrl,
         durationPreference: selectedDuration,
-        woofCost: durationWoofCost
+        woofCost: 2
       });
       return;
     }
@@ -1137,7 +1294,7 @@ export function AlfieChat() {
                 onClick={() => handleSend({ forceVideo: true })}
               >
                 <Sparkles className="h-4 w-4" />
-                Générer la vidéo ({durationWoofCost} {durationWoofCost > 1 ? 'Woofs' : 'Woof'})
+                Générer la vidéo (2 Woofs)
               </Button>
             </div>
           </div>

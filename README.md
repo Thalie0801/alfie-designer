@@ -71,3 +71,24 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+## Debugging the video job hotfix locally
+
+While the database migration from UUID to text identifiers is in progress, the app writes
+`job_id: null` for new video generations. If you need to verify that your local environment is
+clean and can still build successfully, run the quick checks below:
+
+```sh
+# Ensure no merge-conflict markers remain in the tracked files
+git grep -n '<<<<<<<\|=======\|>>>>>>>' -- . ':!package-lock.json'
+
+# Install dependencies from package-lock for a deterministic build
+npm ci
+
+# Reproduce the Lovable build to catch any runtime or type errors
+npm run build
+```
+
+The build should complete without reporting TypeScript or runtime errors. If you do see the
+database still forcing UUID casts, keep the hotfix in place until the schema migration is fully
+rolled out (all `job_id` columns converted to `TEXT` and no triggers re-casting values).

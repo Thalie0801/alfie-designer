@@ -19,6 +19,7 @@ export interface LibraryAsset {
   status?: string;
   metadata?: any;
   job_id?: string;
+  progress?: number;
 }
 
 export function useLibraryAssets(userId: string | undefined, type: 'images' | 'videos') {

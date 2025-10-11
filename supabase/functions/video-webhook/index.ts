@@ -44,6 +44,65 @@ const normalizeStatus = (payload: PayloadRecord): "processing" | "completed" | "
   return "processing";
 };
 
+const clampProgress = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
+
+const coerceProgress = (value: unknown): number | undefined => {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  const scaled = value >= 0 && value <= 1 ? value * 100 : value;
+  return clampProgress(scaled);
+};
+
+const mapProgressFromStatus = (status: string | undefined): number | undefined => {
+  if (!status) return undefined;
+  const normalized = status.toLowerCase();
+
+  if (["starting", "queued", "pending"].includes(normalized)) return 10;
+  if (["running", "processing", "in_progress", "generating"].includes(normalized)) return 60;
+  if (["succeeded", "success", "completed", "ready", "finished"].includes(normalized)) return 100;
+  if (["failed", "error", "canceled", "cancelled"].includes(normalized)) return 100;
+
+  return undefined;
+};
+
+const extractProgress = (
+  payload: PayloadRecord,
+  normalizedStatus: "processing" | "completed" | "failed",
+): number | undefined => {
+  const candidates: unknown[] = [
+    (payload as Record<string, unknown>).progress,
+    (payload.data as Record<string, unknown> | undefined)?.progress,
+    (payload.metrics as Record<string, unknown> | undefined)?.progress,
+    (payload.metrics as Record<string, unknown> | undefined)?.percentage,
+  ];
+
+  for (const candidate of candidates) {
+    const coerced = coerceProgress(candidate);
+    if (typeof coerced === "number") {
+      return coerced;
+    }
+  }
+
+  const statusForMapping =
+    typeof payload.status === "string"
+      ? payload.status
+      : typeof payload.state === "string"
+        ? payload.state
+        : typeof (payload.data as Record<string, unknown> | undefined)?.status === "string"
+          ? (payload.data as Record<string, unknown>).status
+          : undefined;
+
+  const mapped = mapProgressFromStatus(statusForMapping);
+  if (typeof mapped === "number") {
+    return mapped;
+  }
+
+  if (normalizedStatus === "completed" || normalizedStatus === "failed") {
+    return 100;
+  }
+
+  return undefined;
+};
+
 const isLikelyJson = (value: string) => {
   const trimmed = value.trim();
   return (trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"));
@@ -200,6 +259,7 @@ serve(async (req) => {
     const existingMetadata = (record.metadata as Record<string, unknown> | null) ?? {};
     const normalizedStatus = normalizeStatus(payload);
     const outputUrl = extractOutputUrl(payload);
+    const derivedProgress = extractProgress(payload, normalizedStatus);
 
     const metadata: Record<string, unknown> = {
       ...existingMetadata,
@@ -218,6 +278,10 @@ serve(async (req) => {
       metadata
     };
 
+    if (typeof derivedProgress === "number") {
+      update.progress = derivedProgress;
+    }
+
     if (outputUrl) {
       update.output_url = outputUrl;
     }
@@ -225,7 +289,7 @@ serve(async (req) => {
     const { error: updateError } = await admin
       .from("media_generations")
       .update(update)
-      .eq("id", record.id);
+      .or(`job_id.eq.${id},metadata->>predictionId.eq.${id}`);
 
     if (updateError) {
       console.error("video-webhook update error", updateError);

@@ -89,7 +89,8 @@ export function JobPlaceholder({
 }: JobPlaceholderProps) {
   const config = statusConfig[status];
   const Icon = config.icon;
-  const isActive = status === 'running' || status === 'processing' || status === 'checking';
+  const isActive =
+    status === 'running' || status === 'processing' || status === 'checking' || status === 'queued';
   const canCancel = status === 'queued' || status === 'running' || status === 'processing';
   const displayShortId = shortId || `${jobId.slice(0, 4).toUpperCase()}…${jobId.slice(-4).toUpperCase()}`;
 
