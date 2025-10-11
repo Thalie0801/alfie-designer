@@ -484,7 +484,7 @@ export function AlfieChat() {
               engine: provider,
               status: 'processing',
               prompt: args.prompt,
-              woofs: 2,                  // coût métier 2 Woofs / vidéo
+              woofs: 2, // ← coût fixe demandé
               output_url: '',
               job_id: jobIdentifier ?? null,
               metadata: {
