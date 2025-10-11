@@ -653,7 +653,7 @@ export type Database = {
           brand_id: string | null
           created_at: string | null
           duration_seconds: number | null
-          engine: Database["public"]["Enums"]["video_engine"] | null
+          engine: string | null
           expires_at: string | null
           file_size_bytes: number | null
           id: string
@@ -674,7 +674,7 @@ export type Database = {
           brand_id?: string | null
           created_at?: string | null
           duration_seconds?: number | null
-          engine?: Database["public"]["Enums"]["video_engine"] | null
+          engine?: string | null
           expires_at?: string | null
           file_size_bytes?: number | null
           id?: string
@@ -695,7 +695,7 @@ export type Database = {
           brand_id?: string | null
           created_at?: string | null
           duration_seconds?: number | null
-          engine?: Database["public"]["Enums"]["video_engine"] | null
+          engine?: string | null
           expires_at?: string | null
           file_size_bytes?: number | null
           id?: string
@@ -718,13 +718,6 @@ export type Database = {
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "media_generations_job_id_fkey"
-            columns: ["job_id"]
-            isOneToOne: false
-            referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
         ]
