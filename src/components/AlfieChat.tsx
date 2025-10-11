@@ -83,8 +83,6 @@ export function AlfieChat() {
     quotaPercentage
   } = useAlfieOptimizations();
 
-  const durationWoofCost = selectedDuration === 'long' ? 3 : selectedDuration === 'medium' ? 2 : 1;
-
   useEffect(() => {
     const init = async () => {
       try {
@@ -445,7 +443,7 @@ export function AlfieChat() {
               aspectRatio: args.aspectRatio || '16:9',
               imageUrl: args.imageUrl,
               durationPreference: selectedDuration,
-              woofCost: durationWoofCost
+              woofCost: 2
             }
           });
 
@@ -456,14 +454,24 @@ export function AlfieChat() {
           const str = (v: unknown) => (typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined);
 
           // Compat payloads (Replicate/Kie/agrégateurs)
-          const predictionId = str((data as any).id) || str((data as any).predictionId) || str((data as any).prediction_id);
+          const predictionId =
+            str((data as any).id) ||
+            str((data as any).predictionId) ||
+            str((data as any).prediction_id);
+
           const providerRaw =
             str((data as any).provider) ||
             str((data as any).engine) ||
             ((data as any).metadata && str(((data as any).metadata as any).provider));
-          const provider = providerRaw?.toLowerCase();
 
-          const jobIdentifier = str((data as any).jobId) || str((data as any).job_id) || predictionId;
+          const provider = providerRaw?.toLowerCase(); // 'replicate' | 'kling' | 'sora' | 'seededance'...
+
+          const jobIdentifier =
+            str((data as any).jobId) ||
+            str((data as any).job_id) ||
+            str((data as any).task_id) ||
+            predictionId;
+
           const jobShortId = str((data as any).jobShortId);
 
           if (!predictionId || !provider) {
@@ -471,7 +479,7 @@ export function AlfieChat() {
             throw new Error('Réponse vidéo invalide (id prédiction ou provider manquant). Vérifie les secrets Lovable Cloud.');
           }
 
-          // Créer l'asset en DB (status processing)
+          // Créer l'asset en DB (status processing) — 2 Woofs / vidéo
           const { data: asset, error: assetError } = await supabase
             .from('media_generations')
             .insert({
@@ -481,9 +489,9 @@ export function AlfieChat() {
               engine: provider,
               status: 'processing',
               prompt: args.prompt,
-              woofs: durationWoofCost,
+              woofs: 2, // ← coût fixe demandé
               output_url: '',
-              job_id: jobIdentifier ?? null,
+              job_id: null, // HOTFIX: éviter tout cast UUID pendant la migration
               metadata: {
                 predictionId,
                 provider: providerRaw ?? provider,
@@ -491,7 +499,7 @@ export function AlfieChat() {
                 jobShortId: jobShortId ?? null,
                 durationPreference: selectedDuration,
                 aspectRatio: args.aspectRatio || '16:9',
-                woofCost: durationWoofCost
+                woofCost: 2
               }
             })
             .select()
@@ -509,7 +517,7 @@ export function AlfieChat() {
           if (profile) {
             await supabase
               .from('profiles')
-              .update({ woofs_consumed_this_month: (profile.woofs_consumed_this_month || 0) + 1 })
+              .update({ woofs_consumed_this_month: (profile.woofs_consumed_this_month || 0) + 2 })
               .eq('id', user.id);
           }
 
@@ -521,7 +529,7 @@ export function AlfieChat() {
 
           setMessages(prev => [...prev, {
             role: 'assistant',
-            content: `🎬 Génération vidéo lancée avec ${providerName} ! (${durationWoofCost} ${durationWoofCost > 1 ? 'Woofs' : 'Woof'})\n\nJe te tiens au courant dès que c'est prêt.`,
+            content: `🎬 Génération vidéo lancée avec ${providerName} ! (2 Woofs)\n\nJe te tiens au courant dès que c'est prêt.`,
             jobId: jobIdentifier ?? predictionId,
             jobShortId,
             assetId: asset.id,
@@ -916,7 +924,7 @@ export function AlfieChat() {
         aspectRatio: aspect,
         imageUrl,
         durationPreference: selectedDuration,
-        woofCost: durationWoofCost
+        woofCost: 2
       });
       return;
     }
@@ -1137,7 +1145,7 @@ export function AlfieChat() {
                 onClick={() => handleSend({ forceVideo: true })}
               >
                 <Sparkles className="h-4 w-4" />
-                Générer la vidéo ({durationWoofCost} {durationWoofCost > 1 ? 'Woofs' : 'Woof'})
+                Générer la vidéo (2 Woofs)
               </Button>
             </div>
           </div>
