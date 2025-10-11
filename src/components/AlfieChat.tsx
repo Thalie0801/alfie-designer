@@ -460,7 +460,7 @@ export function AlfieChat() {
             str((data as any).provider) ||
             str((data as any).engine) ||
             ((data as any).metadata && str(((data as any).metadata as any).provider));
-          const provider = providerRaw?.toLowerCase();
+          const provider = providerRaw?.toLowerCase(); // 'replicate' | 'kling' | 'sora' | 'seededance'...
 
           const jobIdentifier =
             str((data as any).jobId) ||
@@ -486,7 +486,7 @@ export function AlfieChat() {
               prompt: args.prompt,
               woofs: 2, // ← coût fixe demandé
               output_url: '',
-              job_id: jobIdentifier ?? null,
+              job_id: jobIdentifier ?? null, // ⚠️ colonne TEXT en DB
               metadata: {
                 predictionId,
                 provider: providerRaw ?? provider,
