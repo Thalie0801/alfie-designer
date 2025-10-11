@@ -457,7 +457,8 @@ export function AlfieChat() {
           const { data, error } = await supabase.functions.invoke('generate-video', {
             body: {
               prompt: args.prompt,
-              aspectRatio: args.aspectRatio || '16:9'
+              aspectRatio: args.aspectRatio || '16:9',
+              imageUrl: args.imageUrl
             }
           });
           
@@ -635,6 +636,10 @@ export function AlfieChat() {
 
   const wantsImageFromText = (text: string): boolean => {
     return /(image|visuel|carrousel|carousel|affiche|flyer)/i.test(text);
+  };
+
+  const wantsVideoFromText = (text: string): boolean => {
+    return /(vid[ée]o|reel|reels|tiktok|story|anime|animation|clip)/i.test(text);
   };
 
   const streamChat = async (userMessage: string) => {
@@ -872,6 +877,13 @@ export function AlfieChat() {
     if (wantsImageFromText(userMessage)) {
       const aspect = detectAspectRatioFromText(userMessage);
       await handleToolCall('generate_image', { prompt: userMessage, aspect_ratio: aspect });
+      return;
+    }
+
+    // 2.6 Fallback local: si l'utilisateur demande clairement une vidéo, lance la génération directe
+    if (wantsVideoFromText(userMessage)) {
+      const aspect = detectAspectRatioFromText(userMessage);
+      await handleToolCall('generate_video', { prompt: userMessage, aspectRatio: aspect, imageUrl });
       return;
     }
 

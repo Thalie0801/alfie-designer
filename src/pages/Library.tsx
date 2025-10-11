@@ -9,6 +9,8 @@ import { AssetCard } from '@/components/library/AssetCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { VideoDiagnostic } from '@/components/VideoDiagnostic';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 export default function Library() {
   const { user } = useAuth();
@@ -73,6 +75,41 @@ export default function Library() {
     return days;
   };
 
+  const handleDebugGenerate = async () => {
+    if (!user?.id) {
+      toast.error('Vous devez être connecté.');
+      return;
+    }
+    const prompt = 'Golden retriever in a playful Halloween scene, cinematic';
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-video', {
+        body: { prompt, aspectRatio: '9:16' }
+      });
+      if (error || data?.error) {
+        const msg = (error as any)?.message || data?.error || 'Erreur inconnue';
+        toast.error(`Échec génération: ${msg}`);
+        return;
+      }
+      const { id, provider } = data;
+      await supabase
+        .from('media_generations')
+        .insert({
+          user_id: user.id,
+          type: 'video',
+          engine: provider,
+          status: 'processing',
+          prompt,
+          woofs: 1,
+          output_url: '',
+          metadata: { predictionId: id, provider }
+        });
+      toast.success(`Génération vidéo lancée (${provider})`);
+    } catch (e: any) {
+      console.error('Debug generate error:', e);
+      toast.error(e.message || 'Erreur lors du lancement');
+    }
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
@@ -110,14 +147,23 @@ export default function Library() {
           </div>
 
           {activeTab === 'videos' && (
-            <Button 
-              size="sm" 
-              variant="outline"
-              onClick={cleanupProcessingVideos}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Nettoyer les vidéos bloquées
-            </Button>
+            <>
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={cleanupProcessingVideos}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Nettoyer les vidéos bloquées
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleDebugGenerate}
+              >
+                Génération vidéo (debug)
+              </Button>
+            </>
           )}
 
           {selectedAssets.length > 0 && (
