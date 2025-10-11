@@ -473,17 +473,36 @@ export function AlfieChat() {
             throw new Error(data.error);
           }
 
-          const predictionId = typeof data?.id === 'string' ? data.id : undefined;
-          const rawProvider = typeof data?.provider === 'string' ? data.provider : undefined;
-          const provider = rawProvider === 'sora' || rawProvider === 'seededance' || rawProvider === 'kling'
-            ? rawProvider
-            : undefined;
+          const predictionId = typeof data?.id === 'string' && data.id.trim().length > 0
+            ? data.id.trim()
+            : (typeof data?.predictionId === 'string' && data.predictionId.trim().length > 0
+              ? data.predictionId.trim()
+              : undefined);
+
+          const candidateProvider = (() => {
+            if (typeof data?.provider === 'string' && data.provider.trim().length > 0) {
+              return data.provider.trim();
+            }
+            if (typeof data?.engine === 'string' && data.engine.trim().length > 0) {
+              return data.engine.trim();
+            }
+            const metadataProvider = typeof data?.metadata?.provider === 'string' && data.metadata.provider.trim().length > 0
+              ? data.metadata.provider.trim()
+              : undefined;
+            if (metadataProvider) {
+              return metadataProvider;
+            }
+            return undefined;
+          })();
+
+          const providerRaw = candidateProvider ?? undefined;
+          const provider = providerRaw ? providerRaw.toLowerCase() : undefined;
           const jobIdentifier = typeof data?.jobId === 'string' && data.jobId.trim().length > 0 ? data.jobId : undefined;
           const jobShortId = typeof data?.jobShortId === 'string' && data.jobShortId.trim().length > 0 ? data.jobShortId : undefined;
 
           if (!predictionId || !provider) {
             console.error('❌ [generate_video] Invalid response payload:', data);
-            throw new Error('Réponse vidéo invalide (id ou provider manquant)');
+            throw new Error('Réponse vidéo invalide (identifiant ou fournisseur manquant). Vérifie les secrets Lovable Cloud.');
           }
 
           if (!jobIdentifier) {
@@ -509,7 +528,7 @@ export function AlfieChat() {
               job_id: jobIdentifier ?? null,
               metadata: {
                 predictionId,
-                provider,
+                provider: providerRaw ?? provider,
                 jobId: jobIdentifier ?? null,
                 jobShortId: jobShortId ?? null
               }

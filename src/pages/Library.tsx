@@ -90,16 +90,33 @@ export default function Library() {
         toast.error(`Échec génération: ${msg}`);
         return;
       }
-      const predictionId = typeof data?.id === 'string' ? data.id : undefined;
-      const rawProvider = typeof data?.provider === 'string' ? data.provider : undefined;
-      const provider = rawProvider === 'sora' || rawProvider === 'seededance' || rawProvider === 'kling'
-        ? rawProvider
-        : undefined;
+      const predictionId = typeof data?.id === 'string' && data.id.trim().length > 0
+        ? data.id.trim()
+        : (typeof data?.predictionId === 'string' && data.predictionId.trim().length > 0
+          ? data.predictionId.trim()
+          : undefined);
+      const providerCandidate = (() => {
+        if (typeof data?.provider === 'string' && data.provider.trim().length > 0) {
+          return data.provider.trim();
+        }
+        if (typeof data?.engine === 'string' && data.engine.trim().length > 0) {
+          return data.engine.trim();
+        }
+        const metadataProvider = typeof data?.metadata?.provider === 'string' && data.metadata.provider.trim().length > 0
+          ? data.metadata.provider.trim()
+          : undefined;
+        if (metadataProvider) {
+          return metadataProvider;
+        }
+        return undefined;
+      })();
+      const providerRaw = providerCandidate ?? undefined;
+      const provider = providerRaw ? providerRaw.toLowerCase() : undefined;
       const jobId = typeof data?.jobId === 'string' && data.jobId.trim().length > 0 ? data.jobId : undefined;
       const jobShortId = typeof data?.jobShortId === 'string' && data.jobShortId.trim().length > 0 ? data.jobShortId : undefined;
 
       if (!predictionId || !provider) {
-        toast.error('Réponse invalide du backend (id ou provider manquant)');
+        toast.error("Réponse invalide du backend (identifiant ou fournisseur manquant). Vérifie les secrets Lovable Cloud.");
         return;
       }
 
@@ -117,7 +134,7 @@ export default function Library() {
           woofs: 1,
           output_url: '',
           job_id: jobId ?? null,
-          metadata: { predictionId, provider, jobId: jobId ?? null, jobShortId: jobShortId ?? null }
+          metadata: { predictionId, provider: providerRaw ?? provider, jobId: jobId ?? null, jobShortId: jobShortId ?? null }
         });
       toast.success(`Génération vidéo lancée (${provider})`);
     } catch (e: any) {
