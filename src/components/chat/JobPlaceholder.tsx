@@ -8,7 +8,7 @@ export type JobStatus = 'queued' | 'running' | 'checking' | 'ready' | 'failed' |
 
 interface JobPlaceholderProps {
   jobId: string;
-  shortId: string;
+  shortId?: string;
   status: JobStatus;
   progress?: number;
   type: 'image' | 'video';
@@ -54,18 +54,19 @@ const statusConfig = {
   }
 };
 
-export function JobPlaceholder({ 
-  jobId, 
-  shortId, 
-  status, 
+export function JobPlaceholder({
+  jobId,
+  shortId,
+  status,
   progress = 0,
   type,
-  onCancel 
+  onCancel
 }: JobPlaceholderProps) {
   const config = statusConfig[status];
   const Icon = config.icon;
   const isActive = status === 'running' || status === 'checking';
   const canCancel = status === 'queued' || status === 'running';
+  const displayShortId = shortId || `${jobId.slice(0, 4).toUpperCase()}…${jobId.slice(-4).toUpperCase()}`;
 
   return (
     <Card className={`${config.bgColor} border-2`}>
@@ -78,7 +79,7 @@ export function JobPlaceholder({
             {type === 'video' ? 'Vidéo' : 'Image'} en cours…
           </CardTitle>
           <Badge variant="outline" className="text-xs">
-            {shortId}
+            {displayShortId}
           </Badge>
         </div>
       </CardHeader>
