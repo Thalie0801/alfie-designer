@@ -28,6 +28,7 @@ interface Message {
   videoUrl?: string;
   created_at?: string;
   jobId?: string;
+  jobShortId?: string;
   jobStatus?: JobStatus;
   progress?: number;
   assetId?: string;
@@ -471,10 +472,28 @@ export function AlfieChat() {
             console.error('Provider error:', data.error);
             throw new Error(data.error);
           }
-          
-          const { id, provider } = data;
-          console.log(`✅ [generate_video] Started with provider: ${provider}, ID: ${id}`);
-          
+
+          const predictionId = typeof data?.id === 'string' ? data.id : undefined;
+          const rawProvider = typeof data?.provider === 'string' ? data.provider : undefined;
+          const provider = rawProvider === 'sora' || rawProvider === 'seededance' || rawProvider === 'kling'
+            ? rawProvider
+            : undefined;
+          const jobIdentifier = typeof data?.jobId === 'string' && data.jobId.trim().length > 0 ? data.jobId : undefined;
+          const jobShortId = typeof data?.jobShortId === 'string' && data.jobShortId.trim().length > 0 ? data.jobShortId : undefined;
+
+          if (!predictionId || !provider) {
+            console.error('❌ [generate_video] Invalid response payload:', data);
+            throw new Error('Réponse vidéo invalide (id ou provider manquant)');
+          }
+
+          if (!jobIdentifier) {
+            console.warn('⚠️ [generate_video] Job tracking unavailable, falling back to prediction id only', data);
+          }
+
+          const placeholderJobId = jobIdentifier ?? predictionId;
+
+          console.log(`✅ [generate_video] Started with provider: ${provider}, prediction: ${predictionId}, job: ${placeholderJobId}`);
+
           // Créer l'asset dans la DB
           const { data: asset, error: assetError } = await supabase
             .from('media_generations')
@@ -487,22 +506,30 @@ export function AlfieChat() {
               prompt: args.prompt,
               woofs: 1,
               output_url: '', // sera mis à jour quand prêt
-              metadata: { predictionId: id, provider }
+              job_id: jobIdentifier ?? null,
+              metadata: {
+                predictionId,
+                provider,
+                jobId: jobIdentifier ?? null,
+                jobShortId: jobShortId ?? null
+              }
             })
             .select()
             .single();
-          
+
           if (assetError) throw assetError;
-          
+
           // Message de confirmation
           const providerName = provider === 'sora' ? 'Sora2' : provider === 'seededance' ? 'Seededance' : 'Kling';
           setMessages(prev => [...prev, {
             role: 'assistant',
             content: `🎬 Génération vidéo lancée avec ${providerName} ! (1 Woof)\n\nJe te tiens au courant dès que c'est prêt.`,
-            jobId: asset.id,
+            jobId: placeholderJobId,
+            jobShortId,
+            assetId: asset.id,
             jobStatus: 'processing' as JobStatus
           }]);
-          
+
           return { success: true, assetId: asset.id, provider };
           
         } catch (error: any) {
@@ -934,7 +961,7 @@ export function AlfieChat() {
 {message.jobId ? (
   <JobPlaceholder
     jobId={message.jobId}
-    shortId={message.jobId.slice(-6).toUpperCase()}
+    shortId={message.jobShortId}
     status={message.jobStatus || 'running'}
     progress={message.progress}
     type={message.assetType === 'image' ? 'image' : 'video'}

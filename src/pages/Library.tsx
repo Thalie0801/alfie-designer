@@ -90,7 +90,22 @@ export default function Library() {
         toast.error(`Échec génération: ${msg}`);
         return;
       }
-      const { id, provider } = data;
+      const predictionId = typeof data?.id === 'string' ? data.id : undefined;
+      const rawProvider = typeof data?.provider === 'string' ? data.provider : undefined;
+      const provider = rawProvider === 'sora' || rawProvider === 'seededance' || rawProvider === 'kling'
+        ? rawProvider
+        : undefined;
+      const jobId = typeof data?.jobId === 'string' && data.jobId.trim().length > 0 ? data.jobId : undefined;
+      const jobShortId = typeof data?.jobShortId === 'string' && data.jobShortId.trim().length > 0 ? data.jobShortId : undefined;
+
+      if (!predictionId || !provider) {
+        toast.error('Réponse invalide du backend (id ou provider manquant)');
+        return;
+      }
+
+      if (!jobId) {
+        toast.info('Génération vidéo lancée (suivi job indisponible)');
+      }
       await supabase
         .from('media_generations')
         .insert({
@@ -101,7 +116,8 @@ export default function Library() {
           prompt,
           woofs: 1,
           output_url: '',
-          metadata: { predictionId: id, provider }
+          job_id: jobId ?? null,
+          metadata: { predictionId, provider, jobId: jobId ?? null, jobShortId: jobShortId ?? null }
         });
       toast.success(`Génération vidéo lancée (${provider})`);
     } catch (e: any) {
