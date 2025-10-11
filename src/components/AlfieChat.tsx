@@ -489,11 +489,9 @@ export function AlfieChat() {
               engine: provider,
               status: 'processing',
               prompt: args.prompt,
-             woofs: 2, // ← coût fixe demandé
-output_url: '',
-job_id: null, // HOTFIX: éviter tout cast UUID pendant la migration
-metadata: {
-
+              woofs: 2, // ← coût fixe demandé
+              output_url: '',
+              job_id: null, // HOTFIX: éviter tout cast UUID pendant la migration
               metadata: {
                 predictionId,
                 provider: providerRaw ?? provider,
