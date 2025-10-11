@@ -4,7 +4,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar } from '@/components/ui/avatar';
-import { Send, Sparkles, Zap, Palette, AlertCircle, ImagePlus, X, Download } from 'lucide-react';
+import { Send, Sparkles, ImagePlus, X, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import alfieMain from '@/assets/alfie-main.png';
 import { useBrandKit } from '@/hooks/useBrandKit';
@@ -14,7 +14,6 @@ import { useAlfieOptimizations } from '@/hooks/useAlfieOptimizations';
 import { openInCanva } from '@/services/canvaLinker';
 import { supabase } from '@/integrations/supabase/client';
 import { detectIntent, canHandleLocally, generateLocalResponse } from '@/utils/alfieIntentDetector';
-import { Progress } from '@/components/ui/progress';
 import { getQuotaStatus, consumeQuota, canGenerateVideo, checkQuotaAlert, formatExpirationMessage } from '@/utils/quotaManager';
 import { routeVideoEngine, estimateVideoDuration, detectVideoStyle } from '@/utils/videoRouting';
 import { JobPlaceholder, JobStatus } from '@/components/chat/JobPlaceholder';
@@ -436,11 +435,67 @@ export function AlfieChat() {
       case 'generate_video': {
         try {
           console.log('🎬 [generate_video] Starting with args:', args);
-          
+
           const { data: { user } } = await supabase.auth.getUser();
           if (!user) throw new Error("Not authenticated");
-          
-          // Décrémenter les Woofs (coût unifié = 1 Woof)
+
+          // Appel backend (Edge Function)
+          const { data, error } = await supabase.functions.invoke('generate-video', {
+            body: {
+              prompt: args.prompt,
+              aspectRatio: args.aspectRatio || '16:9',
+              imageUrl: args.imageUrl
+            }
+          });
+
+          if (error) throw new Error(error.message || 'Erreur backend');
+          if (!data) throw new Error('Payload backend vide');
+
+          // Helpers pour typer proprement des champs "souvent pas propres"
+          const str = (v: unknown) => (typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined);
+
+          // Compat payloads (Replicate/Kie/agrégateurs)
+          const predictionId = str((data as any).id) || str((data as any).predictionId) || str((data as any).prediction_id);
+          const providerRaw =
+            str((data as any).provider) ||
+            str((data as any).engine) ||
+            ((data as any).metadata && str(((data as any).metadata as any).provider));
+          const provider = providerRaw?.toLowerCase();
+
+          const jobIdentifier = str((data as any).jobId) || str((data as any).job_id) || predictionId;
+          const jobShortId = str((data as any).jobShortId);
+
+          if (!predictionId || !provider) {
+            console.error('❌ [generate_video] Invalid response payload:', data);
+            throw new Error('Réponse vidéo invalide (id prédiction ou provider manquant). Vérifie les secrets Lovable Cloud.');
+          }
+
+          // Créer l'asset en DB (status processing)
+          const { data: asset, error: assetError } = await supabase
+            .from('media_generations')
+            .insert({
+              user_id: user.id,
+              brand_id: activeBrandId,
+              type: 'video',
+              engine: provider,
+              status: 'processing',
+              prompt: args.prompt,
+              woofs: 1,
+              output_url: '',
+              job_id: jobIdentifier ?? null,
+              metadata: {
+                predictionId,
+                provider: providerRaw ?? provider,
+                jobId: jobIdentifier ?? null,
+                jobShortId: jobShortId ?? null
+              }
+            })
+            .select()
+            .single();
+
+          if (assetError) throw assetError;
+
+          // ✅ Décrémenter les Woofs seulement après le start réussi
           const { data: profile } = await supabase
             .from('profiles')
             .select('woofs_consumed_this_month')
@@ -453,70 +508,23 @@ export function AlfieChat() {
               .update({ woofs_consumed_this_month: (profile.woofs_consumed_this_month || 0) + 1 })
               .eq('id', user.id);
           }
-          
-          // Appeler l'edge function avec fallback automatique
-          const { data, error } = await supabase.functions.invoke('generate-video', {
-            body: {
-              prompt: args.prompt,
-              aspectRatio: args.aspectRatio || '16:9',
-              imageUrl: args.imageUrl
-            }
-          });
-          
-          if (error) {
-            console.error('Edge function error:', error);
-            throw new Error(error.message || 'Erreur backend');
-          }
 
-          if (data?.error) {
-            console.error('Provider error:', data.error);
-            throw new Error(data.error);
-          }
+          const providerName =
+            provider === 'sora' ? 'Sora2'
+            : provider === 'seededance' ? 'Seededance'
+            : provider === 'kling' ? 'Kling'
+            : provider;
 
-          const predictionId = data?.id as string | undefined;
-          const provider = data?.provider as 'sora' | 'seededance' | 'kling' | undefined;
-          const jobIdentifier = data?.jobId as string | undefined;
-          const jobShortId = data?.jobShortId as string | undefined;
-
-          if (!predictionId || !provider || !jobIdentifier) {
-            throw new Error('Réponse vidéo invalide (id ou job manquant)');
-          }
-
-          console.log(`✅ [generate_video] Started with provider: ${provider}, prediction: ${predictionId}, job: ${jobIdentifier}`);
-
-          // Créer l'asset dans la DB
-          const { data: asset, error: assetError } = await supabase
-            .from('media_generations')
-            .insert({
-              user_id: user.id,
-              brand_id: activeBrandId,
-              type: 'video',
-              engine: provider,
-              status: 'processing',
-              prompt: args.prompt,
-              woofs: 1,
-              output_url: '', // sera mis à jour quand prêt
-              job_id: jobIdentifier,
-              metadata: { predictionId, provider, jobId: jobIdentifier, jobShortId }
-            })
-            .select()
-            .single();
-          
-          if (assetError) throw assetError;
-          
-          // Message de confirmation
-          const providerName = provider === 'sora' ? 'Sora2' : provider === 'seededance' ? 'Seededance' : 'Kling';
           setMessages(prev => [...prev, {
             role: 'assistant',
             content: `🎬 Génération vidéo lancée avec ${providerName} ! (1 Woof)\n\nJe te tiens au courant dès que c'est prêt.`,
-            jobId: jobIdentifier,
+            jobId: jobIdentifier ?? predictionId,
             jobShortId,
             assetId: asset.id,
             jobStatus: 'processing' as JobStatus
           }]);
 
           return { success: true, assetId: asset.id, provider };
-          
         } catch (error: any) {
           console.error('[generate_video] Error:', error);
           const errorMessage = error?.message || "Erreur inconnue";
@@ -650,8 +658,8 @@ export function AlfieChat() {
     return /(image|visuel|carrousel|carousel|affiche|flyer)/i.test(text);
   };
 
-  const wantsVideoFromText = (text: string): boolean => {
-    return /(vid[ée]o|reel|reels|tiktok|story|anime|animation|clip)/i.test(text);
+  const wantsVideoFromText = (t: string): boolean => {
+    return /(vid[ée]o|video|reel|reels|tiktok|story|anime|animation|clip)/i.test(t);
   };
 
   const streamChat = async (userMessage: string) => {
