@@ -484,7 +484,7 @@ export function AlfieChat() {
               engine: provider,
               status: 'processing',
               prompt: args.prompt,
-              woofs: 2,
+              woofs: 2,                  // coût métier 2 Woofs / vidéo
               output_url: '',
               job_id: jobIdentifier ?? null,
               metadata: {
@@ -539,7 +539,7 @@ export function AlfieChat() {
           toast.error(`Échec génération vidéo: ${errorMessage}`);
           setMessages(prev => [...prev, {
             role: 'assistant',
-            content: `❌ Erreur vidéo: ${errorMessage}\n\nVérifie les logs et les secrets backend (KIE_AI_API_KEY, REPLICATE_API_TOKEN).`
+            content: `❌ Erreur vidéo: ${errorMessage}\n\nVérifie les logs et les secrets backend (KIE_API_KEY, REPLICATE_API_TOKEN).`
           }]);
           return { error: errorMessage };
         }
