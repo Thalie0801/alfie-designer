@@ -44,11 +44,16 @@ export function useLibraryAssets(userId: string | undefined, type: 'images' | 'v
 
       // Vérifier et débloquer les vidéos "processing" (si prédiction connue)
       if (type === 'videos' && data && data.length > 0) {
-        const processing = (data as any[]).filter(a => a.type === 'video' && ((a.status === 'processing') || !a.output_url) && a.metadata?.predictionId);
+        const processing = (data as any[]).filter(
+          a => a.type === 'video' && ((a.status === 'processing') || !a.output_url)
+        );
         for (const a of processing) {
+          const genId = a.metadata?.predictionId || a.metadata?.id;
+          const provider = a.engine || a.metadata?.provider || 'sora';
+          if (!genId) continue;
           try {
             const { data: statusData, error: statusError } = await supabase.functions.invoke('generate-video', {
-              body: { generationId: a.metadata.predictionId }
+              body: { generationId: genId, provider }
             });
             if (!statusError && statusData?.status === 'succeeded') {
               const videoUrl = Array.isArray(statusData.output) ? statusData.output[0] : statusData.output;

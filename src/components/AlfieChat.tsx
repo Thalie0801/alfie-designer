@@ -481,12 +481,12 @@ export function AlfieChat() {
               user_id: user.id,
               brand_id: activeBrandId,
               type: 'video',
-              generation_id: id,
               engine: provider,
               status: 'processing',
               prompt: args.prompt,
               woofs: 1,
-              output_url: '' // Will be updated when complete
+              output_url: '', // sera mis à jour quand prêt
+              metadata: { predictionId: id, provider }
             })
             .select()
             .single();
