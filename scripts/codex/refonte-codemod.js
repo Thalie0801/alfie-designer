@@ -26,11 +26,16 @@ module.exports = function (fileInfo, api, options) {
 
   // 3) Remplacer appels à publishToSocial(...) par une erreur explicite (V1)
   root.find(j.CallExpression, { callee: { type: 'Identifier', name: /^(publishToSocial|autoPublish|schedulePost)$/ } })
-    .replaceWith(() =>
-      j.throwStatement(
+    .replaceWith(() => {
+      const throwStatement = j.throwStatement(
         j.newExpression(j.Identifier('Error'), [j.literal('Auto publication désactivée en V1 (livraison PULL uniquement).')])
-      )
-    );
+      );
+
+      return j.callExpression(
+        j.functionExpression(null, [], j.blockStatement([throwStatement])),
+        []
+      );
+    });
 
   // 4) Alias génériques 'push'→'pull' dans string literals quand lié à Canva/publication
   root.find(j.Literal).forEach(p => {
