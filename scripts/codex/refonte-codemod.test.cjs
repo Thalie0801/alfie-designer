@@ -7,13 +7,17 @@ let hasJscodeshift = true;
 
 try {
   ({ applyTransform } = require('jscodeshift/src/testUtils'));
-  transform = require('./refonte-codemod');
 } catch (error) {
-  hasJscodeshift = false;
-  test('codemod regression suite skipped (jscodeshift indisponible)', { skip: true }, () => {});
+  if (error && error.code === 'MODULE_NOT_FOUND' && error.message.includes("'jscodeshift")) {
+    hasJscodeshift = false;
+    test('codemod regression suite skipped (jscodeshift indisponible)', { skip: true }, () => {});
+  } else {
+    throw error;
+  }
 }
 
 if (hasJscodeshift) {
+  transform = require('./refonte-codemod');
   function run(source) {
     return applyTransform({ parser: 'ts', transform }, null, { source });
   }
