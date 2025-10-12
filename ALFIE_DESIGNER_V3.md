@@ -53,6 +53,7 @@ Ces principes doivent être rappelés dans l’interface, la documentation clien
 - Marque supplémentaire +39 €/mois ; Packs Woofs (+5/+10) ; Stockage 90 j +9 €/marque.
 - Comptage : chaque image IA = 1 quota, carrousels comptent les visuels IA, reels = 1 export, Woofs jamais consommés sans confirmation.
 - Compteurs décrémentés **à la livraison** uniquement. Alerte à 80 % (in-app + email).
+- Les quotas sont suivis par Brand Kit pour distinguer les consommations multi-marques et appliquer les add-ons correspondants.
 
 ---
 
@@ -77,10 +78,11 @@ Content-Type: application/json
   "brief": "texte libre",
   "brandKitId": "bk_123",
   "assets": ["s3://bucket/img1.png"],
-  "route": "template|ia|auto",
-  "planId": "starter|pro|studio"
+  "route": "template|ia|auto"
 }
 ```
+
+Le plan actif est déterminé par le backend via le contexte d'authentification (compte + marque) et n'est jamais accepté tel quel depuis le payload client.
 
 ### 5.2 Routage
 - Si `assets` ≥ 1 :
@@ -170,7 +172,7 @@ Job {
 }
 
 Quota {
-  userId: string
+  brandKitId: string
   plan: 'starter'|'pro'|'studio'
   imagesRemaining: number
   reelsRemaining: number
