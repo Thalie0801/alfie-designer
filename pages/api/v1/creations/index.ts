@@ -3,15 +3,17 @@ import { randomUUID } from 'node:crypto';
 import { getSb } from '../../../../lib/refonte/db';
 import flags from '../../../../config/feature_flags.json';
 import carouselPolicy from '../../../../config/carousel_policy.json';
+import { clampCharts, type ChartSpec } from '../../../../lib/refonte/infographics';
 
 type CreatePayload = {
-  format: 'image' | 'carousel' | 'reel';
+  format: 'image' | 'carousel' | 'reel' | 'infographic';
   objective?: string;
   styleChoice: 'template_canva' | 'ia';
   brandId: string;
   brandKitId?: string;
   assets?: string[];
   premiumT2VRequested?: boolean;
+  infographics?: ChartSpec[]; // données optionnelles (sans KPI pour l'instant)
 };
 
 type DeliverableInsert = {
@@ -31,8 +33,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const body: CreatePayload = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-  const { format, objective, styleChoice, brandId, premiumT2VRequested = false } = body ?? ({} as CreatePayload);
-  const allowedFormats: CreatePayload['format'][] = ['image', 'carousel', 'reel'];
+  const { format, objective, styleChoice, brandId, premiumT2VRequested = false } = body ??
+    ({} as CreatePayload);
+  const allowedFormats: CreatePayload['format'][] = ['image', 'carousel', 'reel', 'infographic'];
   const allowedStyles: CreatePayload['styleChoice'][] = ['template_canva', 'ia'];
 
   if (!format || !allowedFormats.includes(format)) {
@@ -57,6 +60,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     meta.templateFirst = Boolean(
       (flags.carousel_template_first as boolean | undefined) ?? carouselPolicy.template_first
     );
+  } else if (format === 'infographic') {
+    const charts = clampCharts(body?.infographics, ['bar', 'pie', 'line', 'timeline'], 1);
+    meta.kind = 'infographic';
+    meta.locale = 'fr-FR';
+    meta.charts = charts;
   }
 
   const id = randomUUID();
