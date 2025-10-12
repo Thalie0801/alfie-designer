@@ -1,0 +1,10 @@
+{
+  "locale": "fr-FR",
+  "slides_default": 5,
+  "min_slides": 4,
+  "max_slides": 6,
+  "forbid_grids": true,
+  "text_overlay_only": true,
+  "max_title_chars": 55,
+  "template_first": true
+}

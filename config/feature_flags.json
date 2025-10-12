@@ -4,5 +4,9 @@
   "canva_pull_enforced": true,
   "social_posting_disabled": true,
   "push_canva_disabled": true,
-  "auto_social_publish_disabled": true
+  "auto_social_publish_disabled": true,
+  "carousel_template_first": true,
+  "default_locale": "fr-FR",
+  "ban_collage_grids": true,
+  "suppress_text_in_images": true
 }

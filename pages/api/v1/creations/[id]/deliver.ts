@@ -1,6 +1,29 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSb } from '../../../../../lib/refonte/db';
 import { buildStructuredZip } from '../../../../../lib/refonte/zip';
+import { multiSlideOk, type CarouselMeta } from '../../../../../lib/refonte/carousel_guard';
+
+type DeliverableRow = {
+  brand_id: string;
+  format: 'image' | 'carousel' | 'reel';
+  objective: string | null;
+  canva_link: string | null;
+  zip_url: string | null;
+  status: string;
+  meta: Record<string, unknown> | null;
+  brand: { name: string | null } | null;
+};
+
+function asCarouselMeta(meta: DeliverableRow['meta']): CarouselMeta {
+  if (meta && typeof meta === 'object') {
+    const candidate = meta as CarouselMeta;
+    return {
+      ...candidate,
+      slides: Array.isArray(candidate.slides) ? [...candidate.slides] : []
+    };
+  }
+  return {};
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -14,18 +37,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const supabase = getSb();
-  type DeliverableRow = {
-    brand_id: string;
-    format: 'image' | 'carousel' | 'reel';
-    objective: string | null;
-    canva_link: string | null;
-    zip_url: string | null;
-    status: string;
-    brand: { name: string | null } | null;
-  };
   const deliverable = await supabase
     .from('deliverable')
-    .select<DeliverableRow>('brand_id, format, objective, canva_link, zip_url, status, brand:brand_id(name)')
+    .select<DeliverableRow>(
+      'brand_id, format, objective, canva_link, zip_url, status, meta, brand:brand_id(name)'
+    )
     .eq('id', id)
     .maybeSingle();
 
@@ -34,6 +50,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const row = deliverable.data;
+  const meta = asCarouselMeta(row.meta);
+
+  if (row.format === 'carousel') {
+    const check = multiSlideOk(meta);
+    if (!check.ok) {
+      return res
+        .status(409)
+        .json({ error: 'not_multislide', expected: check.expected, actual: check.actual });
+    }
+  }
 
   if (!row.zip_url && row.status === 'ready') {
     const { zipPath } = await buildStructuredZip({
@@ -41,7 +67,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       format: row.format,
       title: row.objective ?? 'Livrable',
       assetFiles: [],
-      exportFiles: [],
+      exportFiles: meta.slides ?? [],
       meta: { altTexts: {}, captions: [] }
     });
 
