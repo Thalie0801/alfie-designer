@@ -151,6 +151,49 @@ serve(async (req) => {
       const jobId = body.jobId as string | undefined;
       console.log(`Checking video generation status for ${provider}:`, body.generationId);
 
+      if (!token) {
+        return new Response(JSON.stringify({ error: "Authentification requise." }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (!jobId) {
+        return new Response(JSON.stringify({ error: "JobId requis pour vérifier le statut." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(token);
+
+      if (authError || !authData?.user) {
+        console.error("❌ [Auth] Invalid session for status polling:", authError);
+        return new Response(JSON.stringify({ error: "Session invalide." }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: jobRecord, error: jobFetchError } = await supabaseAdmin
+        .from("jobs")
+        .select("id")
+        .eq("id", jobId)
+        .eq("user_id", authData.user.id)
+        .single();
+
+      if (jobFetchError || !jobRecord) {
+        console.error("❌ [Jobs] Job not found for user:", {
+          jobFetchError,
+          jobId,
+          userId: authData.user.id,
+        });
+        return new Response(JSON.stringify({ error: "Job introuvable." }), {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       if (provider === "sora") {
         // Kie AI recordInfo endpoint
         const statusResponse = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${body.generationId}`, {
@@ -217,7 +260,8 @@ serve(async (req) => {
           await supabaseAdmin
             .from("jobs")
             .update(jobUpdate)
-            .eq("id", jobId);
+            .eq("id", jobId)
+            .eq("user_id", authData.user.id);
         }
 
         return new Response(JSON.stringify(finalResponse), {
@@ -279,7 +323,8 @@ serve(async (req) => {
           await supabaseAdmin
             .from("jobs")
             .update(jobUpdate)
-            .eq("id", jobId);
+            .eq("id", jobId)
+            .eq("user_id", authData.user.id);
 
           if (videoOutput && jobStatus === "ready") {
             await supabaseAdmin
@@ -288,7 +333,8 @@ serve(async (req) => {
                 status: "completed",
                 output_url: videoOutput,
               })
-              .eq("job_id", jobId);
+              .eq("job_id", jobId)
+              .eq("user_id", authData.user.id);
           }
         }
 
