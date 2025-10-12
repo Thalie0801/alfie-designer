@@ -1,4 +1,4 @@
-name: Guard — No Landing Changes
+- name: "Guard: No landing changes"
 
 on:
   pull_request:
