@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { randomUUID } from 'node:crypto';
-import { q, yyyymm } from '../../../../../lib/refonte/db';
+import { getSb, yyyymm } from '../../../../../lib/refonte/db';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -13,25 +13,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'invalid_id' });
   }
 
-  const deliverable = await q<{ brand_id: string; status: string }>(
-    'SELECT brand_id, status FROM deliverable WHERE id = $1',
-    [id]
-  );
-  if (!deliverable.rowCount) {
+  const supabase = getSb();
+  const deliverable = await supabase
+    .from('deliverable')
+    .select<{ brand_id: string; status: string }>('brand_id, status')
+    .eq('id', id)
+    .maybeSingle();
+  if (deliverable.error || !deliverable.data) {
     return res.status(404).json({ error: 'not_found' });
   }
 
-  const { brand_id: brandId, status } = deliverable.rows[0];
+  const { brand_id: brandId, status } = deliverable.data;
   if (status !== 'awaiting_premium_confirmation') {
     return res.status(409).json({ error: 'not_awaiting_confirmation' });
   }
 
-  await q('SELECT increment_counters($1, $2, $3, $4)', [brandId, 0, 0, 1]);
-  await q(
-    'INSERT INTO usage_event(id, brand_id, deliverable_id, kind, meta) VALUES ($1, $2, $3, $4, $5)',
-    [randomUUID(), brandId, id, 'premium_t2v', JSON.stringify({ period: yyyymm() })]
-  );
-  await q("UPDATE deliverable SET status = 'queued' WHERE id = $1", [id]);
+  await supabase.rpc('increment_counters', {
+    p_brand: brandId,
+    d_images: 0,
+    d_reels: 0,
+    d_woofs: 1
+  });
+  await supabase.from('usage_event').insert({
+    id: randomUUID(),
+    brand_id: brandId,
+    deliverable_id: id,
+    kind: 'premium_t2v',
+    meta: { period: yyyymm() }
+  });
+  await supabase.from('deliverable').update({ status: 'queued' }).eq('id', id);
 
   return res.json({ ok: true, status: 'queued' });
 }

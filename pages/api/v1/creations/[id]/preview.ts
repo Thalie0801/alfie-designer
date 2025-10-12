@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { q } from '../../../../../lib/refonte/db';
+import { getSb } from '../../../../../lib/refonte/db';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -12,10 +12,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'invalid_id' });
   }
 
-  const record = await q('SELECT status, preview_url FROM deliverable WHERE id = $1', [id]);
-  if (!record.rowCount) {
+  const supabase = getSb();
+  const { data, error } = await supabase
+    .from('deliverable')
+    .select<{ status: string; preview_url: string | null }>('status, preview_url')
+    .eq('id', id)
+    .maybeSingle();
+  if (error || !data) {
     return res.status(404).json({ error: 'not_found' });
   }
 
-  return res.json(record.rows[0]);
+  return res.json(data);
 }

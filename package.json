@@ -8,7 +8,8 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "lint:refonte": "eslint --cache --max-warnings=0 --ext .js,.ts,.tsx components/**/* lib/refonte/**/* pages/api/v1/**/* scripts/codex/**/*.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -41,8 +42,6 @@
     "@radix-ui/react-tooltip": "^1.2.7",
     "@supabase/supabase-js": "^2.58.0",
     "@tanstack/react-query": "^5.83.0",
-    "archiver": "^7.0.1",
-    "pg": "^8.13.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",

@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { randomUUID } from 'node:crypto';
-import { q } from '../../../../lib/refonte/db';
+import { getSb } from '../../../../lib/refonte/db';
 
 type CreatePayload = {
   format: 'image' | 'carousel' | 'reel';
@@ -33,11 +33,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const id = randomUUID();
   const status = premiumT2VRequested ? 'awaiting_premium_confirmation' : 'queued';
 
-  await q(
-    `INSERT INTO deliverable(id, brand_id, format, objective, style_choice, status)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
-    [id, brandId, format, objective ?? null, styleChoice, status]
-  );
+  const supabase = getSb();
+  const { error } = await supabase.from('deliverable').insert({
+    id,
+    brand_id: brandId,
+    format,
+    objective: objective ?? null,
+    style_choice: styleChoice,
+    status
+  });
+  if (error) {
+    return res.status(500).json({ error: 'db_error', details: error.message });
+  }
 
   return res.status(201).json({
     id,

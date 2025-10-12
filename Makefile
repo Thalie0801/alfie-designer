@@ -4,7 +4,7 @@ codex:
 	bash scripts/codex/run.sh
 
 migrate:
-	psql "$$DATABASE_URL" -f db/migrations/20251012_refonte.sql
+	psql "$$DATABASE_URL" -f db/migrations/20251012_refonte_apply.sql
 
 cleanup:
 	RETENTION_DAYS=30 bash scripts/storage_cleanup.sh

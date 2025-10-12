@@ -1,21 +1,19 @@
-import { Pool, type QueryResult, type QueryResultRow } from 'pg';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.PGSSL === 'true' ? { rejectUnauthorized: false } : undefined
-});
+export function getSb(): SupabaseClient {
+  const url =
+    process.env.SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-export async function q<T extends QueryResultRow = QueryResultRow>(
-  sql: string,
-  params: ReadonlyArray<unknown> = []
-): Promise<QueryResult<T>> {
-  const client = await pool.connect();
-  try {
-    const result = await client.query<T>(sql, Array.from(params));
-    return result;
-  } finally {
-    client.release();
+  if (!url || !key) {
+    throw new Error('Missing Supabase env (SUPABASE_URL + *_KEY).');
   }
+
+  return createClient(url, key, { auth: { persistSession: false } });
 }
 
 export function yyyymm(date = new Date()) {

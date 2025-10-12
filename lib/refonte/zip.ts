@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import archiver from 'archiver';
+import { spawn } from 'node:child_process';
 
 export type ZipMeta = {
   altTexts?: Record<string, string>;
@@ -22,35 +22,67 @@ export async function buildStructuredZip(options: {
   const safe = (value: string) => value.replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 60);
   const root = `${year}-${month}/${safe(options.brandName)}/${safe(capitalize(options.format))}_${safe(options.title)}`;
   const outDir = options.outDir ?? '/tmp';
+  const staging = path.join(outDir, `refonte_zip_${Date.now()}`);
+  const rootDir = path.join(staging, root);
   const zipPath = path.join(outDir, `${safe(options.brandName)}_${safe(options.title)}.zip`);
 
-  await new Promise<void>((resolve, reject) => {
-    const output = fs.createWriteStream(zipPath);
-    const archive = archiver('zip', { zlib: { level: 9 } });
-    output.on('close', () => resolve());
-    archive.on('error', reject);
-    archive.pipe(output);
+  mkdirp(path.join(rootDir, 'assets'));
+  mkdirp(path.join(rootDir, 'exports'));
+  mkdirp(path.join(rootDir, 'metadata'));
 
-    for (const filePath of options.assetFiles ?? []) {
-      archive.file(filePath, { name: `${root}/assets/${path.basename(filePath)}` });
-    }
+  for (const filePath of options.assetFiles ?? []) {
+    copyInto(filePath, path.join(rootDir, 'assets', path.basename(filePath)));
+  }
 
-    for (const filePath of options.exportFiles ?? []) {
-      archive.file(filePath, { name: `${root}/exports/${path.basename(filePath)}` });
-    }
+  for (const filePath of options.exportFiles ?? []) {
+    copyInto(filePath, path.join(rootDir, 'exports', path.basename(filePath)));
+  }
 
-    const metadataDir = `${root}/metadata`;
-    const altTexts = JSON.stringify(options.meta?.altTexts ?? {}, null, 2);
-    const captions = JSON.stringify(options.meta?.captions ?? [], null, 2);
-    archive.append(altTexts, { name: `${metadataDir}/alt_texts.json` });
-    archive.append(captions, { name: `${metadataDir}/captions.json` });
+  fs.writeFileSync(
+    path.join(rootDir, 'metadata', 'alt_texts.json'),
+    JSON.stringify(options.meta?.altTexts ?? {}, null, 2)
+  );
+  fs.writeFileSync(
+    path.join(rootDir, 'metadata', 'captions.json'),
+    JSON.stringify(options.meta?.captions ?? [], null, 2)
+  );
 
-    archive.finalize();
-  });
+  await runZip(staging, root, zipPath);
+  cleanup(staging);
 
   return { zipPath, key: root };
 }
 
 function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function mkdirp(dir: string) {
+  fs.mkdirSync(dir, { recursive: true });
+}
+
+function copyInto(source: string, destination: string) {
+  fs.copyFileSync(source, destination);
+}
+
+function cleanup(target: string) {
+  try {
+    fs.rmSync(target, { recursive: true, force: true });
+  } catch {
+    // noop
+  }
+}
+
+function runZip(cwd: string, root: string, outZip: string) {
+  return new Promise<void>((resolve, reject) => {
+    const child = spawn('zip', ['-r', outZip, root], { cwd });
+    child.on('error', reject);
+    child.on('exit', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`zip exited with code ${code ?? 'null'}`));
+      }
+    });
+  });
 }

@@ -1,0 +1,16 @@
+name: Refonte — Lint (scoped)
+
+on:
+  pull_request:
+    branches: ["refonte-alfie-2025"]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci --prefer-offline --no-audit --no-fund
+      - run: npm run lint:refonte
