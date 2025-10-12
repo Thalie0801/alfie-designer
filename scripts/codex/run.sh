@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+shopt -s globstar nullglob
 
 # Refonte V1 — Runner Codex
 # - Exécute le codemod JS/TS/TSX en excluant la landing
@@ -21,14 +22,14 @@ if ! npx --yes jscodeshift --version &>/dev/null; then
 fi
 
 TARGETS=(
-  "apps/**/**/*.ts"
-  "apps/**/**/*.tsx"
-  "packages/**/**/*.ts"
-  "packages/**/**/*.tsx"
-  "services/**/**/*.ts"
-  "services/**/**/*.tsx"
-  "apps/**/**/*.js"
-  "apps/**/**/*.jsx"
+  apps/**/**/*.ts
+  apps/**/**/*.tsx
+  packages/**/**/*.ts
+  packages/**/**/*.tsx
+  services/**/**/*.ts
+  services/**/**/*.tsx
+  apps/**/**/*.js
+  apps/**/**/*.jsx
 )
 
 IGNORE="apps/landing|^www/|^site/"
