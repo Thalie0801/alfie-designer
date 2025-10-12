@@ -10,6 +10,58 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const encoder = new TextEncoder();
+
+const hexToUint8Array = (hex: string): Uint8Array => {
+  const normalized = hex.trim().toLowerCase();
+  if (normalized.length === 0 || normalized.length % 2 !== 0) {
+    throw new Error("Invalid hex string length");
+  }
+
+  const bytes = new Uint8Array(normalized.length / 2);
+  for (let i = 0; i < normalized.length; i += 2) {
+    const byte = Number.parseInt(normalized.slice(i, i + 2), 16);
+    if (Number.isNaN(byte)) {
+      throw new Error("Invalid hex character encountered");
+    }
+    bytes[i / 2] = byte;
+  }
+  return bytes;
+};
+
+const verifyReplicateSignature = async (
+  body: string,
+  signatureHeader: string,
+  secret: string,
+): Promise<boolean> => {
+  const signature = signatureHeader.startsWith("sha256=")
+    ? signatureHeader.slice("sha256=".length)
+    : signatureHeader;
+
+  let signatureBytes: Uint8Array;
+  try {
+    signatureBytes = hexToUint8Array(signature);
+  } catch (error) {
+    console.warn("⚠️ Invalid signature header", error);
+    return false;
+  }
+
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign", "verify"],
+  );
+
+  return await crypto.subtle.verify(
+    "HMAC",
+    key,
+    signatureBytes,
+    encoder.encode(body),
+  );
+};
+
 const mapReplicateStatus = (status: string): JobStatus => {
   switch (status) {
     case "succeeded":
@@ -106,23 +158,38 @@ serve(async (req) => {
   }
 
   const expectedSecret = Deno.env.get("VIDEO_WEBHOOK_SECRET");
-  if (expectedSecret) {
-    const receivedSecret =
-      req.headers.get("x-webhook-secret") ||
-      req.headers.get("replicate-webhook-secret") ||
-      req.headers.get("webhook-secret");
 
-    if (!receivedSecret || receivedSecret !== expectedSecret) {
-      console.warn("⚠️ Invalid webhook secret for job", jobId);
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-  }
+  const rawBody = await req.text();
 
   try {
-    const payload = (await req.json()) as Record<string, unknown>;
+    if (expectedSecret) {
+      const replicateSignature = req.headers.get("x-replicate-signature");
+      let secretValid = false;
+
+      if (replicateSignature) {
+        secretValid = await verifyReplicateSignature(
+          rawBody,
+          replicateSignature,
+          expectedSecret,
+        );
+      } else {
+        const receivedSecret =
+          req.headers.get("x-webhook-secret") ||
+          req.headers.get("replicate-webhook-secret") ||
+          req.headers.get("webhook-secret");
+        secretValid = !!receivedSecret && receivedSecret === expectedSecret;
+      }
+
+      if (!secretValid) {
+        console.warn("⚠️ Invalid webhook secret for job", jobId);
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    const payload = JSON.parse(rawBody) as Record<string, unknown>;
     console.log("📬 [video-webhook] Payload received for job", jobId, JSON.stringify(payload));
 
     let jobStatus: JobStatus = "running";
