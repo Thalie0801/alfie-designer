@@ -1,32 +1,19 @@
-- name: "Guard: No landing changes"
+name: "Guard - No Landing Changes"
+
 on:
   pull_request:
-    branches: [ "**" ]
+    branches: ["**"]
 
 jobs:
   no-landing:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout PR
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Paths filter
-        id: filter
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            landing:
-              - 'src/pages/Index.tsx'
-              - 'src/pages/Contact.tsx'
-              - 'src/pages/DevenirPartenaire.tsx'
-              - 'src/pages/FAQ.tsx'
-              - 'src/pages/Legal.tsx'
-              - 'src/pages/Privacy.tsx'
-              - 'www/**'
-              - 'site/**'
-
-            - name: Paths filter
         id: filter
         uses: dorny/paths-filter@v3
         with:
@@ -53,4 +40,3 @@ jobs:
       - name: OK if no landing changes
         if: steps.filter.outputs.landing != 'true'
         run: echo "Aucune modification de la landing détectée ✅"
-
