@@ -151,6 +151,55 @@ serve(async (req) => {
       const jobId = body.jobId as string | undefined;
       console.log(`Checking video generation status for ${provider}:`, body.generationId);
 
+      if (!token) {
+        return new Response(JSON.stringify({ error: "Authentification requise." }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (!jobId) {
+        return new Response(JSON.stringify({ error: "JobId requis pour vérifier le statut." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(token);
+
+      if (authError || !authData?.user) {
+        console.error("❌ [Auth] Invalid session for status polling:", authError);
+        return new Response(JSON.stringify({ error: "Session invalide." }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: jobRecord, error: jobFetchError } = await supabaseAdmin
+        .from("jobs")
+        .select("id, user_id")
+        .eq("id", jobId)
+        .single();
+
+      if (jobFetchError || !jobRecord) {
+        console.error("❌ [Jobs] Job not found or inaccessible:", jobFetchError);
+        return new Response(JSON.stringify({ error: "Job introuvable." }), {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (jobRecord.user_id !== authData.user.id) {
+        console.warn("⚠️ [Auth] Unauthorized job access attempt", {
+          jobId,
+          userId: authData.user.id,
+        });
+        return new Response(JSON.stringify({ error: "Accès non autorisé." }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       if (provider === "sora") {
         // Kie AI recordInfo endpoint
         const statusResponse = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${body.generationId}`, {
