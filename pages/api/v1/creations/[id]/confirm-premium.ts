@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { randomUUID } from 'node:crypto';
-import { getSb, yyyymm } from '../../../../../lib/refonte/db';
+import { getSb } from '../../../../../lib/refonte/db';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -16,32 +15,47 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const supabase = getSb();
   const deliverable = await supabase
     .from('deliverable')
-    .select<{ brand_id: string; status: string }>('brand_id, status')
+    .select<{ status: string }>('status')
     .eq('id', id)
     .maybeSingle();
   if (deliverable.error || !deliverable.data) {
     return res.status(404).json({ error: 'not_found' });
   }
 
-  const { brand_id: brandId, status } = deliverable.data;
+  const { status } = deliverable.data;
   if (status !== 'awaiting_premium_confirmation') {
     return res.status(409).json({ error: 'not_awaiting_confirmation' });
   }
 
-  await supabase.rpc('increment_counters', {
-    p_brand: brandId,
-    d_images: 0,
-    d_reels: 0,
-    d_woofs: 1
+  const confirmResult = await supabase.rpc('confirm_premium_deliverable', {
+    p_deliverable: id
   });
-  await supabase.from('usage_event').insert({
-    id: randomUUID(),
-    brand_id: brandId,
-    deliverable_id: id,
-    kind: 'premium_t2v',
-    meta: { period: yyyymm() }
-  });
-  await supabase.from('deliverable').update({ status: 'queued' }).eq('id', id);
 
-  return res.json({ ok: true, status: 'queued' });
+  if (confirmResult.error) {
+    return res.status(500).json({ error: 'confirmation_failed' });
+  }
+
+  const payload = confirmResult.data as
+    | { status: string }
+    | { error: string; status?: string }
+    | null;
+
+  if (!payload) {
+    return res.status(500).json({ error: 'confirmation_failed' });
+  }
+
+  if ('error' in payload) {
+    if (payload.error === 'not_found') {
+      return res.status(404).json({ error: 'not_found' });
+    }
+    if (payload.error === 'not_awaiting_confirmation') {
+      return res
+        .status(409)
+        .json({ error: 'not_awaiting_confirmation', status: payload.status });
+    }
+
+    return res.status(500).json({ error: 'confirmation_failed' });
+  }
+
+  return res.json({ ok: true, status: payload.status });
 }
