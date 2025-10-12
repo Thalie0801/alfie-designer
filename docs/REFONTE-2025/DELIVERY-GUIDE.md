@@ -26,4 +26,4 @@
 2. ✅ Aucun call `publish*`/`push*` résiduel (codemod + validate OK).
 3. ✅ Compteurs et alerte 80 % affichés.
 4. ✅ Quotas identiques, stockage 30 jours opérationnel.
-5. ✅ Tests codemod (ou `make test`) exécutés localement.
+5. ✅ Tests codemod (ou `make test`) exécutés localement via `node --test` (skip automatique si `jscodeshift` absent).

@@ -10,7 +10,11 @@ cleanup:
 	RETENTION_DAYS=30 bash scripts/storage_cleanup.sh
 
 test:
-	npm test --scripts-prepend-node-path
+	@if [ ! -d node_modules/jscodeshift ]; then \
+	echo "[test] Installing dev dependencies for codemod checks..."; \
+	npm install --no-fund --no-audit >/dev/null || echo "[test] npm install failed, proceeding with available modules."; \
+	fi
+	node --test scripts/codex/refonte-codemod.test.cjs
 
 validate:
 	bash scripts/validate_refonte.sh
