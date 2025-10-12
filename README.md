@@ -67,7 +67,7 @@ The refonte branch ships a locked-down delivery flow: Canva link + ZIP, no autop
 - `make codex` runs the codemod that rewrites any lingering push/publish flows to the PULL delivery endpoint while skipping the landing page guardrails.
 - `make validate` calls `scripts/validate_refonte.sh` to ensure no "push Canva" or autopublish traces slip through the diff.
 - `make cleanup` triggers the 30-day retention cleanup script used in production cronjobs.
-- `make test` executes the codemod Jest suite (uses `npm test --scripts-prepend-node-path`).
+- `make test` runs the codemod regression suite via Node's built-in test runner (skips gracefully if `jscodeshift` isn't installed).
 
 For backend integrations, see [`examples/api/express/counters.ts`](examples/api/express/counters.ts) for the `/v1/counters` handler that returns usage totals and 80% alerts, and consult the refonte docs in [`docs/REFONTE-2025`](docs/REFONTE-2025) for acceptance checklists.
 
