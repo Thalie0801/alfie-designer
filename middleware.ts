@@ -61,7 +61,6 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  const refCookie = ref || request.cookies.get(REF_COOKIE)?.value;
   let hasActivePlan = request.cookies.get(ACTIVE_PLAN_COOKIE)?.value === "1";
 
   try {
@@ -72,8 +71,8 @@ export async function middleware(request: NextRequest) {
       const loginUrl = new URL("/auth/login", request.url);
       loginUrl.searchParams.set("next", pathname);
       const redirectResponse = NextResponse.redirect(loginUrl);
-      if (refCookie) {
-        redirectResponse.cookies.set(REF_COOKIE, refCookie, {
+      if (ref) {
+        redirectResponse.cookies.set(REF_COOKIE, ref, {
           path: "/",
           maxAge: REF_MAX_AGE,
         });
@@ -86,8 +85,8 @@ export async function middleware(request: NextRequest) {
       const loginUrl = new URL("/auth/login", request.url);
       loginUrl.searchParams.set("next", pathname);
       const redirectResponse = NextResponse.redirect(loginUrl);
-      if (refCookie) {
-        redirectResponse.cookies.set(REF_COOKIE, refCookie, {
+      if (ref) {
+        redirectResponse.cookies.set(REF_COOKIE, ref, {
           path: "/",
           maxAge: REF_MAX_AGE,
         });
@@ -114,8 +113,8 @@ export async function middleware(request: NextRequest) {
       const billingUrl = new URL("/billing", request.url);
       billingUrl.searchParams.set("next", pathname);
       const redirectResponse = NextResponse.redirect(billingUrl);
-      if (refCookie) {
-        redirectResponse.cookies.set(REF_COOKIE, refCookie, {
+      if (ref) {
+        redirectResponse.cookies.set(REF_COOKIE, ref, {
           path: "/",
           maxAge: REF_MAX_AGE,
         });
@@ -129,8 +128,8 @@ export async function middleware(request: NextRequest) {
     const billingUrl = new URL("/billing", request.url);
     billingUrl.searchParams.set("next", pathname);
     const redirectResponse = NextResponse.redirect(billingUrl);
-    if (refCookie) {
-      redirectResponse.cookies.set(REF_COOKIE, refCookie, {
+    if (ref) {
+      redirectResponse.cookies.set(REF_COOKIE, ref, {
         path: "/",
         maxAge: REF_MAX_AGE,
       });
