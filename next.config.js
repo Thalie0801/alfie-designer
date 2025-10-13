@@ -1,7 +1,6 @@
+/** @type {import('next').NextConfig} */
 const nextConfig = {
-  env: {
-    NEXT_PUBLIC_BUILD_ID: Date.now().toString(),
-  },
+  pageExtensions: ['pagex'], // ignore pages/*.tsx
+  experimental: { appDir: true }
 };
-
-module.exports = nextConfig;
+export default nextConfig;
