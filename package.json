@@ -1,17 +1,27 @@
 {
   "name": "alfie-designer",
   "private": true,
-  "engines": { "node": ">=20 <21" },
+  "type": "module",
+  "engines": {
+    "node": ">=20 <21",
+    "npm": ">=10"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "lint": "next lint",
+    "health": "node ./scripts/healthcheck.cjs || exit 0"
   },
   "dependencies": {
     "next": "14.2.5",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },
-  "devDependencies": {},
-  "type": "module"
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "eslint-config-next": "14.2.5",
+    "typescript": "^5.4.0"
+  },
+  "packageManager": "npm@10"
 }
