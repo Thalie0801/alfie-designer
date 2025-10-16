@@ -5,11 +5,20 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  base: "/", // Ensure assets are served from the root path
   build: {
     outDir: "dist", // Default output directory for Vite
+    chunkSizeWarningLimit: 1500,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ["react", "react-dom"],
+          router: ["react-router-dom"],
+          supabase: ["@supabase/supabase-js"],
+        },
+      },
+    },
   },
-
-  base: "/", // Ensure assets are served from the root path
 
   server: {
     host: "::",
