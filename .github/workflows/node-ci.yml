@@ -2,24 +2,63 @@ name: Node CI
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
+
+# évite les runs concurrents inutiles sur la même branche/PR
+concurrency:
+  group: node-ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      CI: true
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          node-version: '20'
+          # explicite le registre public (évite surprises)
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      # Sanity checks réseau/npm (facile à diagnostiquer si ça casse)
+      - name: NPM health check
+        run: |
+          npm ping
+          npm view vite version
+
       - name: Install dependencies
         run: npm ci --prefer-offline=false --no-audit --loglevel=info
+
+      # Si tu veux empêcher un build manquant de passer “silencieusement”
+      - name: Ensure build script exists
+        run: node -e "const s=require('./package.json').scripts||{}; if(!s.build){process.exit(1)}"
+
       - name: Build
         run: npm run build
+
+      # (Optionnel) copie dist -> public/app si tu utilises la stratégie SPA sous /app
+      # - name: Postbuild copy (dist -> public/app)
+      #   run: |
+      #     rm -rf public/app && mkdir -p public && cp -R dist public/app
+
+      # (Optionnel) upload du build pour inspection (debug PR)
+      - name: Upload dist artifact
+        if: success() && hashFiles('dist/**') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          if-no-files-found: ignore
+
+      # (Facultatif) tests s'ils existent
       - name: Run tests (if defined)
         run: npm test --if-present
