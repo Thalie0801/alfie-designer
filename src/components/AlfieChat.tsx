@@ -13,6 +13,7 @@ import { CreateHeader } from '@/components/create/CreateHeader';
 import { GeneratorCard } from '@/components/create/GeneratorCard';
 import { ChatBubble } from '@/components/create/ChatBubble';
 import type { GeneratorMode, RatioOption } from '@/components/create/Toolbar';
+import { getAuthHeader } from '@/lib/auth';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -686,12 +687,14 @@ export function AlfieChat() {
     const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/alfie-chat`;
     
     try {
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(await getAuthHeader()),
+      };
+
       const response = await fetch(CHAT_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
+        headers,
         body: JSON.stringify({
           messages: [...messages, { role: 'user', content: userMessage, imageUrl: uploadedImage }],
           brandId: brandKit?.id // Pass active brand ID
