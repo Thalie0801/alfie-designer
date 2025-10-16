@@ -35,21 +35,93 @@ const allowedHosts = new Set([
   'raw.githubusercontent.com',
 ]);
 
-function analyseUrl(raw) {
-  if (typeof raw !== 'string' || raw.length === 0) {
-    return { suspicious: false };
+const publicScopes = new Set([
+  '@eslint',
+  '@hookform',
+  '@radix-ui',
+  '@supabase',
+  '@tailwindcss',
+  '@tanstack',
+  '@types',
+  '@vitejs',
+  '@typescript-eslint',
+  '@alloc',
+  '@babel',
+  '@esbuild',
+  '@eslint-community',
+  '@floating-ui',
+  '@humanfs',
+  '@humanwhocodes',
+  '@isaacs',
+  '@jridgewell',
+  '@nodelib',
+  '@pkgjs',
+  '@remix-run',
+  '@rolldown',
+  '@rollup',
+  '@swc',
+]);
+
+function normalisePackageName(key, meta) {
+  if (meta?.name) {
+    return meta.name;
   }
+  if (!key) {
+    return null;
+  }
+  if (key.startsWith('node_modules/')) {
+    const segments = key
+      .split('node_modules/')
+      .map((segment) => segment.replace(/^\/+|\/+$/g, ''))
+      .filter(Boolean);
+    if (segments.length) {
+      return segments[segments.length - 1];
+    }
+  }
+  return key;
+}
+
+function extractScope(pkgName) {
+  if (typeof pkgName !== 'string') {
+    return null;
+  }
+  if (pkgName.startsWith('@')) {
+    return pkgName.split('/')[0];
+  }
+  return null;
+}
+
+function analyseUrl(raw, pkgName) {
+  const info = {
+    suspicious: false,
+    host: undefined,
+    reason: undefined,
+    requiresReadPackagesToken: false,
+    requiresNpmToken: false,
+  };
+
+  if (typeof raw !== 'string' || raw.length === 0) {
+    return info;
+  }
+
+  const scope = extractScope(pkgName);
 
   if (raw.startsWith('git+')) {
     const cleaned = raw.slice(4);
     try {
       const parsed = new URL(cleaned);
+      info.host = parsed.host;
       if (allowedHosts.has(parsed.host) && parsed.protocol === 'https:') {
-        return { suspicious: false, host: parsed.host };
+        return info;
       }
-      return { suspicious: true, host: parsed.host, reason: `git transport via ${parsed.protocol || 'unknown protocol'}` };
+      info.suspicious = true;
+      info.reason = `git transport via ${parsed.protocol || 'unknown protocol'}`;
+      return info;
     } catch (error) {
-      return { suspicious: true, host: raw, reason: 'git protocol (unparsable URL)' };
+      info.suspicious = true;
+      info.host = raw;
+      info.reason = 'git protocol (unparsable URL)';
+      return info;
     }
   }
 
@@ -57,33 +129,53 @@ function analyseUrl(raw) {
     const parsed = new URL(raw);
     const host = parsed.host;
     const protocol = parsed.protocol;
+    info.host = host;
     if (!['http:', 'https:'].includes(protocol)) {
-      return { suspicious: true, host, reason: `protocol ${protocol}` };
-    }
-    if (allowedHosts.has(host)) {
-      return { suspicious: false, host };
-    }
-    if (host === 'registry.npmjs.org') {
-      return { suspicious: false, host };
+      info.suspicious = true;
+      info.reason = `protocol ${protocol}`;
+      return info;
     }
 
     const matchesPattern = suspiciousHostPatterns.some((pattern) => pattern.test(host) || pattern.test(raw));
     const requiresReadPackagesToken = githubPackageHosts.some((pattern) => pattern.test(host));
-    const requiresNpmToken = !requiresReadPackagesToken && npmHosts.some((pattern) => pattern.test(host));
+    const requiresNpmRegistryToken = !requiresReadPackagesToken && npmHosts.some((pattern) => pattern.test(host));
 
-    if (matchesPattern || requiresReadPackagesToken || requiresNpmToken) {
-      return {
-        suspicious: true,
-        host,
-        reason: matchesPattern ? 'matched private registry pattern' : 'non-default registry host',
-        requiresReadPackagesToken,
-        requiresNpmToken,
-      };
+    if (requiresReadPackagesToken) {
+      info.requiresReadPackagesToken = true;
     }
 
-    return { suspicious: true, host, reason: 'unrecognised registry host' };
+    if (host === 'registry.npmjs.org') {
+      if (scope && !publicScopes.has(scope)) {
+        info.requiresNpmToken = true;
+      }
+      return info;
+    }
+
+    if (allowedHosts.has(host)) {
+      if (requiresNpmRegistryToken) {
+        info.requiresNpmToken = true;
+      }
+      return info;
+    }
+
+    if (requiresNpmRegistryToken) {
+      info.requiresNpmToken = true;
+    }
+
+    if (matchesPattern || requiresReadPackagesToken || requiresNpmRegistryToken) {
+      info.suspicious = true;
+      info.reason = matchesPattern ? 'matched private registry pattern' : 'non-default registry host';
+      return info;
+    }
+
+    info.suspicious = true;
+    info.reason = 'unrecognised registry host';
+    return info;
   } catch (error) {
-    return { suspicious: true, host: raw, reason: 'unparsable URL' };
+    info.suspicious = true;
+    info.host = raw;
+    info.reason = 'unparsable URL';
+    return info;
   }
 }
 
@@ -117,48 +209,50 @@ if (existsSync(pkgPath)) {
 if (result.lockfilePresent) {
   const lock = readJson(lockPath);
   const packages = lock.packages || {};
-  for (const [pkgName, meta] of Object.entries(packages)) {
+  for (const [pkgKey, meta] of Object.entries(packages)) {
     if (!meta || typeof meta !== 'object') continue;
+    const pkgName = normalisePackageName(pkgKey, meta);
     const { resolved, registry } = meta;
-    const resolvedInfo = analyseUrl(resolved);
+    const resolvedInfo = analyseUrl(resolved, pkgName);
+    result.needsReadPackagesToken ||= resolvedInfo.requiresReadPackagesToken || false;
+    result.needsNpmToken ||= resolvedInfo.requiresNpmToken || false;
     if (resolvedInfo.suspicious) {
       result.privateUrls.push({
-        name: pkgName || '(root)',
+        name: pkgName || pkgKey || '(root)',
         type: 'resolved',
         url: resolved,
         host: resolvedInfo.host,
         reason: resolvedInfo.reason,
       });
-      result.needsReadPackagesToken ||= resolvedInfo.requiresReadPackagesToken || false;
-      result.needsNpmToken ||= resolvedInfo.requiresNpmToken || false;
     }
-    const registryInfo = analyseUrl(registry);
+    const registryInfo = analyseUrl(registry, pkgName);
+    result.needsReadPackagesToken ||= registryInfo.requiresReadPackagesToken || false;
+    result.needsNpmToken ||= registryInfo.requiresNpmToken || false;
     if (registryInfo.suspicious) {
       result.privateUrls.push({
-        name: pkgName || '(root)',
+        name: pkgName || pkgKey || '(root)',
         type: 'registry',
         url: registry,
         host: registryInfo.host,
         reason: registryInfo.reason,
       });
-      result.needsReadPackagesToken ||= registryInfo.requiresReadPackagesToken || false;
-      result.needsNpmToken ||= registryInfo.requiresNpmToken || false;
     }
   }
 
   if (Array.isArray(lock.dependencies)) {
     for (const dep of lock.dependencies) {
-      const depInfo = analyseUrl(dep?.resolved);
+      const pkgName = normalisePackageName(dep?.name, dep);
+      const depInfo = analyseUrl(dep?.resolved, pkgName);
+      result.needsReadPackagesToken ||= depInfo.requiresReadPackagesToken || false;
+      result.needsNpmToken ||= depInfo.requiresNpmToken || false;
       if (depInfo.suspicious) {
         result.privateUrls.push({
-          name: dep?.name,
+          name: pkgName || dep?.name,
           type: 'resolved',
           url: dep?.resolved,
           host: depInfo.host,
           reason: depInfo.reason,
         });
-        result.needsReadPackagesToken ||= depInfo.requiresReadPackagesToken || false;
-        result.needsNpmToken ||= depInfo.requiresNpmToken || false;
       }
     }
   }
@@ -193,11 +287,30 @@ if (jsonOutput) {
   } else {
     console.warn('No package-lock.json found; skipping private registry scan.');
   }
+
+  if (result.needsNpmToken) {
+    console.error('\nOne or more scoped packages resolved from registry.npmjs.org are not whitelisted as public.');
+    console.error('Provide NPM_TOKEN (npmjs.com automation token) for CI or regenerate the lockfile without private scopes.');
+  }
+
+  if (result.needsReadPackagesToken) {
+    console.error('\nPackages resolved from GitHub Packages detected.');
+    console.error('Provide READ_PACKAGES_TOKEN (PAT with read:packages) or adjust the registry configuration.');
+  }
 }
 
-if (hasPrivate && strict) {
-  console.error('\nThis project references at least one non-public registry. ' +
-    'Provide the appropriate authentication token or regenerate package-lock.json to remove private URLs.');
+if (strict && (hasPrivate || result.needsNpmToken || result.needsReadPackagesToken)) {
+  console.error('\nStrict mode: private registries or authentication requirements detected.');
+  if (hasPrivate) {
+    console.error('- Non-public registry URLs present in the lockfile.');
+  }
+  if (result.needsNpmToken) {
+    console.error('- Scoped packages require NPM_TOKEN for registry.npmjs.org.');
+  }
+  if (result.needsReadPackagesToken) {
+    console.error('- GitHub Packages scopes require READ_PACKAGES_TOKEN.');
+  }
+  console.error('Provide the appropriate token(s) or regenerate package-lock.json to remove private scopes before retrying.');
   process.exit(1);
 }
 
