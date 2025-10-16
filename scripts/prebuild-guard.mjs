@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { execSync } from "node:child_process";
 
 const vercelFiles = [
   "vercel.json",
@@ -15,6 +16,13 @@ const hasForbiddenOutputDirectory = vercelFiles
 
 if (hasForbiddenOutputDirectory) {
   console.error("❌ outputDirectory=public/app détecté dans un vercel.json");
+  process.exit(1);
+}
+
+const registry = execSync("npm config get registry").toString().trim();
+
+if (!/^https:\/\/registry\.npmjs\.org\/?$/.test(registry)) {
+  console.error("❌ Registre npm non standard:", registry);
   process.exit(1);
 }
 
