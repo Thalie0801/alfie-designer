@@ -9,6 +9,7 @@
     "postbuild": "rm -rf public/app && mkdir -p public/app && cp -R dist/. public/app",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
+    "test": "bun test ./src/**/*.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {

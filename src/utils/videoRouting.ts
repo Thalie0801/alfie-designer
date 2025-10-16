@@ -1,6 +1,6 @@
 // Routing vidéo intelligent (Sora vs Veo 3)
 // Règles: Sora = 1 Woof, Veo 3 = 4 Woofs
-import { SYSTEM_CONFIG } from '@/config/systemConfig';
+import { FEATURE_FLAGS, SYSTEM_CONFIG } from '@/config/systemConfig';
 
 export const VEO3_WOOF_FACTOR = SYSTEM_CONFIG.VEO3_WOOF_FACTOR;
 export const SORA_WOOF_FACTOR = SYSTEM_CONFIG.SORA_WOOF_FACTOR;
@@ -19,6 +19,10 @@ export interface VideoRequest {
   remainingWoofs?: number;
 }
 
+export interface VideoRoutingOptions {
+  veo3Enabled?: boolean;
+}
+
 /**
  * Détermine quel moteur vidéo utiliser selon les règles produit
  * 
@@ -26,13 +30,107 @@ export interface VideoRequest {
  * - Sora2 uniquement pour l'instant (via Kie AI)
  * - Veo 3 sera activé quand FEATURE_FLAGS.VEO3_ENABLED=true
  */
-export function routeVideoEngine(request: VideoRequest): VideoRoutingDecision {
-  // Sora 2 via Kie AI (disponible depuis décembre 2024)
-  // TODO: Activer Veo 3 quand FEATURE_FLAGS.VEO3_ENABLED=true
+const QUICK_STYLES = new Set([
+  'reel',
+  'loop',
+  'intro',
+  'quick',
+  'teaser',
+  'story',
+  'tiktok',
+]);
+
+const PREMIUM_STYLES = new Set([
+  'cinématique',
+  'cinematic',
+  'cinema',
+  'ads',
+  'pub',
+  'publicité',
+  'hero',
+  'visage',
+  'face',
+  'portrait',
+  'complexe',
+  'complex',
+]);
+
+export function routeVideoEngine(
+  request: VideoRequest,
+  options: VideoRoutingOptions = {}
+): VideoRoutingDecision {
+  const duration = Number.isFinite(request.seconds) ? Math.max(0, request.seconds) : 0;
+  const normalizedStyle = request.style?.toLowerCase().trim() ?? 'standard';
+  const remainingWoofs = request.remainingWoofs ?? Number.POSITIVE_INFINITY;
+
+  const hasBudgetForSora = remainingWoofs >= SORA_WOOF_FACTOR;
+  const hasBudgetForVeo = remainingWoofs >= VEO3_WOOF_FACTOR;
+  const veoEnabled = options.veo3Enabled ?? FEATURE_FLAGS.VEO3_ENABLED;
+
+  const isQuickStyle = QUICK_STYLES.has(normalizedStyle);
+  const isPremiumStyle = PREMIUM_STYLES.has(normalizedStyle);
+  const isLongForm = duration > 10;
+
+  if (!hasBudgetForSora) {
+    return {
+      engine: 'sora',
+      woofCost: SORA_WOOF_FACTOR,
+      reason: 'Quota Woofs épuisé : Sora forcé (pilotage hard-stop)',
+    };
+  }
+
+  if (veoEnabled && hasBudgetForVeo && (isLongForm || isPremiumStyle) && !isQuickStyle) {
+    const reasonParts: string[] = [];
+    if (isLongForm) {
+      reasonParts.push(`durée ${duration}s (>10s)`);
+    }
+    if (isPremiumStyle) {
+      reasonParts.push(`style ${normalizedStyle}`);
+    }
+    const reasonDetail = reasonParts.length ? ` (${reasonParts.join(' + ')})` : '';
+    return {
+      engine: 'veo3',
+      woofCost: VEO3_WOOF_FACTOR,
+      reason: `Veo 3 sélectionné${reasonDetail}`.trim(),
+    };
+  }
+
+  if (!veoEnabled && (isLongForm || isPremiumStyle) && !isQuickStyle) {
+    return {
+      engine: 'sora',
+      woofCost: SORA_WOOF_FACTOR,
+      reason: 'Feature flag Veo 3 désactivé : fallback Sora',
+    };
+  }
+
+  if (veoEnabled && !hasBudgetForVeo && (isLongForm || isPremiumStyle) && !isQuickStyle) {
+    return {
+      engine: 'sora',
+      woofCost: SORA_WOOF_FACTOR,
+      reason: `Budget Woofs insuffisant pour Veo 3 (reste ${remainingWoofs})`,
+    };
+  }
+
+  if (isQuickStyle) {
+    return {
+      engine: 'sora',
+      woofCost: SORA_WOOF_FACTOR,
+      reason: `Style ${normalizedStyle} → Sora privilégié (format court)`,
+    };
+  }
+
+  if (isLongForm) {
+    return {
+      engine: 'sora',
+      woofCost: SORA_WOOF_FACTOR,
+      reason: `Durée ${duration}s mais routage Sora (préférence budget Woofs)`,
+    };
+  }
+
   return {
     engine: 'sora',
     woofCost: SORA_WOOF_FACTOR,
-    reason: 'Sora 2 via Kie AI (disponible depuis décembre 2024)'
+    reason: 'Sora 2 via Kie AI (par défaut ≤10s)',
   };
 }
 
