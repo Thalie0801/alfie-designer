@@ -1,30 +1,31 @@
-import React from "react";
+import { Suspense, lazy } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AffiliateTracker } from "@/components/AffiliateTracker";
-import Index from "./pages/Index";
-import Auth from "./pages/Auth";
-import Creator from "./pages/Creator";
-import Dashboard from "./pages/Dashboard";
-import Billing from "./pages/Billing";
-import Contact from "./pages/Contact";
-import CreditPurchaseSuccess from "./pages/CreditPurchaseSuccess";
-import Admin from "./pages/Admin";
-import Affiliate from "./pages/Affiliate";
-import Profile from "./pages/Profile";
-import DevenirPartenaire from "./pages/DevenirPartenaire";
-import Privacy from "./pages/Privacy";
-import Legal from "./pages/Legal";
-import FAQ from "./pages/FAQ";
-import NotFound from "./pages/NotFound";
-import Templates from "./pages/Templates";
-import Library from "./pages/Library";
 import { AppLayoutWithSidebar } from "./components/AppLayoutWithSidebar";
+
+const Index = lazy(() => import("./pages/Index"));
+const Auth = lazy(() => import("./pages/Auth"));
+const Creator = lazy(() => import("./pages/Creator"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Billing = lazy(() => import("./pages/Billing"));
+const Contact = lazy(() => import("./pages/Contact"));
+const CreditPurchaseSuccess = lazy(() => import("./pages/CreditPurchaseSuccess"));
+const Admin = lazy(() => import("./pages/Admin"));
+const Affiliate = lazy(() => import("./pages/Affiliate"));
+const Profile = lazy(() => import("./pages/Profile"));
+const DevenirPartenaire = lazy(() => import("./pages/DevenirPartenaire"));
+const Privacy = lazy(() => import("./pages/Privacy"));
+const Legal = lazy(() => import("./pages/Legal"));
+const FAQ = lazy(() => import("./pages/FAQ"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const Templates = lazy(() => import("./pages/Templates"));
+const Library = lazy(() => import("./pages/Library"));
 
 const queryClient = new QueryClient();
 
@@ -33,9 +34,9 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
-        <AffiliateTracker />
-        <AuthProvider>
+      <AffiliateTracker />
+      <AuthProvider>
+        <Suspense fallback={<div className="flex h-screen items-center justify-center">Chargement…</div>}>
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
@@ -136,8 +137,8 @@ const App = () => (
             />
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </AuthProvider>
-      </BrowserRouter>
+        </Suspense>
+      </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
