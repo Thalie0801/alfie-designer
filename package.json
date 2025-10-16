@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "postbuild": "rm -rf public/app && mkdir -p public/app && cp -R dist/. public/app",
+    "postbuild": "rm -rf public/app && mkdir -p public && cp -R dist public/app",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -69,6 +69,7 @@
     "@types/node": "^22.16.5",
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "npm:@vitejs/plugin-react-swc@^3.11.0",
     "@vitejs/plugin-react-swc": "^3.11.0",
     "autoprefixer": "^10.4.21",
     "eslint": "^9.32.0",
