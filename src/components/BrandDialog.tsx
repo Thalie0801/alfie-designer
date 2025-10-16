@@ -16,7 +16,7 @@ interface BrandDialogProps {
 }
 
 export function BrandDialog({ brand, onSuccess, children }: BrandDialogProps) {
-  const { user } = useAuth();
+  const { user, profile, planAccess } = useAuth();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -53,7 +53,7 @@ export function BrandDialog({ brand, onSuccess, children }: BrandDialogProps) {
         toast.success('Marque mise à jour !');
       } else {
         // CHECK QUOTA BEFORE CREATING
-        const { data: profile } = await supabase
+        const { data: profileFromDb } = await supabase
           .from('profiles')
           .select('quota_brands')
           .eq('id', user.id)
@@ -64,7 +64,8 @@ export function BrandDialog({ brand, onSuccess, children }: BrandDialogProps) {
           .select('*', { count: 'exact', head: true })
           .eq('user_id', user.id);
 
-        const quotaBrands = profile?.quota_brands || 0;
+        const quotaBrands =
+          profileFromDb?.quota_brands ?? profile?.quota_brands ?? planAccess.quotas.brands;
         
         if ((currentBrands || 0) >= quotaBrands) {
           toast.error(`Limite atteinte (${quotaBrands} marques max pour ton plan)`);
@@ -73,6 +74,9 @@ export function BrandDialog({ brand, onSuccess, children }: BrandDialogProps) {
         }
 
         // Create new brand
+        const brandDefaults = planAccess.brandDefaults;
+        const nextReset = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1);
+
         const { error } = await supabase
           .from('brands')
           .insert({
@@ -80,7 +84,15 @@ export function BrandDialog({ brand, onSuccess, children }: BrandDialogProps) {
             name: formData.name,
             logo_url: formData.logo_url || null,
             voice: formData.voice || null,
-            palette: []
+            palette: [],
+            plan: brandDefaults.tier,
+            quota_images: brandDefaults.quotas.visuals,
+            quota_videos: brandDefaults.quotas.videos,
+            quota_woofs: brandDefaults.quotas.woofs,
+            images_used: 0,
+            videos_used: 0,
+            woofs_used: 0,
+            resets_on: nextReset.toISOString().split('T')[0]
           });
 
         if (error) throw error;

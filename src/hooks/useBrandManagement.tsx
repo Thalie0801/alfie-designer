@@ -3,11 +3,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { SYSTEM_CONFIG } from '@/config/systemConfig';
-
-export type BrandTier = 'starter' | 'pro' | 'studio';
+import { BrandTier } from '@/utils/planAccess';
 
 export function useBrandManagement() {
-  const { user } = useAuth();
+  const { user, planAccess } = useAuth();
   const [loading, setLoading] = useState(false);
 
   /**
@@ -27,7 +26,7 @@ export function useBrandManagement() {
 
     setLoading(true);
     try {
-      const quotas = SYSTEM_CONFIG.QUOTAS.starter;
+      const quotas = planAccess.brandDefaults.quotas;
       const nextReset = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1);
       
       const { data, error } = await supabase
@@ -35,7 +34,7 @@ export function useBrandManagement() {
         .insert([{
           user_id: user.id,
           name: brandData.name,
-          plan: 'starter',
+          plan: planAccess.brandDefaults.tier,
           is_addon: true,
           quota_images: quotas.images,
           quota_videos: quotas.videos,
@@ -87,7 +86,7 @@ export function useBrandManagement() {
       const currentTier = currentBrand.plan as BrandTier;
       
       // Vérifier que c'est bien un upgrade
-      const tierOrder = { starter: 1, pro: 2, studio: 3 };
+      const tierOrder: Record<BrandTier, number> = { starter: 1, pro: 2, studio: 3 };
       if (tierOrder[newTier] <= tierOrder[currentTier]) {
         toast.error('Vous ne pouvez upgrader que vers un plan supérieur');
         return false;

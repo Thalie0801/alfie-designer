@@ -9,7 +9,7 @@ import { getQuotaStatus, checkQuotaAlert, QuotaStatus } from '@/utils/quotaManag
 import { useBrandKit } from '@/hooks/useBrandKit';
 import { BrandUpgradeDialog } from './BrandUpgradeDialog';
 import { WoofsPackDialog } from './WoofsPackDialog';
-import { BrandTier } from '@/hooks/useBrandManagement';
+import { BrandTier } from '@/utils/planAccess';
 
 export function BrandQuotaDisplay() {
   const { activeBrandId, activeBrand } = useBrandKit();

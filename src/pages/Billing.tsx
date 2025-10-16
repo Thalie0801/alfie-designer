@@ -93,13 +93,13 @@ const plans = [
 ];
 
 export default function Billing() {
-  const { profile, user, refreshProfile } = useAuth();
+  const { profile, user, refreshProfile, plan, planAccess, hasActivePlan } = useAuth();
   const { createCheckout, loading } = useStripeCheckout();
   const { openCustomerPortal, loading: portalLoading } = useCustomerPortal();
   const [activating, setActivating] = useState(false);
-  const currentPlan = profile?.plan || null;
-  const hasActivePlan = currentPlan && currentPlan !== 'none';
+  const currentPlan = plan;
   const hasStripeSubscription = profile?.stripe_subscription_id;
+  const currentPlanLabel = planAccess.label;
 
   const handleSelectPlan = async (plan: typeof plans[0]) => {
     if (plan.isEnterprise) {
@@ -158,7 +158,7 @@ export default function Billing() {
         )}
       </div>
 
-      {user?.email === 'nathaliestaelens@gmail.com' && currentPlan !== 'studio' && (
+      {user?.email === 'nathaliestaelens@gmail.com' && !['studio', 'admin', 'enterprise'].includes(currentPlan) && (
         <Alert className="border-green-500/50 bg-green-50 dark:bg-green-900/20">
           <AlertDescription className="flex items-center justify-between">
             <span className="text-green-700 dark:text-green-300">
@@ -192,7 +192,7 @@ export default function Billing() {
               <div>
                 <CardTitle className="flex items-center gap-2 mb-2">
                   <Badge className="bg-gradient-to-r from-primary to-secondary text-white px-4 py-1 text-base">
-                    Plan actuel: {currentPlan}
+                    Plan actuel: {currentPlanLabel}
                   </Badge>
                 </CardTitle>
                 <CardDescription>
@@ -217,15 +217,15 @@ export default function Billing() {
             <div className="space-y-3">
               <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
                 <span className="font-medium text-blue-700 dark:text-blue-300">📊 Visuels ce mois:</span>
-                <span className="text-blue-600 dark:text-blue-400 font-bold">{profile?.generations_this_month || 0} / {profile?.quota_visuals_per_month || 0}</span>
+                <span className="text-blue-600 dark:text-blue-400 font-bold">{profile?.generations_this_month || 0} / {profile?.quota_visuals_per_month ?? planAccess.quotas.visuals}</span>
               </div>
               <div className="flex items-center justify-between p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
                 <span className="font-medium text-purple-700 dark:text-purple-300">🎬 Vidéos ce mois:</span>
-                <span className="text-purple-600 dark:text-purple-400 font-bold">0 / {profile?.quota_videos || 0}</span>
+                <span className="text-purple-600 dark:text-purple-400 font-bold">0 / {profile?.quota_videos ?? planAccess.quotas.videos}</span>
               </div>
               <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
                 <span className="font-medium text-green-700 dark:text-green-300">🎨 Brand Kits:</span>
-                <span className="text-green-600 dark:text-green-400 font-bold">0 / {profile?.quota_brands || 0}</span>
+                <span className="text-green-600 dark:text-green-400 font-bold">0 / {profile?.quota_brands ?? planAccess.quotas.brands}</span>
               </div>
             </div>
           </CardContent>
@@ -242,7 +242,8 @@ export default function Billing() {
             'Enterprise': 'from-purple-500 to-pink-500'
           }[plan.name] || 'from-gray-500 to-gray-600';
           
-          const isCurrentPlan = currentPlan === plan.key;
+          const comparisonPlan = currentPlan === 'admin' ? 'studio' : currentPlan;
+          const isCurrentPlan = comparisonPlan === plan.key;
           
           return (
             <Card

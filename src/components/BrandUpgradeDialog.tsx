@@ -11,7 +11,8 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { ArrowUpCircle, Check, Zap } from 'lucide-react';
-import { BrandTier, useBrandManagement } from '@/hooks/useBrandManagement';
+import { useBrandManagement } from '@/hooks/useBrandManagement';
+import { BrandTier } from '@/utils/planAccess';
 import { SYSTEM_CONFIG } from '@/config/systemConfig';
 import { useStripeCheckout } from '@/hooks/useStripeCheckout';
 

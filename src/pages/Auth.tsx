@@ -55,8 +55,8 @@ export default function Auth() {
           setEmail(data.email);
         }
       } else {
-        // Already logged in, redirect to app
-        navigate('/app');
+        // Already logged in, redirect to dashboard
+        navigate('/dashboard');
       }
     } catch (error: any) {
       console.error('Payment verification error:', error);
@@ -69,7 +69,7 @@ export default function Auth() {
   // Redirect if already logged in (will be handled by ProtectedRoute)
   useEffect(() => {
     if (user && !verifyingPayment) {
-      navigate('/app');
+      navigate('/dashboard');
     }
   }, [user, verifyingPayment, navigate]);
 
@@ -95,7 +95,7 @@ export default function Auth() {
           }
         } else {
           toast.success('Connexion réussie !');
-          navigate('/app');
+          navigate('/dashboard');
         }
       } else {
         const { error } = await signUp(data.email, data.password, fullName);
@@ -108,7 +108,7 @@ export default function Auth() {
         } else {
           toast.success('Compte créé !');
           // After signup, redirect will be handled by auth state change
-          // User will go to /app if they have a plan, or /billing if not
+          // L'utilisateur sera redirigé vers /dashboard si son plan est actif, sinon il restera sur /auth
         }
       }
     } catch (error) {

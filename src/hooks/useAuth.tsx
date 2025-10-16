@@ -1,7 +1,7 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { useNavigate } from 'react-router-dom';
+import { getPlanAccess, planHasFeature, PlanAccess, PlanFeature, PlanKey, resolvePlanKey } from '@/utils/planAccess';
 
 interface AuthContextType {
   user: User | null;
@@ -9,7 +9,10 @@ interface AuthContextType {
   profile: any | null;
   roles: string[];
   isAdmin: boolean;
+  plan: PlanKey;
+  planAccess: PlanAccess;
   hasActivePlan: boolean;
+  hasFeature: (feature: PlanFeature) => boolean;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: any }>;
@@ -90,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
-    const redirectUrl = `${window.location.origin}/app`;
+    const redirectUrl = `${window.location.origin}/dashboard`;
     
     const { error } = await supabase.auth.signUp({
       email,
@@ -109,13 +112,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   };
 
+  const plan = useMemo(() => resolvePlanKey(profile?.plan, roles), [profile?.plan, roles]);
+  const planAccess = useMemo(() => getPlanAccess(plan), [plan]);
+
+  const hasFeature = useCallback((feature: PlanFeature) => planHasFeature(planAccess, feature), [planAccess]);
+
   const value = {
     user,
     session,
     profile,
     roles,
     isAdmin: roles.includes('admin'),
-    hasActivePlan: profile?.plan && profile?.plan !== 'none',
+    plan,
+    planAccess,
+    hasActivePlan: plan !== 'none',
+    hasFeature,
     loading,
     signIn,
     signUp,
