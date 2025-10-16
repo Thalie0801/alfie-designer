@@ -25,17 +25,17 @@ The repository keeps the default public npm registry (`.npmrc` enforces `https:/
 Si vous êtes bloqué par un environnement qui filtre totalement `registry.npmjs.org`, une option de dernier recours consiste à installer temporairement la tarball GitHub :
 
 ```sh
-npm install --save-dev github:facebook/jscodeshift#v0.14.0
+npm install --save-dev github:facebook/jscodeshift#v0.15.2
 ```
 
 Cette commande modifie `package.json` et `package-lock.json` pour récupérer directement l’archive publique GitHub. **N'utilisez cette option que pour un dépannage ponctuel** et revenez ensuite à la version npm officielle :
 
 ```sh
-npm install --save-dev jscodeshift@0.14.0
+npm install --save-dev jscodeshift@0.15.2
 npm install
 ```
 
-Avant de pousser vos changements, assurez-vous que le lockfile ne contient plus d’URL Git (`grep -r "git+" package-lock.json`). Le pipeline CI GitHub doit rester la source de vérité.
+Avant de pousser vos changements, assurez-vous que le lockfile ne contient plus d’URL Git (`grep -r "git+" package-lock.json`). Le pipeline CI GitHub doit rester la source de vérité. Si vous décidez de retirer complètement `jscodeshift` des dépendances (par exemple parce que vos codemods ne sont lancés qu'en local), documentez l'étape manuelle consistant à installer `jscodeshift` via `npx` dans vos scripts/CI avant de lancer le runner `scripts/codex/run.sh`.
 
 **Use Lovable**
 
@@ -110,8 +110,18 @@ Si vous déployez manuellement le projet sur Vercel, pensez à renseigner les va
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_PUBLISHABLE_KEY`
+- `NPM_CONFIG_FETCH_RETRIES` (ex. `5`)
+- `NPM_CONFIG_FETCH_RETRY_FACTOR` (ex. `2`)
+- `NPM_CONFIG_FETCH_RETRY_MINTIMEOUT` (ex. `1000`)
+- `NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT` (ex. `60000`)
 
-Ces valeurs sont utilisées pour initialiser le client Supabase côté front-end. Sans elles, l'application plante au chargement et Vercel affiche une erreur lors de l'ouverture du déploiement.
+Ces valeurs garantissent que Vercel dispose des accès Supabase **et** qu'il réessaie proprement les téléchargements npm en cas de micro-coupure réseau (évite l'erreur « tarball… seems to be corrupted »). N'oubliez pas également d'ajuster la commande **Install Command** dans *Project Settings → Build & Development Settings* vers :
+
+```sh
+npm ci --prefer-offline=false --no-audit --loglevel=info
+```
+
+Sans ces paramètres, l'application plante au chargement et Vercel affiche une erreur lors de l'ouverture du déploiement.
 
 ## Can I connect a custom domain to my Lovable project?
 
