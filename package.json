@@ -9,8 +9,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "test": "bun test ./src/**/*.test.ts",
-    "preview": "vite preview",
-    "analyze": "vite build --mode analyze"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

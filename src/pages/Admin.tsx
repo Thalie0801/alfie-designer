@@ -13,6 +13,7 @@ import { Users, FileText, DollarSign, Activity, ArrowLeft, Sparkles, Plus, Exter
 import { toast } from 'sonner';
 import { NewsManager } from '@/components/NewsManager';
 import { VideoDiagnostic } from '@/components/VideoDiagnostic';
+import { requireAdminStudio } from '@/lib/session';
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -33,10 +34,31 @@ export default function Admin() {
   const [designDialogOpen, setDesignDialogOpen] = useState(false);
 
   useEffect(() => {
-    loadAdminData();
-  }, []);
+    let cancelled = false;
+
+    const initialize = async () => {
+      try {
+        await requireAdminStudio();
+        if (cancelled) return;
+        await loadAdminData();
+      } catch (error) {
+        if (cancelled) return;
+        console.error('Admin access denied:', error);
+        toast.error('Accès réservé : admin + Pack Studio');
+        setLoading(false);
+        navigate('/', { replace: true });
+      }
+    };
+
+    void initialize();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate]);
 
   const loadAdminData = async () => {
+    setLoading(true);
     try {
       const [usersRes, affiliatesRes, conversionsRes, payoutsRes, designsRes] = await Promise.all([
         supabase.from('profiles').select('*').order('created_at', { ascending: false }),
