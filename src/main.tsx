@@ -1,14 +1,17 @@
-import { StrictMode } from "react";
+import { StrictMode, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 
-import App from "./App";
 import "./index.css";
+
+const App = lazy(() => import("./App"));
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
-      <App />
+      <Suspense fallback={<div className="flex h-screen items-center justify-center">Chargement…</div>}>
+        <App />
+      </Suspense>
     </BrowserRouter>
   </StrictMode>,
 );
