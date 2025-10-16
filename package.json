@@ -5,9 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prebuild": "node scripts/prebuild-check.mjs",
+    "prebuild": "node scripts/prebuild-guard.mjs",
     "build": "vite build",
-    "postbuild": "rm -rf public/app && mkdir -p public/app && cp -R dist/. public/app",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview"
