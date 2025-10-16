@@ -10,32 +10,21 @@ There are several ways of editing your application.
 
 ## Install & CI
 
-> **TL;DR** – rely on GitHub Actions for deterministic installs. Local or cloud environments without outbound network access to `registry.npmjs.org` will fail when fetching `jscodeshift`.
+> **TL;DR** – rely on GitHub Actions for deterministic installs. Vercel builds no longer install `jscodeshift`; codemods run only in local environments or dedicated CI jobs.
 
-The repository keeps the default public npm registry (`.npmrc` enforces `https://registry.npmjs.org/`). Our `Node CI` workflow on GitHub Actions now pings the registry, checks the latest `jscodeshift` metadata, then runs `npm ci`, `npm run build --if-present`, and `npm test --if-present`. If your editing environment cannot reach the npm registry (common on restricted corporate networks or egress-blocked sandboxes), trigger the CI pipeline instead of attempting a local install—the workflow is the source of truth for dependency resolution and build status.
+The repository keeps the default public npm registry (`.npmrc` enforces `https://registry.npmjs.org/`). Our `Node CI` workflow on GitHub Actions pings the registry, runs `npm ci`, `npm run build --if-present`, and `npm test --if-present`. If your editing environment cannot reach the npm registry (common on restricted corporate networks or egress-blocked sandboxes), trigger the CI pipeline instead of attempting a local install—the workflow is the source of truth for dependency resolution and build status.
 
-### Option A – standard npm registry install (par défaut)
+### Codemods hors Vercel
 
-1. Push your changes or open a pull request.
-2. Let the `Node CI` workflow run; it will verify registry access (`npm ping` and `npm view jscodeshift version`) before installing with `npm ci`.
-3. If the workflow fails with a `403 Forbidden` on `jscodeshift`, double-check that the npm registry is reachable or consider Option B.
+- Les déploiements Vercel n'installent plus `jscodeshift`.
+- Pour lancer les codemods, exécutez `npx --yes jscodeshift@0.15.2` (ou `make codex`, qui utilise cette commande) depuis votre machine locale ou un job CI dédié.
+- Pensez à nettoyer votre lockfile après coup : la commande `npx` ne modifie pas `package.json`, ce qui évite toute divergence avec la branche principale.
 
-### Option B – fallback via GitHub tarball (contournement ponctuel)
+### Install standard (npm registry public)
 
-Si vous êtes bloqué par un environnement qui filtre totalement `registry.npmjs.org`, une option de dernier recours consiste à installer temporairement la tarball GitHub :
-
-```sh
-npm install --save-dev github:facebook/jscodeshift#v0.15.2
-```
-
-Cette commande modifie `package.json` et `package-lock.json` pour récupérer directement l’archive publique GitHub. **N'utilisez cette option que pour un dépannage ponctuel** et revenez ensuite à la version npm officielle :
-
-```sh
-npm install --save-dev jscodeshift@0.15.2
-npm install
-```
-
-Avant de pousser vos changements, assurez-vous que le lockfile ne contient plus d’URL Git (`grep -r "git+" package-lock.json`). Le pipeline CI GitHub doit rester la source de vérité. Si vous décidez de retirer complètement `jscodeshift` des dépendances (par exemple parce que vos codemods ne sont lancés qu'en local), documentez l'étape manuelle consistant à installer `jscodeshift` via `npx` dans vos scripts/CI avant de lancer le runner `scripts/codex/run.sh`.
+1. Poussez vos changements ou ouvrez une pull request.
+2. Laissez tourner le workflow `Node CI` ; il vérifie l'accès au registre (`npm ping`) avant d'exécuter `npm ci`.
+3. Si le workflow échoue avec une erreur réseau, vérifiez votre connectivité ou relancez l'installation via GitHub Actions.
 
 **Use Lovable**
 
