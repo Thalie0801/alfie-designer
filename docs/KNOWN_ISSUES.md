@@ -34,8 +34,8 @@ The error was caused by the project inheriting a non-public npm registry configu
 ### Hardening the repository
 
 - `.npmrc` at the repository root now pins the default registry to `https://registry.npmjs.org/` and disables `always-auth` so anonymous reads succeed.
-- `scripts/codex/run.sh` now runs `npx -y jscodeshift@0.15.2` without attempting to install dependencies and ignores landing/docs directories.
-- The root `package.json` pins `jscodeshift` to the exact version `0.15.2`, avoiding accidental upgrades that could disappear from caches.
+- `scripts/codex/run.sh` now reuses the locally installed `jscodeshift` binary via `npx --no-install`, so no network call happens when launching the codemod.
+- The root `package.json` can optionally pin `jscodeshift` to the GitHub tarball `github:facebook/jscodeshift#v0.14.0` to bypass npm registry restrictions.
 - In CI, prefer running `npm ci` (with the registry explicitly set) to guarantee a clean, reproducible install.
 
 If the 403 persists after these steps, inspect user-level `.npmrc` files or proxy environment variables for conflicting registry settings, or regenerate `package-lock.json` if it is out of date.

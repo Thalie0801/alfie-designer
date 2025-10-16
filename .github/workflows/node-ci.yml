@@ -1,0 +1,79 @@
+name: Node CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  install-and-test:
+    name: Install & Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Scan lockfile for private registries
+        id: scan
+        run: |
+          node scripts/check-private.js --json > scan-result.json
+          HAS_PRIVATE=$(node -e "console.log(JSON.parse(require('node:fs').readFileSync('scan-result.json', 'utf8')).hasPrivate ? '1' : '0')")
+          NEEDS_NPM_TOKEN=$(node -e "console.log(JSON.parse(require('node:fs').readFileSync('scan-result.json', 'utf8')).needsNpmToken ? '1' : '0')")
+          NEEDS_READ_PACKAGES=$(node -e "console.log(JSON.parse(require('node:fs').readFileSync('scan-result.json', 'utf8')).needsReadPackagesToken ? '1' : '0')")
+          echo "FOUND_PRIVATE_URLS=$HAS_PRIVATE" >> "$GITHUB_ENV"
+          echo "NEEDS_NPM_TOKEN=$NEEDS_NPM_TOKEN" >> "$GITHUB_ENV"
+          echo "NEEDS_READ_PACKAGES_TOKEN=$NEEDS_READ_PACKAGES" >> "$GITHUB_ENV"
+          echo "has_private=$HAS_PRIVATE" >> "$GITHUB_OUTPUT"
+          echo "needs_npm_token=$NEEDS_NPM_TOKEN" >> "$GITHUB_OUTPUT"
+          echo "needs_read_packages_token=$NEEDS_READ_PACKAGES" >> "$GITHUB_OUTPUT"
+          echo "Scan result:"
+          cat scan-result.json
+
+      - name: Verify required secrets when private registries are detected
+        if: env.FOUND_PRIVATE_URLS == '1'
+        run: |
+          missing=0
+          if [ "$NEEDS_NPM_TOKEN" = '1' ] && [ -z "${{ secrets.NPM_TOKEN }}" ]; then
+            echo 'ERROR: Private npm registry URLs detected but NPM_TOKEN secret is not configured.' >&2
+            missing=1
+          fi
+          if [ "$NEEDS_READ_PACKAGES_TOKEN" = '1' ] && [ -z "${{ secrets.READ_PACKAGES_TOKEN }}" ]; then
+            echo 'ERROR: GitHub Packages dependencies detected but READ_PACKAGES_TOKEN secret is not configured.' >&2
+            missing=1
+          fi
+          if [ $missing -eq 1 ]; then
+            echo 'Add the missing secrets or regenerate package-lock.json if dependencies should be public.' >&2
+            exit 1
+          fi
+
+      - name: npm ping (registry reachability)
+        run: npm ping --registry=https://registry.npmjs.org/
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: npm view jscodeshift
+        run: npm view jscodeshift version --registry=https://registry.npmjs.org/
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Install dependencies (npm ci)
+        run: npm ci --prefer-offline=false --no-audit --loglevel=info
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          READ_PACKAGES_TOKEN: ${{ secrets.READ_PACKAGES_TOKEN }}
+
+      - name: Build
+        run: npm run build --if-present
+
+      - name: Test
+        run: npm test --if-present

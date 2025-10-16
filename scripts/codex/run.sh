@@ -34,8 +34,8 @@ for p in "${IGNORE_PATTERNS[@]}"; do
   JSC_IGNORE+=("--ignore-pattern" "$p")
 done
 
-echo "[codex] Running codemod with npx jscodeshift@0.15.2 (no install)…"
-npx -y jscodeshift@0.15.2 \
+echo "[codex] Running codemod with the locally installed jscodeshift (no registry fetch)…"
+npx --yes --no-install jscodeshift \
   --parser=tsx \
   --extensions=ts,tsx,js,jsx \
   -t scripts/codex/refonte-codemod.js \

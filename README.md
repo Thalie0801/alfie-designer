@@ -8,6 +8,28 @@
 
 There are several ways of editing your application.
 
+## Install & CI
+
+> **TL;DR** – rely on GitHub Actions for deterministic installs. Local or cloud environments without outbound network access to `registry.npmjs.org` will fail when fetching `jscodeshift`.
+
+The repository keeps the default public npm registry (`.npmrc` enforces `https://registry.npmjs.org/`). Our `Node CI` workflow on GitHub Actions now pings the registry, checks the latest `jscodeshift` metadata, then runs `npm ci`, `npm run build --if-present`, and `npm test --if-present`. If your editing environment cannot reach the npm registry (common on restricted corporate networks or egress-blocked sandboxes), trigger the CI pipeline instead of attempting a local install—the workflow is the source of truth for dependency resolution and build status.
+
+### Option A – standard npm registry install (par défaut)
+
+1. Push your changes or open a pull request.
+2. Let the `Node CI` workflow run; it will verify registry access (`npm ping` and `npm view jscodeshift version`) before installing with `npm ci`.
+3. If the workflow fails with a `403 Forbidden` on `jscodeshift`, double-check that the npm registry is reachable or consider Option B.
+
+### Option B – fallback via GitHub tarball (contournement)
+
+If `npm ci` is blocked only for `jscodeshift`, you can replace the dependency with the public GitHub tarball:
+
+```sh
+npm install --save-dev github:facebook/jscodeshift#v0.14.0
+```
+
+This rewrites `package.json` and `package-lock.json` to fetch directly from GitHub (bypassing the npm registry) while keeping the rest of the dependencies untouched. The PR associated with this change includes an optional commit implementing this fallback—cherry-pick or merge it as needed. After applying the change, rerun the CI workflow to ensure the build still passes.
+
 **Use Lovable**
 
 Simply visit the [Lovable Project](https://lovable.dev/projects/b6ceafb7-5b2f-483f-b988-77dd6e3f8f0e) and start prompting.
@@ -112,3 +134,27 @@ npm run build
 The build should complete without reporting TypeScript or runtime errors. If you do see the
 database still forcing UUID casts, keep the hotfix in place until the schema migration is fully
 rolled out (all `job_id` columns converted to `TEXT` and no triggers re-casting values).
+
+## Dépendances privées et CI
+
+Ce dépôt ne référence actuellement que des paquets publics sur le registre npm officiel. L'analyse automatique (`scripts/check-private.js`) échoue localement si le `package-lock.json` contient des URLs pointant vers un registre privé. Cette vérification est également exécutée dans la CI GitHub Actions.
+
+### Cas 100 % public
+
+Aucun jeton n'est nécessaire : le fichier `.npmrc` force l'utilisation du registre public (`https://registry.npmjs.org/`) sans authentification obligatoire. Si la CI détecte néanmoins des URLs privées résiduelles, supprimez le lockfile (`rm package-lock.json`) puis régénérez-le (`npm install`).
+
+### Cas avec paquets privés npmjs.com
+
+1. Créez un jeton d'accès sur https://www.npmjs.com/settings/mon-compte/tokens (type "Automation").
+2. Ajoutez le secret `NPM_TOKEN` dans les secrets du dépôt GitHub (`Settings > Secrets and variables > Actions`).
+3. Relancez la CI : le workflow `Node CI` utilisera automatiquement ce jeton pendant `npm ci`.
+
+### Cas avec paquets GitHub Packages
+
+1. Générez un Personal Access Token avec la permission `read:packages`.
+2. Ajoutez-le dans les secrets GitHub sous le nom `READ_PACKAGES_TOKEN`.
+3. La CI utilisera ce jeton si des URLs GitHub Packages sont détectées. Pensez à conserver les dépendances publiques lorsqu'elles n'ont pas besoin de ce registre.
+
+### Aide locale
+
+Avant chaque installation, le script `preinstall` exécute `node scripts/check-private.js --strict`. Si des dépendances privées sont détectées, l'installation est interrompue avec un message expliquant comment corriger la configuration.
