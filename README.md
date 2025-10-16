@@ -71,18 +71,35 @@ The refonte branch ships a locked-down delivery flow: Canva link + ZIP, no autop
 
 For backend integrations, see [`examples/api/express/counters.ts`](examples/api/express/counters.ts) for the `/v1/counters` handler that returns usage totals and 80% alerts, and consult the refonte docs in [`docs/REFONTE-2025`](docs/REFONTE-2025) for acceptance checklists.
 
+## Continuous integration and install strategy
+
+> ⚠️ **Sandbox limitation** — the Lovable “sandbox” environments block outbound npm traffic which results in `403 Forbidden` errors during `npm install` / `npm ci`. Always run installs inside GitHub Actions or the Vercel build environment instead of relying on the sandbox shell.
+
+- **GitHub Actions** — the workflow [`node-ci.yml`](.github/workflows/node-ci.yml) runs on every push/PR with Node 20, executes `npm ci --prefer-offline=false --no-audit --loglevel=info`, and builds the project. Use this as the source of truth for dependency installs.
+- **Vercel** — mirrors the same install command and retry environment variables documented below so hosted builds stay in sync with CI.
+
+When working locally, prefer `npm ci` using a Node 20 runtime that has direct access to the npm registry. If you only need to verify a change quickly, push a branch and let GitHub Actions perform the install/build cycle for you.
+
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/b6ceafb7-5b2f-483f-b988-77dd6e3f8f0e) and click on Share -> Publish.
 
 ### Déploiement sur Vercel
 
-Si vous déployez manuellement le projet sur Vercel, pensez à renseigner les variables d'environnement suivantes dans **Project Settings → Environment Variables** avant de cliquer sur « Open App » :
+Si vous déployez manuellement le projet sur Vercel :
 
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_PUBLISHABLE_KEY`
+1. **Commandes de build** — dans l'onglet *Project Settings → Build & Development Settings*, définissez :
+   - **Install Command** : `npm ci --prefer-offline=false --no-audit --loglevel=info`
+   - (Optionnel) ajoutez les variables de build suivantes pour renforcer la résilience réseau :
+     - `NPM_CONFIG_FETCH_RETRIES=5`
+     - `NPM_CONFIG_FETCH_RETRY_MINTIMEOUT=2000`
+     - `NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=60000`
+2. **Variables d'environnement** — toujours dans *Project Settings*, renseignez :
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_PUBLISHABLE_KEY`
+3. **Routes client-side** — le SPA est servi sous `/app`. Le fichier [`vercel.json`](./vercel.json) contient les rewrites nécessaires pour que toutes les URL `https://<host>/app/**` renvoient `public/app/index.html`. Après chaque `npm run build`, le script `postbuild` copie automatiquement le contenu de `dist/` dans `public/app/`.
 
-Ces valeurs sont utilisées pour initialiser le client Supabase côté front-end. Sans elles, l'application plante au chargement et Vercel affiche une erreur lors de l'ouverture du déploiement.
+Ces réglages garantissent que l'installation npm ne tire que les dépendances nécessaires (sans `jscodeshift`), que `vite` est disponible pendant la build, et que la navigation client `/app` fonctionne sans page blanche.
 
 ## Can I connect a custom domain to my Lovable project?
 
