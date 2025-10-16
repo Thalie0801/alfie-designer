@@ -29,12 +29,37 @@ git clone <YOUR_GIT_URL>
 # Step 2: Navigate to the project directory.
 cd <YOUR_PROJECT_NAME>
 
-# Step 3: Install the necessary dependencies.
-npm i
+# Step 3: Export your npm access token (required for toute installation).
+export NPM_TOKEN=<YOUR_READ_ONLY_TOKEN>
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Step 4: Install the necessary dependencies.
+npm ci
+
+# Step 5: Start the development server with auto-reloading and an instant preview.
 npm run dev
 ```
+
+### Authentification npm obligatoire
+
+Le projet dépend du paquet privé [`lovable-tagger`](https://www.npmjs.com/package/lovable-tagger). Sans jeton, toute installation `npm install` ou `npm ci` retournera une erreur `403`, en local comme en CI.
+
+Créer un token npm (read-only) : https://www.npmjs.com/settings\n → Access Tokens → Automation (ou Classic), activer SSO si votre org l'exige.
+
+CI GitHub : dans Settings → Secrets and variables → Actions, ajouter **NPM_TOKEN** (scope repo ou org).
+
+Local (dev) :
+
+```sh
+export NPM_TOKEN=xxxx   # session courante
+# ou dans ~/.npmrc (utilisateur)
+//registry.npmjs.org/:_authToken=${NPM_TOKEN}
+```
+
+Si GitHub Packages : créer un PAT avec `read:packages`, le stocker en secret (ex. `READ_PACKAGES_TOKEN`) et ajouter `@votre-scope:registry=https://npm.pkg.github.com/` dans `.npmrc`.
+
+Le script [`scripts/check-npm-token.js`](scripts/check-npm-token.js) est exécuté en `preinstall` pour empêcher toute installation locale sans `NPM_TOKEN`.
+
+> ℹ️ Le fichier [`./.npmrc`](.npmrc) force `always-auth=true` et lit `NPM_TOKEN` afin d'exiger un jeton pour toute résolution de paquet depuis le registre public npm.
 
 **Edit a file directly in GitHub**
 
@@ -74,6 +99,15 @@ For backend integrations, see [`examples/api/express/counters.ts`](examples/api/
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/b6ceafb7-5b2f-483f-b988-77dd6e3f8f0e) and click on Share -> Publish.
+
+### Déploiement sur Vercel
+
+Si vous déployez manuellement le projet sur Vercel, pensez à renseigner les variables d'environnement suivantes dans **Project Settings → Environment Variables** avant de cliquer sur « Open App » :
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
+
+Ces valeurs sont utilisées pour initialiser le client Supabase côté front-end. Sans elles, l'application plante au chargement et Vercel affiche une erreur lors de l'ouverture du déploiement.
 
 ## Can I connect a custom domain to my Lovable project?
 

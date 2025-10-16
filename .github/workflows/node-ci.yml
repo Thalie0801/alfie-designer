@@ -1,0 +1,42 @@
+name: Node CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # utile si vous utilisez GitHub Packages (read:packages) via GITHUB_TOKEN
+      packages: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      - name: Guard – vérifier que NPM_TOKEN est présent
+        run: |
+          if [ -z "${NPM_TOKEN}" ]; then
+            echo "::error::NPM_TOKEN manquant. Ajoute le secret dans Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # (Optionnel) si vous avez des paquets @votre-scope sur GitHub Packages :
+      # - name: Export GITHUB_TOKEN pour GitHub Packages
+      #   run: echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
+
+      - name: Install (npm ci)
+        run: npm ci
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # GITHUB_TOKEN: ${{ secrets.READ_PACKAGES_TOKEN }} # si PAT privé requis

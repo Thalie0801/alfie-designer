@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Check, Sparkles, Palette, CalendarClock, Film, BarChart3, Layers, Share2, ChevronRight, Shield } from "lucide-react";
 import alfieMain from "@/assets/alfie-main.png";
 import { useStripeCheckout } from "@/hooks/useStripeCheckout";
+import { useNavigate } from "react-router-dom";
 
 // --- Hooks to simulate actions (replace with Lovable actions / API calls) ---
 const useAlfieActions = () => {
@@ -23,6 +24,7 @@ export default function AlfieLanding() {
   const [email, setEmail] = useState("");
   const [isAnnual, setIsAnnual] = useState(false);
   const { createCheckout, loading: checkoutLoading } = useStripeCheckout();
+  const navigate = useNavigate();
 
   const calculatePrice = (monthlyPrice: number) => {
     if (isAnnual) {
@@ -48,7 +50,7 @@ export default function AlfieLanding() {
             <span className="font-semibold text-sm sm:text-base">Alfie Designer</span>
           </div>
           <div className="flex items-center gap-1 sm:gap-2">
-            <Button size="sm" className="text-xs sm:text-sm" onClick={() => window.location.href = '/auth'}>Ouvrir l'app</Button>
+            <Button size="sm" className="text-xs sm:text-sm" onClick={() => navigate('/auth')}>Ouvrir l'app</Button>
           </div>
         </div>
       </header>
@@ -64,7 +66,7 @@ export default function AlfieLanding() {
                 <Button size="lg" className="gradient-hero text-white shadow-medium hover:shadow-strong text-sm sm:text-base" onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })}>
                   Commencer ✨
                 </Button>
-                <Button size="lg" variant="outline" className="hover:scale-105 transition-transform text-sm sm:text-base" onClick={() => window.location.href = '/auth'}>
+                <Button size="lg" variant="outline" className="hover:scale-105 transition-transform text-sm sm:text-base" onClick={() => navigate('/auth')}>
                   Voir une démo
                 </Button>
               </div>
