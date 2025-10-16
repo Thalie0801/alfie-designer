@@ -20,15 +20,22 @@ The repository keeps the default public npm registry (`.npmrc` enforces `https:/
 2. Let the `Node CI` workflow run; it will verify registry access (`npm ping` and `npm view jscodeshift version`) before installing with `npm ci`.
 3. If the workflow fails with a `403 Forbidden` on `jscodeshift`, double-check that the npm registry is reachable or consider Option B.
 
-### Option B – fallback via GitHub tarball (contournement)
+### Option B – fallback via GitHub tarball (contournement ponctuel)
 
-If `npm ci` is blocked only for `jscodeshift`, you can replace the dependency with the public GitHub tarball:
+Si vous êtes bloqué par un environnement qui filtre totalement `registry.npmjs.org`, une option de dernier recours consiste à installer temporairement la tarball GitHub :
 
 ```sh
 npm install --save-dev github:facebook/jscodeshift#v0.14.0
 ```
 
-This rewrites `package.json` and `package-lock.json` to fetch directly from GitHub (bypassing the npm registry) while keeping the rest of the dependencies untouched. The PR associated with this change includes an optional commit implementing this fallback—cherry-pick or merge it as needed. After applying the change, rerun the CI workflow to ensure the build still passes.
+Cette commande modifie `package.json` et `package-lock.json` pour récupérer directement l’archive publique GitHub. **N'utilisez cette option que pour un dépannage ponctuel** et revenez ensuite à la version npm officielle :
+
+```sh
+npm install --save-dev jscodeshift@0.14.0
+npm install
+```
+
+Avant de pousser vos changements, assurez-vous que le lockfile ne contient plus d’URL Git (`grep -r "git+" package-lock.json`). Le pipeline CI GitHub doit rester la source de vérité.
 
 **Use Lovable**
 
