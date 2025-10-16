@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -48,7 +49,9 @@ export default function AlfieLanding() {
             <span className="font-semibold text-sm sm:text-base">Alfie Designer</span>
           </div>
           <div className="flex items-center gap-1 sm:gap-2">
-            <Button size="sm" className="text-xs sm:text-sm" onClick={() => window.location.href = '/app'}>Ouvrir l'app</Button>
+            <Button size="sm" className="text-xs sm:text-sm" asChild>
+              <Link to="/app">Ouvrir l'app</Link>
+            </Button>
           </div>
         </div>
       </header>
@@ -64,8 +67,13 @@ export default function AlfieLanding() {
                 <Button size="lg" className="gradient-hero text-white shadow-medium hover:shadow-strong text-sm sm:text-base" onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })}>
                   Commencer ✨
                 </Button>
-                <Button size="lg" variant="outline" className="hover:scale-105 transition-transform text-sm sm:text-base" onClick={() => window.location.href = '/app'}>
-                  Voir une démo
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="hover:scale-105 transition-transform text-sm sm:text-base"
+                  asChild
+                >
+                  <Link to="/app">Voir une démo</Link>
                 </Button>
               </div>
           <div className="mt-4 sm:mt-6 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-slate-500 text-xs sm:text-sm">
