@@ -36,8 +36,8 @@ export const creditAdjustmentSchema = z.object({
 
 export const videoJobWebhookSchema = z.object({
   jobId: z.string().min(1),
-  status: z.enum(['succeeded', 'failed']),
+  status: z.enum(['queued', 'succeeded', 'failed']),
   url: z.string().url().optional(),
   thumbUrl: z.string().url().optional(),
-  durationMs: z.number().int().nonnegative().optional(),
+  durationMs: z.number().int().positive().optional(),
 });
