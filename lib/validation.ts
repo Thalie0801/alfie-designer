@@ -39,5 +39,5 @@ export const videoJobWebhookSchema = z.object({
   status: z.enum(['queued', 'succeeded', 'failed']),
   url: z.string().url().optional(),
   thumbUrl: z.string().url().optional(),
-  durationMs: z.number().int().positive().optional(),
+  durationMs: z.number().int().nonnegative().optional(),
 });

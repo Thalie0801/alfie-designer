@@ -1,142 +1,33 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Routes, Route } from "react-router-dom";
-import { AuthProvider } from "@/hooks/useAuth";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { AffiliateTracker } from "@/components/AffiliateTracker";
-import Index from "./pages/Index";
-import Auth from "./pages/Auth";
-import Creator from "./pages/Creator";
-import Dashboard from "./pages/Dashboard";
-import Billing from "./pages/Billing";
-import Contact from "./pages/Contact";
-import CreditPurchaseSuccess from "./pages/CreditPurchaseSuccess";
-import Admin from "./pages/Admin";
-import Affiliate from "./pages/Affiliate";
-import Profile from "./pages/Profile";
-import DevenirPartenaire from "./pages/DevenirPartenaire";
-import Privacy from "./pages/Privacy";
-import Legal from "./pages/Legal";
-import FAQ from "./pages/FAQ";
-import NotFound from "./pages/NotFound";
-import Templates from "./pages/Templates";
-import Library from "./pages/Library";
-import { AppLayoutWithSidebar } from "./components/AppLayoutWithSidebar";
+import { Link } from 'react-router-dom';
 
-const queryClient = new QueryClient();
-
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <AffiliateTracker />
-      <AuthProvider>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/contact" element={<Contact />} />
-          <Route path="/devenir-partenaire" element={<DevenirPartenaire />} />
-          <Route path="/privacy" element={<Privacy />} />
-          <Route path="/legal" element={<Legal />} />
-          <Route path="/faq" element={<FAQ />} />
-          <Route
-            path="/app"
-            element={
-              <ProtectedRoute requirePlan>
-                <AppLayoutWithSidebar>
-                  <Creator />
-                </AppLayoutWithSidebar>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/templates"
-            element={
-              <ProtectedRoute requirePlan>
-                <AppLayoutWithSidebar>
-                  <Templates />
-                </AppLayoutWithSidebar>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/library"
-            element={
-              <ProtectedRoute requirePlan>
-                <AppLayoutWithSidebar>
-                  <Library />
-                </AppLayoutWithSidebar>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute requirePlan>
-                <AppLayoutWithSidebar>
-                  <Dashboard />
-                </AppLayoutWithSidebar>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/affiliate"
-            element={
-              <ProtectedRoute requirePlan>
-                <AppLayoutWithSidebar>
-                  <Affiliate />
-                </AppLayoutWithSidebar>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/profile"
-            element={
-              <ProtectedRoute requirePlan>
-                <AppLayoutWithSidebar>
-                  <Profile />
-                </AppLayoutWithSidebar>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/billing"
-            element={
-              <ProtectedRoute>
-                <AppLayoutWithSidebar>
-                  <Billing />
-                </AppLayoutWithSidebar>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/credit-purchase-success"
-            element={
-              <ProtectedRoute>
-                <AppLayoutWithSidebar>
-                  <CreditPurchaseSuccess />
-                </AppLayoutWithSidebar>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin"
-            element={
-              <ProtectedRoute requireAdmin>
-                <AppLayoutWithSidebar>
-                  <Admin />
-                </AppLayoutWithSidebar>
-              </ProtectedRoute>
-            }
-          />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </AuthProvider>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
-
-export default App;
+export default function App() {
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-center gap-8 bg-gradient-to-br from-blue-50 via-white to-purple-50 px-6 py-16 text-center">
+      <div className="space-y-4 max-w-2xl">
+        <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-100/60 px-4 py-1 text-sm font-medium text-blue-700 shadow-sm">
+          Alfie Designer • Studio créatif intelligent
+        </span>
+        <h1 className="text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
+          Votre assistant IA pour créer des visuels cohérents et captivants
+        </h1>
+        <p className="text-base text-slate-600 sm:text-lg">
+          Lancez le générateur en un clic et explorez l&apos;interface complète de la plateforme Alfie Designer.
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center justify-center gap-4">
+        <Link
+          to="/generator"
+          className="inline-flex items-center rounded-full bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/30 transition hover:bg-blue-500"
+        >
+          Accéder au générateur
+        </Link>
+        <Link
+          to="/landing"
+          className="inline-flex items-center rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+        >
+          Explorer l&apos;app complète
+        </Link>
+      </div>
+    </main>
+  );
+}

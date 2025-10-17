@@ -4,21 +4,33 @@
     "moduleResolution": "bundler",
     "allowJs": true,
     "strict": true,
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "target": "ESNext",
     "module": "ESNext",
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "src/*",
+        "lib/*",
+        "types/*"
+      ]
+    }
   },
   "include": [
-    "next-env.d.ts",
-    "app",
-    "components",
-    "lib",
-    "pages",
+    "api",
     "src",
+    "lib",
     "types",
+    "scripts",
+    "prisma",
     "*.ts",
     "*.tsx"
   ],
-  "exclude": ["node_modules", ".next", "dist"]
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }

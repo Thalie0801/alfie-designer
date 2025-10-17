@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here.
 All colors MUST be HSL.
 */
 
@@ -126,7 +126,12 @@ All colors MUST be HSL.
     @apply bg-background text-foreground font-sans antialiased;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     @apply font-bold tracking-tight;
   }
 }
@@ -135,11 +140,11 @@ All colors MUST be HSL.
   .gradient-hero {
     background: var(--gradient-hero);
   }
-  
+
   .gradient-warm {
     background: var(--gradient-warm);
   }
-  
+
   .gradient-subtle {
     background: var(--gradient-subtle);
   }
@@ -171,8 +176,14 @@ All colors MUST be HSL.
   }
 
   @keyframes float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-20px); }
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+
+    50% {
+      transform: translateY(-20px);
+    }
   }
 
   .animate-pulse-soft {
@@ -180,7 +191,13 @@ All colors MUST be HSL.
   }
 
   @keyframes pulse-soft {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
+    0%,
+    100% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.7;
+    }
   }
 }
