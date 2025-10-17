@@ -17,8 +17,8 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./app/*", "./src/*", "./lib/*", "./types/*"]
     }
   },
-  "include": ["src"]
+  "include": ["app", "src", "lib", "types", "prisma"]
 }

@@ -1,114 +1,109 @@
-# Welcome to your Lovable project
+# Alfie Designer Platform
 
-## Project info
+Plateforme SaaS en cours de construction reposant sur Next.js 14 (App Router), Prisma et Supabase pour la persistance, Stripe pour la facturation et un stockage d’assets sur Supabase Storage.
 
-**URL**: https://lovable.dev/projects/b6ceafb7-5b2f-483f-b988-77dd6e3f8f0e
+## Prérequis
 
-## How can I edit this code?
+- Node.js >= 20
+- npm >= 9
+- Accès à une base Postgres (Supabase recommandé)
+- Clés Stripe (mode test) pour les webhooks de facturation
 
-There are several ways of editing your application.
+## Configuration de l’environnement
 
-**Use Lovable**
+1. Copiez le fichier `.env.example` vers `.env` et complétez les valeurs :
+   ```bash
+   cp .env.example .env
+   ```
+2. Renseignez les URL/clefs Supabase (`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`), l’URL de stockage (`STORAGE_BUCKET`), la base de données (`DATABASE_URL`, `DIRECT_URL`) ainsi que les secrets Stripe (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`).
+3. Définissez `BASE_URL` sur l’URL publique (ou `http://localhost:3000` en local).
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/b6ceafb7-5b2f-483f-b988-77dd6e3f8f0e) and start prompting.
+## Installation et base de données
 
-Changes made via Lovable will be committed automatically to this repo.
+```bash
+npm install
+npm run db:push
+```
 
-**Use your preferred IDE**
+Ces commandes installent les dépendances puis poussent le schéma Prisma vers la base configurée.
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Studio Prisma (optionnel)
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+```bash
+npm run db:studio
+```
 
-Follow these steps:
+### Seed de développement (optionnel)
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+Un script de seed crée un utilisateur de démonstration, un projet et crédite 50 unités :
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+```bash
+npx ts-node prisma/seed.mts
+```
 
-# Step 3: Install the necessary dependencies.
-npm i
+## Lancer l’application
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Le serveur Next.js démarre sur `http://localhost:3000`.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## API de génération
 
-**Use GitHub Codespaces**
+L’API `POST /api/generate/image` permet de générer des assets (stub). Exemple de requête avec `curl` :
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## Refonte V1 runbook (PULL only)
-
-The refonte branch ships a locked-down delivery flow: Canva link + ZIP, no autopublish, quotas unchanged, and 30-day retention.
-
-- `make codex` runs the codemod that rewrites any lingering push/publish flows to the PULL delivery endpoint while skipping the landing page guardrails.
-- `make validate` calls `scripts/validate_refonte.sh` to ensure no "push Canva" or autopublish traces slip through the diff.
-- `make cleanup` triggers the 30-day retention cleanup script used in production cronjobs.
-- `make test` executes the codemod Jest suite (uses `npm test --scripts-prepend-node-path`).
-
-For backend integrations, see [`examples/api/express/counters.ts`](examples/api/express/counters.ts) for the `/v1/counters` handler that returns usage totals and 80% alerts, and consult the refonte docs in [`docs/REFONTE-2025`](docs/REFONTE-2025) for acceptance checklists.
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/b6ceafb7-5b2f-483f-b988-77dd6e3f8f0e) and click on Share -> Publish.
-
-### Déploiement sur Vercel
-
-Si vous déployez manuellement le projet sur Vercel, pensez à renseigner les variables d'environnement suivantes dans **Project Settings → Environment Variables** avant de cliquer sur « Open App » :
-
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_ANON_KEY`
-
-Ces valeurs sont utilisées pour initialiser le client Supabase côté front-end. Sans elles, l'application plante au chargement et Vercel affiche une erreur lors de l'ouverture du déploiement.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
-
-## Debugging the video job hotfix locally
-
-While the database migration from UUID to text identifiers is in progress, the app writes
-`job_id: null` for new video generations. If you need to verify that your local environment is
-clean and can still build successfully, run the quick checks below:
-
-```sh
-# Ensure no merge-conflict markers remain in the tracked files
-git grep -n '<<<<<<<\|=======\|>>>>>>>' -- . ':!package-lock.json'
-
-# Install dependencies from package-lock for a deterministic build
-npm ci
-
-# Reproduce the Lovable build to catch any runtime or type errors
-npm run build
+```bash
+curl -X POST http://localhost:3000/api/generate/image \
+  -H 'Content-Type: application/json' \
+  -H 'x-demo-user: demo@alfie-designer.test' \
+  -d '{
+    "projectId": "<PROJECT_ID>",
+    "prompt": "Affiche futuriste pour Alfie Designer",
+    "aspect": "1:1",
+    "count": 1
+  }'
 ```
 
-The build should complete without reporting TypeScript or runtime errors. If you do see the
-database still forcing UUID casts, keep the hotfix in place until the schema migration is fully
-rolled out (all `job_id` columns converted to `TEXT` and no triggers re-casting values).
+Réponse attendue :
+
+```json
+{
+  "assets": [
+    {
+      "id": "...",
+      "url": "https://...",
+      "thumbUrl": null,
+      "aspect": "1:1",
+      "mediaType": "image"
+    }
+  ]
+}
+```
+
+> ℹ️ Les routes exigent l’en-tête `x-demo-user` tant que l’authentification n’est pas branchée. Utilisez `x-demo-admin: true` pour les routes d’administration (crédit manuel).
+
+## Gestion des crédits & facturation
+
+- Les crédits sont enregistrés dans la table `CreditLedger`. Chaque génération décrémente le solde, chaque succès Stripe le crédite.
+- Les webhooks Stripe (`POST /api/webhooks/stripe`) valident la signature avant de mettre à jour `Subscription` et d’ajouter les crédits correspondant aux plans (`starter` = 50, `pro` = 200).
+- Pour tester en local, configurez Stripe CLI :
+  ```bash
+  stripe listen --forward-to localhost:3000/api/webhooks/stripe
+  ```
+
+## Stockage Supabase
+
+Les assets générés sont téléversés dans le bucket défini par `STORAGE_BUCKET` via les helpers de `lib/storage.ts`. Les URLs retournées sont publiques par défaut ; adaptez la stratégie (signatures privées, thumbnails) selon vos besoins.
+
+## Intégration front
+
+- La page Next.js `app/generator/page.tsx` contient les instructions pour brancher l’UI de génération existante (située dans `src/components`).
+- Le fichier `lib/api.ts` expose des utilitaires (`generateImages`, `listAssets`) prêts à être utilisés côté client.
+
+## Roadmap / TODO
+
+- Brancher une authentification réelle (Clerk, NextAuth, Supabase Auth…).
+- Remplacer les stubs de génération par l’intégration fournisseur (images et vidéos).
+- Mettre en place une file d’attente vidéo et la gestion des miniatures.
+- Finaliser la migration complète vers l’App Router sur l’ensemble de l’interface.

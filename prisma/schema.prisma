@@ -1,0 +1,112 @@
+// prisma/schema.prisma
+// Prisma schema defining the Alfie Designer data model.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum MediaType {
+  image
+  video
+}
+
+enum GenerationStatus {
+  queued
+  succeeded
+  failed
+}
+
+enum SubscriptionPlan {
+  starter
+  pro
+}
+
+model User {
+  id              String           @id @default(cuid())
+  email           String           @unique
+  createdAt       DateTime         @default(now())
+  projects        Project[]
+  assets          Asset[]
+  generationLogs  GenerationLog[]
+  creditLedger    CreditLedger[]
+  subscription    Subscription?
+}
+
+model Project {
+  id        String   @id @default(cuid())
+  name      String
+  ownerId   String
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  assets    Asset[]
+  logs      GenerationLog[]
+  createdAt DateTime @default(now())
+
+  @@index([ownerId, createdAt])
+}
+
+model Asset {
+  id        String     @id @default(cuid())
+  projectId String
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  mediaType MediaType
+  aspect    String
+  url       String
+  thumbUrl  String?
+  prompt    String
+  width     Int
+  height    Int
+  createdAt DateTime    @default(now())
+
+  @@index([projectId, createdAt])
+}
+
+model GenerationLog {
+  id          String            @id @default(cuid())
+  userId      String
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId   String
+  project     Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  model       String
+  mediaType   MediaType
+  aspect      String
+  prompt      String?
+  durationMs  Int?
+  costUsd     Decimal           @default(0)
+  status      GenerationStatus  @default(queued)
+  createdAt   DateTime          @default(now())
+  assetId     String?
+  asset       Asset?            @relation(fields: [assetId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([projectId, createdAt])
+}
+
+model CreditLedger {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  delta     Int
+  reason    String
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model Subscription {
+  id               String            @id @default(cuid())
+  userId           String            @unique
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stripeCustomerId String            @unique
+  stripeSubId      String?
+  plan             SubscriptionPlan
+  status           String
+  currentPeriodEnd DateTime
+  updatedAt        DateTime          @updatedAt
+  createdAt        DateTime          @default(now())
+}
