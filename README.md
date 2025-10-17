@@ -1,54 +1,41 @@
-# Welcome to your Lovable project
+# Alfie Designer – Supabase Edition
 
-## Project info
+Ce dépôt est désormais préparé pour une exécution autonome avec Supabase (base de données + Auth) et Vercel. Les outils de migration permettent de quitter Lovable Cloud sans perte de données.
 
-**URL**: https://lovable.dev/projects/b6ceafb7-5b2f-483f-b988-77dd6e3f8f0e
-
-## How can I edit this code?
-
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/b6ceafb7-5b2f-483f-b988-77dd6e3f8f0e) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+## Démarrage rapide
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+# 1. Installer les dépendances
+npm install
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# 2. Renseigner les variables d'environnement dans .env.supabase
+#    (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, etc.)
 
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# 3. Lancer l'application
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Les scripts de migration se trouvent à la racine :
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+- `migrate_to_supabase.js` : orchestre l'export Lovable, l'import Supabase, la configuration Auth et la validation.
+- `docs/MIGRATION_SUPABASE.md` : guide détaillé étape par étape.
 
-**Use GitHub Codespaces**
+Pour lancer une migration complète :
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```sh
+node migrate_to_supabase.js
+```
+
+Pour des exécutions ciblées :
+
+```sh
+node migrate_to_supabase.js --step=schema
+node migrate_to_supabase.js --step=data
+node migrate_to_supabase.js --step=config
+node migrate_to_supabase.js --step=validate
+```
+
+Les exports JSON sont stockés dans `data_export/`, les artefacts de schéma dans `migration_artifacts/` et les journaux dans `migration_logs/`.
 
 ## What technologies are used for this project?
 
@@ -71,11 +58,7 @@ The refonte branch ships a locked-down delivery flow: Canva link + ZIP, no autop
 
 For backend integrations, see [`examples/api/express/counters.ts`](examples/api/express/counters.ts) for the `/v1/counters` handler that returns usage totals and 80% alerts, and consult the refonte docs in [`docs/REFONTE-2025`](docs/REFONTE-2025) for acceptance checklists.
 
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/b6ceafb7-5b2f-483f-b988-77dd6e3f8f0e) and click on Share -> Publish.
-
-### Déploiement sur Vercel
+## Déploiement
 
 Si vous déployez manuellement le projet sur Vercel, pensez à renseigner les variables d'environnement suivantes dans **Project Settings → Environment Variables** avant de cliquer sur « Open App » :
 
@@ -84,13 +67,9 @@ Si vous déployez manuellement le projet sur Vercel, pensez à renseigner les va
 
 Ces valeurs sont utilisées pour initialiser le client Supabase côté front-end. Sans elles, l'application plante au chargement et Vercel affiche une erreur lors de l'ouverture du déploiement.
 
-## Can I connect a custom domain to my Lovable project?
+## Puis-je connecter un domaine personnalisé ?
 
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Oui : configurez-le directement dans Vercel (`Project → Settings → Domains`). Consultez la [documentation Vercel](https://vercel.com/docs/projects/domains/add-a-domain) pour plus de détails.
 
 ## Debugging the video job hotfix locally
 
@@ -105,7 +84,7 @@ git grep -n '<<<<<<<\|=======\|>>>>>>>' -- . ':!package-lock.json'
 # Install dependencies from package-lock for a deterministic build
 npm ci
 
-# Reproduce the Lovable build to catch any runtime or type errors
+# Reproduce the production build to catch any runtime or type errors
 npm run build
 ```
 

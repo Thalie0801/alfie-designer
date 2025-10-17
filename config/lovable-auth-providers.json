@@ -1,0 +1,29 @@
+{
+  "siteUrl": "https://app.your-domain.com",
+  "redirectUrls": [
+    "https://app.your-domain.com/auth/callback"
+  ],
+  "email": {
+    "enabled": true,
+    "doubleConfirm": false,
+    "otpLength": 6
+  },
+  "external": {
+    "google": {
+      "enabled": true,
+      "clientId": "your-google-client-id",
+      "secret": "your-google-secret"
+    },
+    "github": {
+      "enabled": false,
+      "clientId": "",
+      "secret": ""
+    }
+  },
+  "sms": {
+    "enabled": false,
+    "twilioAccountSid": "",
+    "twilioAuthToken": "",
+    "twilioFrom": ""
+  }
+}

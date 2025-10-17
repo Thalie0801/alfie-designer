@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 export function SupabaseHealth() {
-  const [envOk, setEnvOk] = useState<boolean | null>(null);
-  const [sessionEmail, setSessionEmail] = useState<string | null>(null);
+  const [envOk, setEnvOk] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -11,10 +10,7 @@ export function SupabaseHealth() {
 
     (async () => {
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        setSessionEmail(session?.user?.email ?? null);
+        await supabase.auth.getSession();
       } catch (err) {
         if (err instanceof Error) {
           setError(err.message);
@@ -25,6 +21,10 @@ export function SupabaseHealth() {
     })();
   }, []);
 
+  if (envOk && !error) {
+    return null;
+  }
+
   return (
     <div
       style={{
@@ -33,11 +33,11 @@ export function SupabaseHealth() {
         border: '1px solid #ddd',
         borderRadius: 8,
         marginTop: 16,
+        background: '#fff8f8',
       }}
     >
-      <div>ENV: {envOk ? '✅' : '❌'} (URL/ANON)</div>
-      <div>Session: {sessionEmail ?? '—'}</div>
-      {error && <div style={{ color: 'crimson' }}>Error: {error}</div>}
+      {!envOk && <div>Configuration Supabase incomplète (URL ou clef manquante).</div>}
+      {error && <div style={{ color: 'crimson' }}>Erreur Supabase : {error}</div>}
     </div>
   );
 }
