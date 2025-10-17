@@ -1,0 +1,43 @@
+diff --git a/src/components/SupabaseHealth.tsx b/src/components/SupabaseHealth.tsx
+index 5d7f1b5..e4e0b89 100644
+--- a/src/components/SupabaseHealth.tsx
++++ b/src/components/SupabaseHealth.tsx
+@@ -27,13 +27,19 @@ export function SupabaseHealth() {
+     })();
+   }, []);
+ 
+-  return (
+-    <div
+-      style={{
+-        fontFamily: 'monospace',
+-        padding: 12,
+-        border: '1px solid #ddd',
+-        borderRadius: 8,
+-        marginTop: 16,
+-      }}
+-    >
+-      <div>ENV: {envOk ? '✅' : '❌'} (URL/ANON)</div>
+-      <div>Session: {sessionEmail ?? '—'}</div>
+-      {error && <div style={{ color: 'crimson' }}>Error: {error}</div>}
+-    </div>
+-  );
++  if (envOk && !error && sessionEmail) {
++    return null;
++  }
++
++  return (
++    <div
++      style={{
++        fontFamily: 'monospace',
++        padding: 12,
++        border: '1px solid #ddd',
++        borderRadius: 8,
++        marginTop: 16,
++      }}
++    >
++      {!envOk && <div>Supabase env manquant (URL ou clé anon).</div>}
++      {!sessionEmail && !error && <div>Session Supabase inactive.</div>}
++      {error && <div style={{ color: 'crimson' }}>Erreur Supabase&nbsp;: {error}</div>}
++    </div>
++  );
+ }

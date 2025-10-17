@@ -490,7 +490,9 @@ export function AlfieChat() {
 
           if (!predictionId || !provider) {
             console.error('❌ [generate_video] Invalid response payload:', data);
-            throw new Error('Réponse vidéo invalide (id prédiction ou provider manquant). Vérifie les secrets Lovable Cloud.');
+            throw new Error(
+              'Réponse vidéo invalide (id prédiction ou provider manquant). Vérifie la configuration Supabase et les clés fournisseur.'
+            );
           }
 
           // Créer l'asset en DB (status processing) — 2 Woofs / vidéo

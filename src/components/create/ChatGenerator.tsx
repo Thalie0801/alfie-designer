@@ -345,7 +345,7 @@ export function ChatGenerator() {
             {/* Info Text */}
             <div className="pt-4 border-t border-border">
               <p className="text-xs text-muted-foreground text-center">
-                Propulsé par Lovable AI • Gemini Nano Banana
+                Propulsé par Alfie Designer • Backend Supabase
               </p>
             </div>
           </div>
