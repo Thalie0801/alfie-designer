@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
+const SHOW_DEBUG = import.meta.env.VITE_SHOW_DEBUG === 'true';
+
 export function SupabaseHealth() {
+  if (!SHOW_DEBUG) {
+    return null;
+  }
+
   const [envOk, setEnvOk] = useState<boolean | null>(null);
   const [sessionEmail, setSessionEmail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

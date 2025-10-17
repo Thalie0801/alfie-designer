@@ -17,7 +17,7 @@ Alfie Designer est une plateforme SaaS construite avec Vite, React Router, TypeS
    ```
 2. Renseignez les informations suivantes :
    - Connexion base de données : `DATABASE_URL`, `DIRECT_URL`
-   - Supabase : `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `STORAGE_BUCKET`
+   - Supabase : `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `STORAGE_BUCKET`, `VITE_SHOW_DEBUG`
    - Stripe : `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
    - Webhook vidéo : `VIDEO_WEBHOOK_SECRET` (32+ caractères) et `ALLOWED_ASSET_URL_PREFIXES` (liste CSV des préfixes autorisés)
    - URL de base de l’app : `BASE_URL`
@@ -91,6 +91,47 @@ Pour tester le webhook localement :
    ```
 
 Le webhook renvoie `{ "success": true }` si la mise à jour est traitée ou une erreur structurée `{ "error": "..." }` dans le cas contraire.
+
+## Supabase Edge Functions — Déploiement
+
+Les fichiers sources des Edge Functions résident dans `supabase/functions/*`. Pour qu’une fonction apparaisse dans le dashboard Supabase et soit invocable par l’application, elle doit être déployée explicitement. Trois approches sont possibles :
+
+### 1. Depuis le Dashboard (Editor)
+
+1. Ouvrez votre projet Supabase puis cliquez sur **Functions → Open Editor**.
+2. Créez une nouvelle fonction (ex : `alfie-generate`) et collez le contenu du fichier correspondant, par exemple `supabase/functions/alfie-generate/index.ts`.
+3. Cliquez sur **Deploy**.
+4. Dans le menu **Secrets**, ajoutez les variables nécessaires (`VIDEO_WEBHOOK_SECRET`, `SUPABASE_URL`, etc.).
+
+### 2. Via la CLI Supabase (conteneur Docker)
+
+Si la CLI n’est pas installée localement, vous pouvez l’exécuter via Docker :
+
+```bash
+# Lier le dépôt au projet Supabase
+docker run --rm -it -v "$PWD":/work -w /work \
+  -e SUPABASE_ACCESS_TOKEN \
+  ghcr.io/supabase/cli:latest \
+  supabase link --project-ref <PROJECT_REF>
+
+# Déployer une fonction (ex. alfie-generate)
+docker run --rm -it -v "$PWD":/work -w /work \
+  -e SUPABASE_ACCESS_TOKEN \
+  ghcr.io/supabase/cli:latest \
+  supabase functions deploy alfie-generate --project-ref <PROJECT_REF>
+
+# Déclarer les secrets nécessaires à la fonction
+docker run --rm -it -v "$PWD":/work -w /work \
+  -e SUPABASE_ACCESS_TOKEN \
+  ghcr.io/supabase/cli:latest \
+  supabase secrets set VIDEO_WEBHOOK_SECRET="xxxxx" --project-ref <PROJECT_REF>
+```
+
+### 3. Automatisation via GitHub Actions
+
+Ajoutez un workflow qui, à chaque push sur la branche principale, exécute les commandes ci-dessus (`supabase link` + `supabase functions deploy`). Veillez à stocker `SUPABASE_ACCESS_TOKEN` et `PROJECT_REF` dans les secrets du dépôt.
+
+> ℹ️ Le fichier `.vercelignore` peut exclure `supabase/functions/*` du déploiement Vercel, ce qui est normal : les Edge Functions sont hébergées par Supabase et doivent être déployées séparément via l’une des méthodes ci-dessus.
 
 ## Notes supplémentaires
 
