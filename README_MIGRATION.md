@@ -1,76 +1,82 @@
 # Migration Lovable Cloud → Supabase (Auto-hébergement)
 
-Ce document décrit comment répliquer la base de données Lovable Cloud sur votre propre instance Supabase tout en conservant Lovable comme environnement de développement.
+Ce guide explique comment créer la base Supabase à partir du code du dépôt puis reconnecter Lovable dessus. Toutes les étapes sont réalisables sans clé API Lovable : seule votre instance Supabase est nécessaire.
 
-## Contenu généré
+## Fichiers utiles
 
 | Fichier | Rôle |
 | --- | --- |
-| `supabase_schema.sql` | Schéma complet (tables, contraintes, RLS, triggers) |
-| `setup_supabase.js` | Script Node.js pour appliquer le schéma, configurer l'auth et valider la configuration |
-| `import_data.js` | Import optionnel de données JSON vers Supabase |
-| `.env.local` | Modèle des variables d'environnement pour Lovable / scripts locaux |
-| `fix_debug_display.patch` | Patch supprimant l'ancien bandeau de debug sur l'écran de connexion |
-| `LOVABLE_SETUP.md` | Check-list de configuration côté Lovable |
+| `db/migrations/*.sql` | Schéma officiel extrait du dépôt (tables, contraintes, RLS) |
+| `supabase/migrations/*.sql` | Compléments Lovable (policies, fonctions) appliqués automatiquement si présents |
+| `setup_supabase.js` | Script Node.js qui applique les migrations, configure l'auth et valide les tables |
+| `import_data.js` | Import optionnel de données JSON |
+| `.env.local` | Modèle des variables d'environnement à copier dans Lovable |
 
 ## Prérequis
-- Node.js ≥ 18
-- Accès au projet Supabase (URL, clés `anon` et `service_role`, mot de passe de la base)
-- Accès au dépôt GitHub (`git clone` ou via Lovable)
 
-## Étapes de migration
+- Node.js ≥ 18
+- URL Supabase + clefs `anon` et `service_role`
+- Mot de passe de la base (dans **Project Settings → Database → Connection string → URI**) pour construire `SUPABASE_DB_URL`
+- Accès au dépôt (via GitHub ou Lovable)
+
+## Étapes pas à pas
 
 ### 1. Préparer les variables d'environnement
-1. Dupliquez `.env.local` en `.env.local.localhost` (ou exportez directement les variables dans votre shell).
-2. Renseignez :
+
+1. Dupliquez `.env.local` en `.env.local.localhost` (ou exportez les variables dans votre shell).
+2. Remplacez les valeurs par celles de votre projet :
    ```env
    VITE_SUPABASE_URL=https://<ref>.supabase.co
-   VITE_SUPABASE_ANON_KEY=...
-   SUPABASE_SERVICE_KEY=...
-   SUPABASE_DB_URL=postgresql://postgres:<db-password>@<ref>.supabase.co:5432/postgres
+   VITE_SUPABASE_ANON_KEY=<clé anon>
+   SUPABASE_SERVICE_KEY=<clé service_role>
+   SUPABASE_DB_URL=postgresql://postgres:<mot-de-passe>@<ref>.supabase.co:5432/postgres
    ```
-3. Conservez ces valeurs et créez les variables équivalentes dans Lovable (`Project Settings → Environment Variables`).
+3. Ajoutez les mêmes variables dans Lovable (**Settings → Environment Variables**). Seules les valeurs `VITE_*` sont nécessaires côté front, mais conserver les clés admin simplifie les scripts.
 
-### 2. Déployer le schéma
+### 2. Appliquer le schéma Supabase
+
 ```bash
 npm install
 node setup_supabase.js --step=schema
 ```
-Le script se connecte directement à Postgres via `SUPABASE_DB_URL` et exécute l'intégralité de `supabase_schema.sql`.
 
-### 3. Configurer l'authentification
-- Renseignez vos identifiants OAuth dans `config/lovable-auth-providers.json` (Google, GitHub, SMS, etc.).
-- Appliquez la configuration :
-  ```bash
-  node setup_supabase.js --step=auth
-  ```
+- Le script lit d'abord `db/migrations/` (schéma principal), puis `supabase/migrations/` s'ils existent.
+- Pour rejouer un fichier spécifique, utilisez `node setup_supabase.js --step=schema --schema=./supabase_schema.sql`.
+- La sortie affiche chaque fichier appliqué (`Applying [x/y] ...`). En cas d'erreur, le nom du fichier fautif est indiqué.
 
-### 4. (Optionnel) Importer les données historiques
-1. Créez un export JSON où chaque clé correspond à un nom de table Supabase.
-2. Exécutez :
-   ```bash
-   node import_data.js --data-file=./data_export.json
-   ```
-   L'ordre d'insertion respecte les dépendances (profils → marques → conversations, etc.).
+### 3. Vérifier les tables créées
 
-### 5. Vérifier la configuration
 ```bash
 node setup_supabase.js --step=validate
 ```
-Le script affiche le nombre de lignes pour chaque table essentielle.
+
+Vous devriez voir un tableau avec les tables essentielles et le nombre de lignes (0 juste après la création). Ouvrez ensuite Supabase Studio → **Table Editor** pour confirmer la présence des tables.
+
+### 4. Configurer l'authentification (optionnel)
+
+1. Complétez `config/lovable-auth-providers.json` avec vos identifiants OAuth.
+2. Exécutez `node setup_supabase.js --step=auth` pour pousser la configuration vers Supabase.
+
+### 5. Importer des données (optionnel)
+
+1. Construisez un fichier JSON contenant vos données (clé = nom de la table).
+2. Lancez :
+   ```bash
+   node import_data.js --data-file=./data_export/mon_export.json
+   ```
+3. Relancez `node setup_supabase.js --step=validate` pour vérifier les compteurs.
 
 ### 6. Synchroniser Lovable
-1. Poussez vos commits sur GitHub (`git push`).
-2. Lovable synchronise automatiquement le dépôt et reconstruit l'application.
-3. Lors du prochain déploiement, l'écran de connexion ne montre plus le bandeau `ENV: ✅ (URL/ANON)`.
 
-### 7. Maintenance
-- Conservez `supabase_schema.sql` comme source de vérité. Toute évolution du schéma doit être ajoutée à ce fichier puis rejouée via `node setup_supabase.js --step=schema`.
-- Documentez les modifications majeures dans `README_MIGRATION.md` pour les futurs contributeurs.
+1. Commitez et poussez vos modifications sur GitHub.
+2. Lovable détecte la mise à jour, récupère les nouvelles variables et reconstruit l'application.
+3. À l'ouverture de la page de connexion, le bandeau `ENV: ✅ (URL/ANON)` a disparu : seules les erreurs réelles s'affichent.
 
 ## Dépannage
-- **Erreur `Missing required environment variable: SUPABASE_SERVICE_KEY`** : vérifiez que la clé service est présente dans votre shell et dans Lovable.
-- **Impossible de se connecter à Postgres** : assurez-vous d'avoir autorisé votre IP dans `Project Settings → Database → Networking` sur Supabase ou utilisez un tunnel sécurisé.
-- **Les politiques RLS bloquent l'import** : utilisez `SUPABASE_SERVICE_KEY` pour importer (le script le fait automatiquement). Si vous importez manuellement, pensez à l'ajouter dans les en-têtes `apikey` et `Authorization`.
 
-Bonnes créations avec Alfie Designer !
+- `Missing required environment variable: SUPABASE_SERVICE_KEY` → La clé `service_role` n'est pas chargée dans votre shell.
+- `SUPABASE_DB_URL is required` → Copiez l'URI Postgres fournie par Supabase (pensez à générer le mot de passe si besoin).
+- Bloqué par RLS lors d'un import manuel → ajoutez les en-têtes `apikey` et `Authorization` avec la clé `service_role`.
+- Aucun changement dans Supabase Studio → vérifiez que le script n'a pas levé d'erreur et que votre IP est autorisée dans **Project Settings → Database → Network**.
+
+Bon courage pour la migration !

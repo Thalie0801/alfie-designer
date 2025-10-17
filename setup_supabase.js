@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFile, access } from 'node:fs/promises';
+import { readFile, access, readdir } from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -41,19 +41,73 @@ if (!SUPABASE_DB_URL) {
 
 const stepArg = process.argv.find((arg) => arg.startsWith('--step='));
 const requestedStep = stepArg ? stepArg.split('=')[1] : null;
+const schemaArg = process.argv.find((arg) => arg.startsWith('--schema='));
+const explicitSchema = schemaArg ? schemaArg.split('=')[1] : process.env.SUPABASE_SCHEMA_FILE;
+
+const MIGRATION_DIRS = [
+  path.join(__dirname, 'db', 'migrations'),
+  path.join(__dirname, 'supabase', 'migrations'),
+];
+
+async function resolveSqlSources() {
+  if (explicitSchema) {
+    const absolute = path.isAbsolute(explicitSchema)
+      ? explicitSchema
+      : path.join(__dirname, explicitSchema);
+    return [absolute];
+  }
+
+  for (const dir of MIGRATION_DIRS) {
+    try {
+      const entries = await readdir(dir);
+      const sqlFiles = entries.filter((file) => file.endsWith('.sql')).sort();
+      if (sqlFiles.length > 0) {
+        return sqlFiles.map((file) => path.join(dir, file));
+      }
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        throw error;
+      }
+    }
+  }
+
+  const fallback = path.join(__dirname, 'supabase_schema.sql');
+  try {
+    await access(fallback, fsConstants.F_OK);
+    return [fallback];
+  } catch {
+    return [];
+  }
+}
 
 const pgPool = new pg.Pool({ connectionString: SUPABASE_DB_URL });
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 async function applySchema() {
-  const schemaPath = path.join(__dirname, 'supabase_schema.sql');
-  const sql = await readFile(schemaPath, 'utf8');
-  console.log(`Applying schema from ${schemaPath}...`);
+  const sqlSources = await resolveSqlSources();
+
+  if (sqlSources.length === 0) {
+    console.warn('⚠️  Aucun fichier SQL trouvé. Ajoutez des migrations dans db/migrations ou supabase/migrations.');
+    return;
+  }
+
   const client = await pgPool.connect();
   try {
-    await client.query(sql);
-    console.log('✅ Schema applied successfully.');
+    for (let index = 0; index < sqlSources.length; index += 1) {
+      const filePath = sqlSources[index];
+      const sql = await readFile(filePath, 'utf8');
+      const label = path.relative(__dirname, filePath);
+      console.log(`Applying [${index + 1}/${sqlSources.length}] ${label}...`);
+      try {
+        await client.query(sql);
+      } catch (error) {
+        error.message = `Failed while executing ${label}: ${error.message}`;
+        throw error;
+      }
+      console.log(`✅  ${label} applied.`);
+    }
+    console.log('🎯 Toutes les migrations SQL ont été appliquées.');
   } finally {
     client.release();
   }

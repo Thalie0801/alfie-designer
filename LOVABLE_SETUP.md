@@ -21,6 +21,8 @@ node setup_supabase.js --step=seed   # optionnel (insère les templates par déf
 node setup_supabase.js --step=validate
 ```
 
+> ℹ️  Le script applique automatiquement tous les fichiers SQL présents dans `db/migrations/` puis `supabase/migrations/`. Utilisez `--schema=./supabase_schema.sql` si vous souhaitez cibler un fichier unique.
+
 > ℹ️  Le script nécessite un accès direct à la base Postgres via `SUPABASE_DB_URL`. Vous pouvez récupérer le mot de passe dans `Project Settings → Database → Connection info` sur Supabase.
 
 ## 3. Mettre à jour les variables Lovable
