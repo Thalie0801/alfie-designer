@@ -9,7 +9,6 @@ import { Sparkles, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
-import { SupabaseHealth } from '@/components/SupabaseHealth';
 import { getAuthHeader } from '@/lib/auth';
 
 const authSchema = z.object({
@@ -153,8 +152,6 @@ export default function Auth() {
             </Alert>
           )}
 
-          <SupabaseHealth />
-          
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'signup' && (
               <div>
