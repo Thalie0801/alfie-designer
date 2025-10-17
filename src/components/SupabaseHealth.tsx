@@ -1,49 +1,32 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import AuthDebug from '@/components/AuthDebug';
 
 const SHOW_DEBUG = import.meta.env.VITE_SHOW_DEBUG === 'true';
 
 export function SupabaseHealth() {
-  if (!SHOW_DEBUG) {
-    return null;
-  }
-
-  const [envOk, setEnvOk] = useState<boolean | null>(null);
-  const [sessionEmail, setSessionEmail] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [session, setSession] = useState<unknown>(null);
 
   useEffect(() => {
-    setEnvOk(Boolean(import.meta.env.VITE_SUPABASE_URL && (import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY)));
+    if (!SHOW_DEBUG) {
+      return;
+    }
 
     (async () => {
       try {
         const {
-          data: { session },
+          data: { session: currentSession },
         } = await supabase.auth.getSession();
-        setSessionEmail(session?.user?.email ?? null);
+        setSession(currentSession ?? null);
       } catch (err) {
-        if (err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError('Unknown error');
-        }
+        setSession(null);
       }
     })();
   }, []);
 
-  return (
-    <div
-      style={{
-        fontFamily: 'monospace',
-        padding: 12,
-        border: '1px solid #ddd',
-        borderRadius: 8,
-        marginTop: 16,
-      }}
-    >
-      <div>ENV: {envOk ? '✅' : '❌'} (URL/ANON)</div>
-      <div>Session: {sessionEmail ?? '—'}</div>
-      {error && <div style={{ color: 'crimson' }}>Error: {error}</div>}
-    </div>
-  );
+  if (!SHOW_DEBUG) {
+    return null;
+  }
+
+  return <AuthDebug session={session} />;
 }

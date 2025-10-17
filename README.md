@@ -93,45 +93,30 @@ Pour tester le webhook localement :
 Le webhook renvoie `{ "success": true }` si la mise à jour est traitée ou une erreur structurée `{ "error": "..." }` dans le cas contraire.
 
 ## Supabase Edge Functions — Déploiement
+Les fonctions n’apparaissent dans le dashboard qu’après déploiement.
 
-Les fichiers sources des Edge Functions résident dans `supabase/functions/*`. Pour qu’une fonction apparaisse dans le dashboard Supabase et soit invocable par l’application, elle doit être déployée explicitement. Trois approches sont possibles :
+**Option 1 — Dashboard**
+1. Supabase → Edge Functions → Open Editor → Create Function (ex: `alfie-generate`)
+2. Collez le code depuis `supabase/functions/alfie-generate/index.ts`
+3. Deploy
+4. Ajoutez les secrets requis dans **Secrets**
 
-### 1. Depuis le Dashboard (Editor)
-
-1. Ouvrez votre projet Supabase puis cliquez sur **Functions → Open Editor**.
-2. Créez une nouvelle fonction (ex : `alfie-generate`) et collez le contenu du fichier correspondant, par exemple `supabase/functions/alfie-generate/index.ts`.
-3. Cliquez sur **Deploy**.
-4. Dans le menu **Secrets**, ajoutez les variables nécessaires (`VIDEO_WEBHOOK_SECRET`, `SUPABASE_URL`, etc.).
-
-### 2. Via la CLI Supabase (conteneur Docker)
-
-Si la CLI n’est pas installée localement, vous pouvez l’exécuter via Docker :
-
+**Option 2 — CLI via Docker**
 ```bash
-# Lier le dépôt au projet Supabase
 docker run --rm -it -v "$PWD":/work -w /work \
   -e SUPABASE_ACCESS_TOKEN \
-  ghcr.io/supabase/cli:latest \
-  supabase link --project-ref <PROJECT_REF>
+  ghcr.io/supabase/cli:latest supabase link --project-ref <PROJECT_REF>
 
-# Déployer une fonction (ex. alfie-generate)
 docker run --rm -it -v "$PWD":/work -w /work \
   -e SUPABASE_ACCESS_TOKEN \
-  ghcr.io/supabase/cli:latest \
-  supabase functions deploy alfie-generate --project-ref <PROJECT_REF>
+  ghcr.io/supabase/cli:latest supabase functions deploy alfie-generate --project-ref <PROJECT_REF>
 
-# Déclarer les secrets nécessaires à la fonction
 docker run --rm -it -v "$PWD":/work -w /work \
   -e SUPABASE_ACCESS_TOKEN \
-  ghcr.io/supabase/cli:latest \
-  supabase secrets set VIDEO_WEBHOOK_SECRET="xxxxx" --project-ref <PROJECT_REF>
+  ghcr.io/supabase/cli:latest supabase secrets set VIDEO_WEBHOOK_SECRET="xxxxx" --project-ref <PROJECT_REF>
 ```
 
-### 3. Automatisation via GitHub Actions
-
-Ajoutez un workflow qui, à chaque push sur la branche principale, exécute les commandes ci-dessus (`supabase link` + `supabase functions deploy`). Veillez à stocker `SUPABASE_ACCESS_TOKEN` et `PROJECT_REF` dans les secrets du dépôt.
-
-> ℹ️ Le fichier `.vercelignore` peut exclure `supabase/functions/*` du déploiement Vercel, ce qui est normal : les Edge Functions sont hébergées par Supabase et doivent être déployées séparément via l’une des méthodes ci-dessus.
+Le fichier `.vercelignore` peut exclure `supabase/functions/*` du build Vercel : c’est normal, le déploiement des Edge Functions se fait directement depuis Supabase (Dashboard, CLI ou GitHub Action).
 
 ## Notes supplémentaires
 
