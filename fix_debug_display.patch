@@ -1,0 +1,65 @@
+diff --git a/src/components/SupabaseHealth.tsx b/src/components/SupabaseHealth.tsx
+index 1111111..2222222 100644
+--- a/src/components/SupabaseHealth.tsx
++++ b/src/components/SupabaseHealth.tsx
+@@ -1,29 +1,33 @@
+-import { useEffect, useState } from 'react';
+-import { supabase } from '@/integrations/supabase/client';
+-
+-export function SupabaseHealth() {
+-  const [envOk, setEnvOk] = useState<boolean>(false);
+-  const [sessionInfo, setSessionInfo] = useState<string>('—');
+-
+-  useEffect(() => {
+-    const hasUrl = Boolean(import.meta.env.VITE_SUPABASE_URL);
+-    const hasAnon = Boolean(
+-      import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+-    );
+-    setEnvOk(hasUrl && hasAnon);
+-
+-    supabase.auth.getSession().then(({ data }) => {
+-      setSessionInfo(data.session ? 'active' : '—');
+-    });
+-  }, []);
+-
+-  return (
+-    <div className="mt-4 rounded-md border border-dashed border-slate-300 bg-slate-50 p-3 text-xs font-mono text-slate-600">
+-      <div>ENV: {envOk ? '✅ (URL/ANON)' : '⚠️ Manquant'}</div>
+-      <div>Session: {sessionInfo}</div>
+-    </div>
+-  );
+-}
++import { useEffect, useState } from 'react';
++import { supabase } from '@/integrations/supabase/client';
++
++export function SupabaseHealth() {
++  const [envOk, setEnvOk] = useState<boolean>(true);
++  const [error, setError] = useState<string | null>(null);
++
++  useEffect(() => {
++    setEnvOk(Boolean(import.meta.env.VITE_SUPABASE_URL && (import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY)));
++
++    (async () => {
++      try {
++        await supabase.auth.getSession();
++      } catch (err) {
++        if (err instanceof Error) {
++          setError(err.message);
++        } else {
++          setError('Unknown error');
++        }
++      }
++    })();
++  }, []);
++
++  if (envOk && !error) {
++    return null;
++  }
++
++  return (
++    <div style={{ fontFamily: 'monospace', padding: 12, border: '1px solid #ddd', borderRadius: 8, marginTop: 16, background: '#fff8f8' }}>
++      {!envOk && <div>Configuration Supabase incomplète (URL ou clef manquante).</div>}
++      {error && <div style={{ color: 'crimson' }}>Erreur Supabase : {error}</div>}
++    </div>
++  );
++}
