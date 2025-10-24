@@ -2,6 +2,11 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+// Liste des emails admin - REMPLACEZ PAR VOTRE EMAIL
+const ADMIN_EMAILS = [
+  'nathaliestaelens@gmail.com', // ← Mettez votre email ici
+]
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -17,17 +22,34 @@ serve(async (req) => {
   }
 
   try {
-    // Créer un client Supabase avec la clé service_role
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      throw new Error('Configuration Supabase manquante')
+    }
+
+    // Client admin (service role) pour les opérations privilégiées
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
       }
-    )
+    })
+
+    // Client utilisateur pour récupérer le compte courant via le token
+    const supabase = createClient(supabaseUrl, anonKey || serviceRoleKey, {
+      global: {
+        headers: {
+          Authorization: req.headers.get('Authorization') ?? ''
+        }
+      },
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    })
 
     // Récupérer les données de la requête
     const { email, fullName, plan, sendInvite, password } = await req.json()
@@ -38,21 +60,13 @@ serve(async (req) => {
       throw new Error('Non authentifié')
     }
 
-    const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token)
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
 
     if (userError || !user) {
       throw new Error('Non authentifié')
     }
 
-    // Vérifier le rôle admin
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    if (profileError || profile?.role !== 'admin') {
+    if (!ADMIN_EMAILS.includes(user.email || '')) {
       throw new Error('Accès refusé : droits administrateur requis')
     }
 
