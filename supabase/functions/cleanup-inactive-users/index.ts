@@ -13,6 +13,7 @@ serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const cleanupSecret = Deno.env.get("CLEANUP_SHARED_SECRET") ?? "";
 
   if (!supabaseUrl || !serviceKey) {
     return new Response(
@@ -27,6 +28,38 @@ serve(async (req) => {
     const url = new URL(req.url);
     const forceRun = url.searchParams.get("force") === "true";
     const today = new Date();
+
+    let authorized = false;
+    const providedSecret = req.headers.get("x-cleanup-secret") ?? "";
+    if (cleanupSecret && providedSecret === cleanupSecret) {
+      authorized = true;
+    }
+
+    if (!authorized) {
+      const authHeader = req.headers.get("authorization") ?? "";
+      const bearerPrefix = "bearer ";
+
+      if (authHeader.toLowerCase().startsWith(bearerPrefix)) {
+        const accessToken = authHeader.slice(bearerPrefix.length).trim();
+
+        if (accessToken) {
+          const { data: userData, error: authError } = await supabaseClient.auth.getUser(
+            accessToken
+          );
+
+          if (!authError && userData?.user) {
+            authorized = true;
+          }
+        }
+      }
+    }
+
+    if (!authorized) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     if (!forceRun && today.getUTCDate() !== 30) {
       return new Response(
