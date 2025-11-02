@@ -1,0 +1,1 @@
+import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';\n\nserve(async (req) => {\n  // Placeholder minimal pour éviter le 404\n  return new Response(JSON.stringify({ id: 'placeholder-job-set-id', data: { id: 'placeholder-job-set-id' } }), {\n    headers: { 'Content-Type': 'application/json' },\n    status: 200,\n  });\n});
