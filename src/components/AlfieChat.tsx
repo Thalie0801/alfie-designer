@@ -248,7 +248,7 @@ export function AlfieChat() {
       const { data, error } = await supabase.functions.invoke('alfie-render-image', {
         body: {
           provider: 'gemini-nano',
-          prompt,
+          prompt: uploadedImage ? `[Image Référence: ${uploadedImage}] ${prompt}` : prompt,
           format: mapAspectRatio(aspectRatio),
           brand_id: activeBrandId,
           cost_woofs: woofCost
@@ -317,7 +317,7 @@ export function AlfieChat() {
       // 3. Appeler generate-video
       const { data, error } = await supabase.functions.invoke('generate-video', {
         body: {
-          prompt,
+          prompt: uploadedImage ? `[Image Référence: ${uploadedImage}] ${prompt}` : prompt,
           aspectRatio,
           brandId: activeBrandId,
           woofCost
@@ -415,7 +415,7 @@ export function AlfieChat() {
     try {
       const headers = await getAuthHeader();
       const { data, error } = await supabase.functions.invoke('alfie-plan-carousel', {
-        body: { prompt, slideCount: count },
+        body: { prompt: uploadedImage ? `[Image Référence: ${uploadedImage}] ${prompt}` : prompt, slideCount: count },
         headers
       });
 
@@ -454,7 +454,11 @@ export function AlfieChat() {
     
     addMessage({
       role: 'assistant',
-      content: `Voici le plan proposé pour votre carrousel de ${count} slides :\n\n${planContent}\n\n**Validez-vous ce plan pour lancer la génération des images ?** (Répondez 'oui' ou 'non')`,
+      content: `Voici le plan proposé pour votre carrousel de ${count} slides. Vous pouvez le modifier directement dans le champ de saisie avant de valider.
+
+${planContent}
+
+**Validez-vous ce plan pour lancer la génération des images ?** (Répondez 'oui' ou 'non')`,
       type: 'text',
       metadata: {
         awaitingValidation: true,
@@ -595,15 +599,229 @@ export function AlfieChat() {
     
     try {
       // 2. Vérifier si on est en attente de validation de plan de carrousel
-      const lastMessage = messages[messages.length - 1];
-      if (lastMessage?.metadata?.awaitingValidation && lastMessage.metadata.action === 'carousel_plan_validation') {
+      const lastMessage = messages[messages.length -       if (lastMessage?.metadata?.awaitingValidation && lastMessage.metadata.action === 'carousel_plan_validation') {
         if (userMessage.toLowerCase().includes('oui') || userMessage.toLowerCase().includes('ok')) {
           
-          const { plan, aspectRatio } = lastMessage.metadata;
-          const count = plan.length;
+          // 1. Extraire le plan du message précédent
+          const { plan: originalPlan, aspectRatio } = lastMessage.metadata;
+          const count = originalPlan.length;
+          const originalPrompt = lastMessage.metadata.originalPrompt || userMessage;
+
+          // 2. Récupérer le plan potentiellement modifié par l'utilisateur
+          // Le plan modifié est dans le message utilisateur (userMessage)
+          // On va tenter de parser le plan modifié
+          let finalPlan = originalPlan;
+          try {
+            // Tenter de parser le plan modifié
+            const planRegex = /\*\*Slide \d+\*\*\n- Titre: (.*)\n- Texte: (.*)\n- Prompt Image: \*(.*)\*/g;
+            const matches = [...userMessage.matchAll(planRegex)];
+            
+            if (matches.length === count) {
+              finalPlan = matches.map((match, index) => ({
+                title: match[1],
+                text: match[2],
+                imagePrompt: match[3],
+                // Conserver les autres métadonnées du plan original si nécessaire
+                ...originalPlan[index]
+              }));
+            }
+          } catch (e) {
+            console.warn('Could not parse user modified plan, using original plan.', e);
+          }
           
-          // 2.1. Vérifier et consommer quota (count visuels)
-          const quotaOk = await checkAndConsumeQuota('visuals', count);
+          const finalCount = finalPlan.length;
+
+          if (!activeBrandId) {
+            toast.error('Aucune marque active. Veuillez sélectionner une marque.');
+            setIsLoading(false);
+            return;
+          }
+          
+          addMessage({
+            role: 'assistant',
+            content: `✅ Plan validé ! Lancement de la génération des ${finalCount} slides avec texte et images...`,
+            type: 'text'
+          });
+          
+          try {
+            // 2.1. Créer le job_set avec create-job-set
+            const headers = await getAuthHeader();
+            const idempotencyKey = `carousel-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            
+            const { data: jobSetData, error: jobSetError } = await supabase.functions.invoke('create-job-set', {
+              body: { 
+                brandId: activeBrandId,
+                prompt: originalPrompt,
+                count: finalCount,
+                aspectRatio,
+                plan: finalPlan // Passer le plan final au backend
+              },
+              headers: {
+                ...headers,
+                'x-idempotency-key': idempotencyKey
+              }
+            });
+            
+            if (jobSetError || !jobSetData?.data?.id) {
+              const errorMessage = jobSetError?.message || jobSetData?.error || 'Erreur inconnue (pas d\'ID de jobSet)';
+              console.error('[Carousel] create-job-set error:', errorMessage, jobSetData);
+              toast.error(`Erreur lors de la création du carrousel: ${errorMessage}`);
+              await refundWoofs(finalCount);
+              return;
+            }
+            
+            const jobSetId = jobSetData.data.id;
+            console.log(`[Carousel] Job set created: ${jobSetId}`);
+            
+            addMessage({
+              role: 'assistant',
+              content: `⏳ Carrousel en cours de génération (0/${finalCount})...`,
+              type: 'text',
+              metadata: { jobSetId, totalSlides: finalCount, completedSlides: 0 }
+            });
+            
+            // 2.2. Récupérer tous les jobs créés
+            const { data: jobs, error: jobsError } = await supabase
+              .from('jobs')
+              .select('id')
+              .eq('job_set_id', jobSetId)
+              .order('index_in_set', { ascending: true });
+            
+            if (jobsError || !jobs || jobs.length === 0) {
+              console.error('[Carousel] Failed to fetch jobs:', jobsError);
+              toast.error('Erreur lors de la récupération des tâches');
+              return;
+            }
+            
+            console.log(`[Carousel] Found ${jobs.length} jobs to process`);
+            
+            // 2.3. Traiter chaque job
+            console.log(`[Carousel] Triggering processing for ${jobs.length} jobs...`);
+            
+            // Lancer tous les workers en parallèle (sans attendre)
+            Promise.all(
+              jobs.map((job) =>
+                supabase.functions.invoke('process-job-worker', {
+                  body: { job_id: job.id },
+                  headers
+                }).catch(err => console.error(`[Carousel] Worker error for job ${job.id}:`, err))
+              )
+            );
+            
+            // 2.4. Polling pour vérifier la progression
+            let completedCount = 0;
+            let pollAttempts = 0;
+            const maxPollAttempts = 60; // 60 * 5s = 5 minutes max
+            
+            carouselPollingRef.current = setInterval(async () => {
+              pollAttempts++;
+              
+              const { data: currentJobs } = await supabase
+                .from('jobs')
+                .select('status')
+                .eq('job_set_id', jobSetId);
+              
+              if (!currentJobs) return;
+              
+              const completed = currentJobs.filter(j => 
+                j.status === 'succeeded' || j.status === 'completed'
+              ).length;
+              
+              const failed = currentJobs.filter(j => j.status === 'failed').length;
+              
+              if (completed !== completedCount) {
+                completedCount = completed;
+                
+                // Mettre à jour le message de progression
+                setMessages(prev => prev.map(m => {
+                  if (m.metadata?.jobSetId === jobSetId && !m.metadata?.assetUrls) {
+                    return {
+                      ...m,
+                      content: `⏳ Carrousel en cours de génération (${completed}/${finalCount})...`
+                    };
+                  }
+                  return m;
+                }));
+              }
+              
+              // Gérer le timeout
+              if (pollAttempts >= maxPollAttempts) {
+                clearInterval(carouselPollingRef.current!);
+                console.error('⏱️ Timeout: carousel generation exceeded 5 minutes');
+                
+                toast.error(`⏱️ Timeout : génération trop longue (${completed}/${finalCount} terminées)`);
+                
+                setMessages(prev => {
+                  const filtered = prev.filter(m => m.metadata?.jobSetId !== jobSetId);
+                  return [...filtered, {
+                    id: `carousel-timeout-${Date.now()}`,
+                    role: 'assistant' as const,
+                    content: `⚠️ La génération a pris trop de temps. ${completed} slides terminées sur ${finalCount}. Les autres jobs sont peut-être bloqués. Veuillez contacter le support si le problème persiste.`,
+                    type: 'text' as const,
+                    timestamp: new Date()
+                  }];
+                });
+                
+                return;
+              }
+              
+              // Si tous terminés
+              if (completed + failed >= finalCount) {
+                clearInterval(carouselPollingRef.current!);
+                
+                // Récupérer les assets finaux
+                const { data: assets } = await supabase
+                  .from('assets')
+                  .select('id, storage_key')
+                  .eq('job_set_id', jobSetId)
+                  .order('index_in_set', { ascending: true });
+                
+                if (assets && assets.length > 0) {
+                  const assetUrls = assets.map(a => {
+                    const { data } = supabase.storage.from('media-generations').getPublicUrl(a.storage_key);
+                    return data.publicUrl;
+                  });
+                  
+                  setMessages(prev => {
+                    const filtered = prev.filter(m => m.metadata?.jobSetId !== jobSetId);
+                    return [...filtered, {
+                      id: `carousel-result-${Date.now()}`,
+                      role: 'assistant' as const,
+                      content: `🎉 Carrousel terminé ! ${assets.length} slides générées avec succès.`,
+                      type: 'carousel' as const,
+                      metadata: { 
+                        jobSetId, 
+                        assetIds: assets.map(a => a.id),
+                        assetUrls
+                      },
+                      timestamp: new Date()
+                    }];
+                  });
+                  
+                  toast.success(`Carrousel prêt ! ${assets.length} slides générées.`);
+                } else {
+                  toast.error('Aucune slide générée. Veuillez réessayer.');
+                }
+              }
+            }, 5000); // Vérifier toutes les 5 secondes
+            
+            
+          } catch (error: any) {
+            console.error('[Carousel] Generation error:', error);
+            toast.error(`Erreur: ${error.message}`);
+            await refundWoofs(finalCount);
+          }
+          
+          return;
+        } else if (userMessage.toLowerCase().includes('non')) {
+          addMessage({
+            role: 'assistant',
+            content: '❌ Plan annulé. Veuillez reformuler votre demande de carrousel.',
+            type: 'text'
+          });
+          return;
+        }
+      }   const quotaOk = await checkAndConsumeQuota('visuals', count);
           if (!quotaOk) {
             setIsLoading(false);
             return;

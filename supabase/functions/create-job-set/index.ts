@@ -62,7 +62,7 @@ serve(async (req) => {
     const hasAccess = await userHasAccess(authHeader);
     if (!hasAccess) throw new Error('Access denied');
 
-    const { brandId, prompt, count, aspectRatio = '4:5' } = await req.json();
+    const { brandId, prompt, count, aspectRatio = '4:5', plan: planFromFrontend } = await req.json();
 
     // 🔒 SÉCURITÉ: Vérifier que la marque appartient bien à l'utilisateur
     const { data: brandOwnership, error: brandCheckError } = await supabase
@@ -135,23 +135,28 @@ serve(async (req) => {
         no_text: false // ✅ Activer la typo pour carrousels typographiques
       };
 
-      // 5. Appeler alfie-plan-carousel
-      const { data: planResponse, error: planErr } = await supabase.functions.invoke('alfie-plan-carousel', {
-        body: { prompt, brandKit: brandSnapshot, slideCount: normalizedCount },
-        headers: { Authorization: authHeader }
-      });
-
-      if (planErr || !planResponse?.plan?.slides) {
-        console.error('[create-job-set] ❌ Planning failed:', planErr || 'No slides in response');
-        // Refund quotas
-        await supabase.rpc('refund_brand_quotas', {
-          p_brand_id: brandId,
-          p_visuals_count: normalizedCount
-        });
-        throw new Error('Carousel planning failed');
-      }
-
-      const plan = planResponse.plan;
+      // 5. Utiliser le plan fourni par le frontend ou appeler alfie-plan-carousel
+	      let plan: any;
+	      if (planFromFrontend) {
+	        plan = { slides: planFromFrontend };
+	        console.log('[create-job-set] ✅ Using plan provided by frontend.');
+	      } else {
+	        const { data: planResponse, error: planErr } = await supabase.functions.invoke('alfie-plan-carousel', {
+	          body: { prompt, brandKit: brandSnapshot, slideCount: normalizedCount },
+	          headers: { Authorization: authHeader }
+	        });
+	
+	        if (planErr || !planResponse?.plan?.slides) {
+	          console.error('[create-job-set] ❌ Planning failed:', planErr || 'No slides in response');
+	          // Refund quotas
+	          await supabase.rpc('refund_brand_quotas', {
+	            p_brand_id: brandId,
+	            p_visuals_count: normalizedCount
+	          });
+	          throw new Error('Carousel planning failed');
+	        }
+	        plan = planResponse.plan;
+	      }
 
       // 6. Créer le job_set avec master_seed et constraints
       const { data: newJobSet, error: jobSetErr } = await supabase
