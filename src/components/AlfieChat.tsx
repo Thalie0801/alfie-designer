@@ -650,8 +650,9 @@ export function AlfieChat() {
             });
             
             if (jobSetError || !jobSetData?.data?.id) {
-              console.error('[Carousel] create-job-set error:', jobSetError);
-              toast.error('Erreur lors de la création du carrousel');
+              const errorMessage = jobSetError?.message || jobSetData?.error || 'Erreur inconnue (pas d\'ID de jobSet)';
+              console.error('[Carousel] create-job-set error:', errorMessage, jobSetData);
+              toast.error(`Erreur lors de la création du carrousel: ${errorMessage}`);
               await refundWoofs(count);
               return;
             }
