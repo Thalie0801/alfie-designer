@@ -405,7 +405,7 @@ export function AlfieChat() {
     imagePrompt: string;
   }
   
-  const generateCarouselPlan = async (prompt: string, count: number): Promise<CarouselSlide[] | null> => {
+  const generateCarouselPlan = async (prompt: string, count: number, uploadedImage: string | null, activeBrandId: string): Promise<CarouselSlide[] | null> => {
     // 1. Appel à l'IA pour générer le plan textuel (APPEL SUPABASE)
     addMessage({
       role: 'assistant',
@@ -416,7 +416,11 @@ export function AlfieChat() {
     try {
       const headers = await getAuthHeader();
       const { data, error } = await supabase.functions.invoke('alfie-plan-carousel', {
-        body: { prompt, slideCount: count },
+        body: { 
+          prompt: uploadedImage ? `[Image Référence: ${uploadedImage}] ${prompt}` : prompt,
+          slideCount: count,
+          brandKit: activeBrandId,
+        },
         headers
       });
 
@@ -448,9 +452,9 @@ export function AlfieChat() {
     }
   };
 
-  const generateCarousel = async (prompt: string, count: number, aspectRatio: string) => {
+ const generateCarousel = async (prompt: string, count: number, aspectRatio: string, uploadedImage: string | null, activeBrandId: string) => {
     // 1. Générer le plan textuel
-    const plan = await generateCarouselPlan(prompt, count);
+    const plan = await generateCarouselPlan(prompt, count, uploadedImage, activeBrandId);
     if (!plan) return;
     
     // 2. Afficher le plan et demander validation
@@ -825,7 +829,7 @@ export function AlfieChat() {
         case 'carousel': {
           const count = extractCount(userMessage);
           const aspectRatio = detectAspectRatio(userMessage);
-          await generateCarousel(userMessage, count, aspectRatio);
+          await generateCarousel(userMessage, count, aspectRatio, uploadedImage, activeBrandId);
           break;
         }
         
