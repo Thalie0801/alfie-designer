@@ -248,7 +248,7 @@ export function AlfieChat() {
       const { data, error } = await supabase.functions.invoke('alfie-render-image', {
         body: {
           provider: 'gemini-nano',
-          prompt,
+          prompt: uploadedImage ? `[Image Référence: ${uploadedImage}] ${prompt}` : prompt,
           format: mapAspectRatio(aspectRatio),
           brand_id: activeBrandId,
           cost_woofs: woofCost
@@ -317,7 +317,7 @@ export function AlfieChat() {
       // 3. Appeler generate-video
       const { data, error } = await supabase.functions.invoke('generate-video', {
         body: {
-          prompt,
+          prompt: uploadedImage ? `[Image Référence: ${uploadedImage}] ${prompt}` : prompt,
           aspectRatio,
           brandId: activeBrandId,
           woofCost
@@ -431,6 +431,11 @@ export function AlfieChat() {
     } catch (error: any) {
       console.error('[Carousel Plan] Error:', error);
       toast.error(`Échec de la planification : ${error.message}`);
+      addMessage({
+        role: 'assistant',
+        content: `❌ Erreur de planification : ${JSON.stringify(error)}`,
+        type: 'text'
+      });
       return null;
     }
   };    const plan = await generateCarouselPlan(prompt, count);
