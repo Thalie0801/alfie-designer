@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import '@testing-library/jest-dom';
+import { act } from 'react-dom/test-utils';
+import { createRoot } from 'react-dom/client';
+import type { ReactElement } from 'react';
 import { TourProvider, useTour, HelpLauncher } from './InteractiveTour';
 import { lsGet, lsSet, autoCompletedKey } from '@/utils/localStorage';
 
@@ -31,6 +31,46 @@ function TestTourConsumer() {
     </div>
   );
 }
+
+let root: ReturnType<typeof createRoot> | null = null;
+let renderContainer: HTMLElement | null = null;
+
+function cleanup() {
+  if (root) {
+    act(() => {
+      root?.unmount();
+    });
+    root = null;
+  }
+  if (renderContainer && renderContainer.parentElement) {
+    renderContainer.parentElement.removeChild(renderContainer);
+  }
+  renderContainer = null;
+}
+
+function render(ui: ReactElement) {
+  cleanup();
+  renderContainer = document.createElement('div');
+  document.body.appendChild(renderContainer);
+  act(() => {
+    root = createRoot(renderContainer!);
+    root.render(ui);
+  });
+  return { container: renderContainer };
+}
+
+const userEvent = {
+  setup: () => ({
+    click: async (element?: Element | null) => {
+      if (!element) return;
+      await act(async () => {
+        element.dispatchEvent(
+          new MouseEvent('click', { bubbles: true, cancelable: true })
+        );
+      });
+    },
+  }),
+};
 
 // Helper to get elements
 const getByTestId = (id: string) => document.querySelector(`[data-testid="${id}"]`);
@@ -74,6 +114,7 @@ describe('InteractiveTour', () => {
   });
 
   afterEach(() => {
+    cleanup();
     document.body.innerHTML = '';
   });
 
