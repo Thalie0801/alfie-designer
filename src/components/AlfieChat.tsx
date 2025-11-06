@@ -164,6 +164,7 @@ export function AlfieChat() {
 
     for (const asset of orderAssets) {
       const key = asset.url;
+      const key = asset.url || asset.id;
       if (!key || seenAssetsRef.current.has(key)) continue;
 
       seenAssetsRef.current.add(key);
@@ -188,6 +189,27 @@ export function AlfieChat() {
     if (canAnnounce) {
       setConversationState('completed');
       finishAnnouncedRef.current = orderId!;
+        assetUrl: asset.url,
+        metadata: isCarouselSlide
+          ? { assetUrls: [{ url: asset.url, format: asset.format }] }
+          : undefined
+      });
+    }
+
+    const alreadyAnnounced = messages.some(
+      (m) => m.role === 'assistant' && m.content.includes('🎉 Génération terminée')
+    );
+
+    if (
+      !alreadyAnnounced &&
+      conversationState === 'generating' &&
+      orderTotal > 0 &&
+      orderAssets.length >= orderTotal
+    ) {
+      console.log('[Chat] 🎉 Génération terminée !', { assets: orderAssets.length, total: orderTotal });
+
+      setConversationState('completed');
+
       addMessage({
         role: 'assistant',
         content: '🎉 Génération terminée ! Toutes tes slides sont prêtes.',
@@ -197,6 +219,10 @@ export function AlfieChat() {
       setQuickReplies(['Voir la bibliothèque', 'Créer un nouveau carrousel']);
     }
   }, [orderAssets, orderId, conversationState, orderTotal]);
+
+      setQuickReplies(['3 images', '2 carrousels', '1 image + 1 carrousel', 'Voir la bibliothèque']);
+    }
+  }, [orderAssets, orderTotal, conversationState, messages]);
   
   // ======
   // REALTIME JOB MONITORING
@@ -434,6 +460,7 @@ export function AlfieChat() {
   // ======
   
   const QuickRepliesButtons = ({ replies, onSelect }: { replies: string[]; onSelect: (reply: string) => Promise<void> }) => {
+  const QuickRepliesButtons = ({ replies, onSelect }: { replies: string[]; onSelect: (reply: string) => Promise<void> | void }) => {
     if (replies.length === 0) return null;
 
     return (
@@ -452,6 +479,7 @@ export function AlfieChat() {
               }
               setInput(reply);
               await onSelect(reply);
+              await Promise.resolve(onSelect(reply));
             }}
             className="text-xs"
           >
