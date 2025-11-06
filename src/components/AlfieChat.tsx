@@ -26,6 +26,35 @@ const normalizeConversationState = (state?: string | null): ConversationState =>
       return 'idle';
   }
 };
+// ======
+// TYPES
+// ======
+
+interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  type?: 'text' | 'image' | 'video' | 'carousel' | 'reasoning' | 'bulk-carousel';
+  assetUrl?: string;
+  assetId?: string;
+  metadata?: any;
+  reasoning?: string;
+  brandAlignment?: string;
+  quickReplies?: string[];
+  bulkCarouselData?: {
+    carousels: Array<{
+      carousel_index: number;
+      slides: Array<{
+        storage_url: string;
+        index: number;
+      }>;
+      zip_url?: string;
+    }>;
+    totalCarousels: number;
+    slidesPerCarousel: number;
+  };
+  timestamp: Date;
+}
 
 // ======
 // COMPOSANT PRINCIPAL
@@ -50,6 +79,8 @@ export function AlfieChat() {
   const [orderId, setOrderId] = useState<string | null>(null);
   const [conversationState, setConversationState] = useState<ConversationState>('idle');
   const [expectedTotal, setExpectedTotal] = useState<number | null>(null);
+  const [quickReplies, setQuickReplies] = useState<string[]>([]);
+  const [conversationState, setConversationState] = useState<string>('initial');
 
   // Subscription aux assets de l'order
   const { assets: orderAssets, total: orderTotal } = useLibraryAssetsSubscription(orderId);
@@ -71,6 +102,8 @@ export function AlfieChat() {
       setExpectedTotal(orderTotal);
     }
   }, [orderTotal]);
+    setQuickReplies([]);
+  }, [orderId]);
   
   // ======
   // RESTAURATION D'ÉTAT APRÈS REFRESH
@@ -153,6 +186,7 @@ export function AlfieChat() {
 
     for (const asset of orderAssets) {
       const key = asset.url;
+      const key = asset.url || asset.id;
       if (!key || seenAssetsRef.current.has(key)) continue;
 
       seenAssetsRef.current.add(key);
@@ -178,6 +212,40 @@ export function AlfieChat() {
     if (canAnnounce) {
       setConversationState('completed');
       finishAnnouncedRef.current = orderId;
+      setConversationState('completed');
+      finishAnnouncedRef.current = orderId;
+      setConversationState('completed');
+      finishAnnouncedRef.current = orderId;
+    const canAnnounce =
+      conversationState === 'generating' &&
+      (orderTotal ?? 0) > 0 &&
+      orderAssets.length >= (orderTotal ?? 0) &&
+      finishAnnouncedRef.current !== orderId;
+
+    if (canAnnounce) {
+      setConversationState('completed');
+      finishAnnouncedRef.current = orderId!;
+        assetUrl: asset.url,
+        metadata: isCarouselSlide
+          ? { assetUrls: [{ url: asset.url, format: asset.format }] }
+          : undefined
+      });
+    }
+
+    const alreadyAnnounced = messages.some(
+      (m) => m.role === 'assistant' && m.content.includes('🎉 Génération terminée')
+    );
+
+    if (
+      !alreadyAnnounced &&
+      conversationState === 'generating' &&
+      orderTotal > 0 &&
+      orderAssets.length >= orderTotal
+    ) {
+      console.log('[Chat] 🎉 Génération terminée !', { assets: orderAssets.length, total: orderTotal });
+
+      setConversationState('completed');
+
       addMessage({
         role: 'assistant',
         content: '🎉 Génération terminée ! Toutes tes slides sont prêtes.',
@@ -186,6 +254,17 @@ export function AlfieChat() {
       });
     }
   }, [orderAssets, orderId, conversationState, orderTotal, expectedTotal]);
+    }
+  }, [orderAssets, orderId, conversationState, orderTotal, expectedTotal]);
+    }
+  }, [orderAssets, orderId, conversationState, orderTotal, expectedTotal]);
+      setQuickReplies(['Voir la bibliothèque', 'Créer un nouveau carrousel']);
+    }
+  }, [orderAssets, orderId, conversationState, orderTotal]);
+
+      setQuickReplies(['3 images', '2 carrousels', '1 image + 1 carrousel', 'Voir la bibliothèque']);
+    }
+  }, [orderAssets, orderTotal, conversationState, messages]);
   
   // ======
   // REALTIME JOB MONITORING
@@ -322,6 +401,7 @@ export function AlfieChat() {
       try {
         const headers = await getAuthHeader();
 
+        
         console.log(`[Chat] Calling orchestrator (attempt ${attempt}/${maxRetries}):`, {
           message: userMessage.substring(0, 50),
           conversationId,
@@ -435,6 +515,8 @@ export function AlfieChat() {
   // ======
   
   const QuickRepliesButtons = ({ replies, onSelect }: QuickRepliesProps) => {
+  const QuickRepliesButtons = ({ replies, onSelect }: { replies: string[]; onSelect: (reply: string) => Promise<void> }) => {
+  const QuickRepliesButtons = ({ replies, onSelect }: { replies: string[]; onSelect: (reply: string) => Promise<void> | void }) => {
     if (replies.length === 0) return null;
 
     return (
@@ -453,6 +535,7 @@ export function AlfieChat() {
               }
               setInput(reply);
               await onSelect(reply);
+              await Promise.resolve(onSelect(reply));
             }}
             className="text-xs"
           >
@@ -619,6 +702,12 @@ export function AlfieChat() {
                         if (!item?.url) return null;
 
                         const aspectClass = getAspectClass(item.format);
+                        const aspectClass =
+                          item.format === '9:16' ? 'aspect-[9/16]' :
+                          item.format === '16:9' ? 'aspect-video' :
+                          item.format === '1:1'  ? 'aspect-square' :
+                          item.format === '5:4'  ? 'aspect-[5/4]' :
+                                                  'aspect-[4/5]';
 
                         return (
                           <div key={i} className={`relative ${aspectClass} rounded-lg overflow-hidden`}>
@@ -672,6 +761,12 @@ export function AlfieChat() {
                       <div className="grid grid-cols-5 gap-2">
                         {carousel.slides?.slice(0, 5).map((slide: any, slideIdx: number) => {
                           const aspectClass = getAspectClass(slide.format);
+                          const aspectClass =
+                            slide.format === '9:16' ? 'aspect-[9/16]' :
+                            slide.format === '16:9' ? 'aspect-video' :
+                            slide.format === '1:1'  ? 'aspect-square' :
+                            slide.format === '5:4'  ? 'aspect-[5/4]' :
+                                                      'aspect-[4/5]';
 
                           return (
                             <div key={slideIdx} className={`relative ${aspectClass} rounded overflow-hidden border border-border`}>
@@ -702,6 +797,14 @@ export function AlfieChat() {
         ))}
         <div ref={messagesEndRef} />
       </div>
+      
+      {/* Quick Replies */}
+      <QuickRepliesButtons
+        replies={quickReplies}
+        onSelect={async (reply) => {
+          await handleSend(reply);
+        }}
+      />
       
       {/* Composer */}
       <div className="border-t bg-background p-4">
