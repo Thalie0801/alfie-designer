@@ -28,6 +28,7 @@ interface Message {
   metadata?: any;
   reasoning?: string;
   brandAlignment?: string;
+  quickReplies?: string[];
   bulkCarouselData?: {
     carousels: Array<{
       carousel_index: number;
@@ -66,14 +67,21 @@ export function AlfieChat() {
   const [orderId, setOrderId] = useState<string | null>(null);
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
   const [conversationState, setConversationState] = useState<string>('initial');
-  
+
   // Subscription aux assets de l'order
   const { assets: orderAssets, total: orderTotal } = useLibraryAssetsSubscription(orderId);
-  
+
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const seenAssetsRef = useRef(new Set<string>());
+  const seenAssetsRef = useRef(new Set<string>()); // stocke les URLs déjà annoncées
+  const finishAnnouncedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    seenAssetsRef.current = new Set<string>();
+    finishAnnouncedRef.current = null;
+    setQuickReplies([]);
+  }, [orderId]);
   
   // ======
   // RESTAURATION D'ÉTAT APRÈS REFRESH
@@ -152,37 +160,43 @@ export function AlfieChat() {
   // ======
   
   useEffect(() => {
+    if (!orderId || !orderAssets.length) return;
+
     for (const asset of orderAssets) {
-      if (!seenAssetsRef.current.has(asset.id)) {
-        seenAssetsRef.current.add(asset.id);
-        
-        const isCarouselSlide = asset.type === 'carousel_slide';
-        addMessage({
-          role: 'assistant',
-          content: isCarouselSlide 
-            ? `✅ Slide ${asset.slideIndex + 1} générée !` 
-            : '✅ Image générée !',
-          type: 'image',
-          assetUrl: asset.url
-        });
-      }
-    }
-    
-    // ✅ DÉTECTION DE FIN DE GÉNÉRATION
-    if (conversationState === 'generating' && orderTotal > 0 && orderAssets.length >= orderTotal) {
-      console.log('[Chat] 🎉 Génération terminée !', { assets: orderAssets.length, total: orderTotal });
-      
-      setConversationState('completed');
-      
+      const key = asset.url;
+      if (!key || seenAssetsRef.current.has(key)) continue;
+
+      seenAssetsRef.current.add(key);
+
+      const isCarouselSlide = asset.type === 'carousel_slide';
       addMessage({
         role: 'assistant',
-        content: `🎉 Génération terminée ! ${orderTotal} asset${orderTotal > 1 ? 's' : ''} créé${orderTotal > 1 ? 's' : ''}.\n\nQue veux-tu créer maintenant ?`,
+        content: isCarouselSlide
+          ? `✅ Slide ${asset.slideIndex + 1} générée !`
+          : '✅ Image générée !',
+        type: isCarouselSlide ? 'carousel' : 'image',
+        assetUrl: asset.url
+      });
+    }
+
+    const canAnnounce =
+      conversationState === 'generating' &&
+      (orderTotal ?? 0) > 0 &&
+      orderAssets.length >= (orderTotal ?? 0) &&
+      finishAnnouncedRef.current !== orderId;
+
+    if (canAnnounce) {
+      setConversationState('completed');
+      finishAnnouncedRef.current = orderId!;
+      addMessage({
+        role: 'assistant',
+        content: '🎉 Génération terminée ! Toutes tes slides sont prêtes.',
+        quickReplies: ['Voir la bibliothèque', 'Créer un nouveau carrousel'],
         type: 'text'
       });
-      
-      setQuickReplies(['3 images', '2 carrousels', '1 image + 1 carrousel', 'Voir la bibliothèque']);
+      setQuickReplies(['Voir la bibliothèque', 'Créer un nouveau carrousel']);
     }
-  }, [orderAssets, orderTotal, conversationState]);
+  }, [orderAssets, orderId, conversationState, orderTotal]);
   
   // ======
   // REALTIME JOB MONITORING
@@ -254,15 +268,16 @@ export function AlfieChat() {
   // HANDLER PRINCIPAL (ORCHESTRATOR-BASED)
   // ======
   
-  const handleSend = async () => {
-    if (isLoading || !input.trim()) return;
-    
+  const handleSend = async (override?: string) => {
+    const messageToSend = (override ?? input).trim();
+    if (isLoading || !messageToSend) return;
+
     if (!activeBrandId) {
       toast.error('Sélectionne une marque d\'abord !');
       return;
     }
-    
-    const userMessage = input.trim();
+
+    const userMessage = messageToSend;
     setInput('');
     setIsLoading(true);
 
@@ -318,18 +333,14 @@ export function AlfieChat() {
       try {
         const headers = await getAuthHeader();
         
-        console.log(`[Chat] Calling orchestrator (attempt ${attempt}/${maxRetries}):`, { 
-          message: userMessage.substring(0, 50), 
-          conversationId, 
-          brandId: activeBrandId 
+        console.log(`[Chat] Calling orchestrator (attempt ${attempt}/${maxRetries}):`, {
+          message: userMessage.substring(0, 50),
+          conversationId,
+          brandId: activeBrandId
         });
-        
+
         const { data, error } = await supabase.functions.invoke('alfie-orchestrator', {
-          body: {
-            message: userMessage,
-            conversationId,
-            brandId: activeBrandId
-          },
+          body: { message: userMessage, conversationId, brandId: activeBrandId },
           headers
         });
         
@@ -422,9 +433,9 @@ export function AlfieChat() {
   // QUICK REPLIES COMPONENT
   // ======
   
-  const QuickRepliesButtons = ({ replies, onSelect }: { replies: string[]; onSelect: (reply: string) => void }) => {
+  const QuickRepliesButtons = ({ replies, onSelect }: { replies: string[]; onSelect: (reply: string) => Promise<void> }) => {
     if (replies.length === 0) return null;
-    
+
     return (
       <div className="flex flex-wrap gap-2 px-4 pb-2">
         {replies.map((reply, idx) => (
@@ -432,14 +443,15 @@ export function AlfieChat() {
             key={idx}
             variant="outline"
             size="sm"
-            onClick={() => {
+            disabled={isLoading}
+            onClick={async () => {
               // Si "Voir la bibliothèque" ET qu'on a un orderId, ouvrir la page library
               if (reply === 'Voir la bibliothèque' && orderId) {
                 window.open(`/library?order=${orderId}`, '_blank');
-              } else {
-                setInput(reply);
-                onSelect(reply);
+                return;
               }
+              setInput(reply);
+              await onSelect(reply);
             }}
             className="text-xs"
           >
@@ -594,14 +606,28 @@ export function AlfieChat() {
                   )}
                   {message.metadata?.assetUrls && (
                     <div className="grid grid-cols-2 gap-2 mt-2">
-                      {message.metadata.assetUrls.map((url: string, i: number) => (
-                        <img
-                          key={i}
-                          src={url}
-                          alt={`Slide ${i + 1}`}
-                          className="rounded-lg w-full"
-                        />
-                      ))}
+                      {message.metadata.assetUrls.map((entry: any, i: number) => {
+                        const item = typeof entry === 'string' ? { url: entry } : entry;
+                        if (!item?.url) return null;
+
+                        const aspectClass =
+                          item.format === '9:16' ? 'aspect-[9/16]' :
+                          item.format === '16:9' ? 'aspect-video' :
+                          item.format === '1:1'  ? 'aspect-square' :
+                          item.format === '5:4'  ? 'aspect-[5/4]' :
+                                                  'aspect-[4/5]';
+
+                        return (
+                          <div key={i} className={`relative ${aspectClass} rounded-lg overflow-hidden`}>
+                            <img
+                              src={item.url}
+                              alt={`Slide ${i + 1}`}
+                              className="absolute inset-0 w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -642,20 +668,20 @@ export function AlfieChat() {
                       {/* Grille des slides individuelles avec aspect ratio dynamique */}
                       <div className="grid grid-cols-5 gap-2">
                         {carousel.slides?.slice(0, 5).map((slide: any, slideIdx: number) => {
-                          // Mapper l'aspect ratio selon le format
-                          const aspectClass = 
+                          const aspectClass =
                             slide.format === '9:16' ? 'aspect-[9/16]' :
                             slide.format === '16:9' ? 'aspect-video' :
-                            slide.format === '1:1' ? 'aspect-square' :
-                            slide.format === '4:5' ? 'aspect-[4/5]' :
-                            'aspect-[9/16]'; // Défaut portrait
-                          
+                            slide.format === '1:1'  ? 'aspect-square' :
+                            slide.format === '5:4'  ? 'aspect-[5/4]' :
+                                                      'aspect-[4/5]';
+
                           return (
-                            <div key={slideIdx} className={`${aspectClass} rounded overflow-hidden border border-border`}>
-                              <img 
-                                src={slide.cloudinary_url || slide.storage_url} 
+                            <div key={slideIdx} className={`relative ${aspectClass} rounded overflow-hidden border border-border`}>
+                              <img
+                                src={slide.cloudinary_url || slide.storage_url}
                                 alt={`Slide ${slideIdx + 1}`}
-                                className="w-full h-full object-cover"
+                                className="absolute inset-0 w-full h-full object-cover"
+                                loading="lazy"
                               />
                             </div>
                           );
@@ -680,13 +706,11 @@ export function AlfieChat() {
       </div>
       
       {/* Quick Replies */}
-      <QuickRepliesButtons 
-        replies={quickReplies} 
+      <QuickRepliesButtons
+        replies={quickReplies}
         onSelect={async (reply) => {
-          setInput(reply);
-          // Auto-send when clicking quick reply
-          await handleSend();
-        }} 
+          await handleSend(reply);
+        }}
       />
       
       {/* Composer */}
@@ -733,7 +757,7 @@ export function AlfieChat() {
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                handleSend();
+                void handleSend();
               }
             }}
             placeholder="Décris ce que tu veux créer..."
@@ -744,7 +768,7 @@ export function AlfieChat() {
           />
           
           <Button
-            onClick={handleSend}
+            onClick={() => void handleSend()}
             disabled={isLoading || (!input.trim() && !uploadedImage)}
             size="icon"
           >
