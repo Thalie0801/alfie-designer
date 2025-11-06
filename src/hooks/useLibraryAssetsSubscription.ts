@@ -1,17 +1,10 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-
-export interface LibraryAsset {
-  id: string;
-  url: string;
-  slideIndex: number;
-  type: string;
-  format?: string;
-}
+import type { AspectFormat, LibraryAsset } from '@/types/chat';
 
 // Normaliser les formats pour éviter les surprises
-const normalizeFormat = (v?: string): '4:5' | '9:16' | '16:9' | '1:1' => {
+const normalizeFormat = (v?: string): AspectFormat => {
   if (!v) return '4:5';
   const s = v.toLowerCase();
   if (s.includes('1080x1350') || s.includes('4:5')) return '4:5';
@@ -96,13 +89,14 @@ export function useLibraryAssetsSubscription(orderId: string | null) {
     }
 
     if (data && data.length > 0) {
-    const mapped: LibraryAsset[] = data.map(row => ({
-      id: row.id,
-      url: row.cloudinary_url,
-      slideIndex: row.slide_index ?? 0,
-      type: row.type,
-      format: normalizeFormat(row.format ?? undefined)
-    }));
+      const mapped: LibraryAsset[] = data.map(row => ({
+        id: row.id,
+        url: row.cloudinary_url,
+        slideIndex: row.slide_index ?? 0,
+        type: row.type,
+        format: normalizeFormat(row.format ?? undefined)
+      }));
+
       setAssets(mapped);
       console.log('[LibraryAssets] Loaded existing assets:', mapped.length);
     }
@@ -137,13 +131,13 @@ export function useLibraryAssetsSubscription(orderId: string | null) {
           console.log('[LibraryAssets] New asset received:', payload.new);
 
           const newAsset = payload.new;
-        const newItem: LibraryAsset = {
-          id: newAsset.id,
-          url: newAsset.cloudinary_url,
-          slideIndex: newAsset.slide_index ?? 0,
-          type: newAsset.type,
-          format: normalizeFormat(newAsset.format ?? undefined)
-        };
+          const newItem: LibraryAsset = {
+            id: newAsset.id,
+            url: newAsset.cloudinary_url,
+            slideIndex: newAsset.slide_index ?? 0,
+            type: newAsset.type,
+            format: normalizeFormat(newAsset.format ?? undefined)
+          };
 
           setAssets(prev => {
             // Déduplication
