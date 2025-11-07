@@ -57,8 +57,6 @@ export function QuotaBar({ activeBrandId }: QuotaBarProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const isVideoBackendAvailable = Boolean((import.meta as any)?.env?.VITE_FFMPEG_BACKEND_URL);
-
   useEffect(() => {
     let mounted = true;
     const fetchQuota = async () => {
@@ -166,24 +164,18 @@ export function QuotaBar({ activeBrandId }: QuotaBarProps) {
               className={cn(
                 "flex items-center gap-2 px-3 py-1 rounded-lg bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 text-sm font-semibold border border-purple-200 dark:border-purple-800 shadow-sm",
                 textTone(videosPercent),
-                !isVideoBackendAvailable && "opacity-60",
               )}
-              title={isVideoBackendAvailable ? "Vidéos IA" : "Vidéos IA (backend inactif)"}
+              title="Vidéos IA"
             >
               <span className="text-xs" aria-hidden>
                 🎬
               </span>
-              <span className="text-xs">
-                {isVideoBackendAvailable ? (videosQuota ? `${videosLeft}/${videosQuota}` : "—/0") : "désactivé"}
-              </span>
+              <span className="text-xs">{videosQuota ? `${videosLeft}/${videosQuota}` : "—/0"}</span>
             </div>
             <div className="w-full h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
               <div
-                className={cn(
-                  "h-full transition-all duration-500",
-                  isVideoBackendAvailable ? colorFor(videosPercent) : "bg-gray-300 dark:bg-gray-600",
-                )}
-                style={{ width: `${isVideoBackendAvailable ? videosPercent : 0}%` }}
+                className={cn("h-full transition-all duration-500", colorFor(videosPercent))}
+                style={{ width: `${videosPercent}%` }}
               />
             </div>
           </div>
@@ -210,15 +202,6 @@ export function QuotaBar({ activeBrandId }: QuotaBarProps) {
             </div>
           </div>
 
-          {/* Badge mode Cloudinary-only si backend absent */}
-          {!isVideoBackendAvailable && (
-            <span
-              className="ml-2 hidden sm:inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800"
-              title="Backend vidéo IA non configuré — montage Cloudinary seulement"
-            >
-              Cloudinary-only
-            </span>
-          )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -240,27 +223,17 @@ export function QuotaBar({ activeBrandId }: QuotaBarProps) {
       <div className="px-4 pb-3 text-sm text-muted-foreground border-t border-border bg-muted/30">
         <div className="py-3 space-y-2">
           <p className="font-medium text-foreground">💡 Astuces pour économiser tes quotas</p>
-          <ul className="space-y-1 text-xs">
-            <li>
-              • <span className="font-medium">Draft 10s</span> : Version vidéo courte et économique (1 Woof)
-            </li>
-            <li>
-              • <span className="font-medium">Batch de nuit</span> : Génère plusieurs assets d’un coup
-            </li>
-            <li>
-              • <span className="font-medium">Templates Canva</span> : Adaptation gratuite avec ton Brand Kit
-            </li>
+          <ul className="space-y-1 text-sm text-muted-foreground">
+            <li>• Draft 10s : version vidéo courte et économique (1 Woof).</li>
+            <li>• Batch de nuit : génère plusieurs assets d’un coup.</li>
+            <li>• Templates : adaptation auto avec ton Brand Kit.</li>
           </ul>
-          <p className="text-xs pt-1">
-            Les quotas se réinitialisent le 1er de chaque mois. Plan actuel :{" "}
-            <span className="font-semibold text-foreground">{quota.plan || "—"}</span>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Les vidéos consomment des Woofs (1 Woof / 12s). Les quotas se réinitialisent le 1er de chaque mois.
           </p>
-          {!isVideoBackendAvailable && (
-            <p className="text-xs pt-1 text-amber-700">
-              🎥 Backend vidéo IA non configuré : les <strong>montages Cloudinary</strong> (images → vidéo, concat,
-              overlays) restent disponibles et ne consomment pas le quota “Vidéos IA”.
-            </p>
-          )}
+          <p className="text-xs text-muted-foreground">
+            Plan actuel : <span className="font-semibold text-foreground">{quota.plan || "—"}</span>
+          </p>
         </div>
       </div>
     </details>

@@ -20,11 +20,14 @@ const VIDEO_TEMPLATES = [
 ];
 
 const DURATIONS = [
-  { value: 8, label: '8 secondes', woofs: 1 },
-  { value: 15, label: '15 secondes', woofs: 2 },
-  { value: 30, label: '30 secondes', woofs: 4 },
-  { value: 60, label: '60 secondes', woofs: 8 }
-];
+  { value: 8, label: '8 secondes' },
+  { value: 15, label: '15 secondes' },
+  { value: 30, label: '30 secondes' },
+  { value: 60, label: '60 secondes' }
+].map((option) => ({
+  ...option,
+  woofs: calculateWoofsForDuration(option.value),
+}));
 
 export default function Videos() {
   const { user } = useAuth();
