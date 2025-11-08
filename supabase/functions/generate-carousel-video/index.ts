@@ -117,6 +117,11 @@ serve(async (req) => {
     }
 
     if (!brandId || !resolvedOrderId) {
+    const brandId = slides[0]?.brand_id as string | null;
+    const derivedOrderId = (slides[0]?.order_id as string | null) ?? (orderIdRaw || null);
+    const derivedCarouselId = (slides[0]?.carousel_id as string | null) ?? (carouselIdRaw || null);
+
+    if (!brandId || !derivedOrderId) {
       return json({ error: "Missing brand or order information for carousel" }, 400);
     }
 
@@ -148,6 +153,7 @@ serve(async (req) => {
       userId: user.id,
       brandId,
       orderId: resolvedOrderId,
+      orderId: derivedOrderId,
       carouselId: derivedCarouselId,
       slides: normalizedSlides,
       durationPerSlide: Number.isFinite(durationPerSlide) && durationPerSlide > 0 ? durationPerSlide : 2,
@@ -189,6 +195,7 @@ serve(async (req) => {
         ok: true,
         job_id: duplicateCheck.data.id,
         order_id: resolvedOrderId,
+        order_id: derivedOrderId,
         carousel_id: derivedCarouselId,
         slide_count: normalizedSlides.length,
         duplicate: true,
@@ -200,6 +207,7 @@ serve(async (req) => {
       .insert({
         user_id: user.id,
         order_id: resolvedOrderId,
+        order_id: derivedOrderId,
         type: "stitch_carousel_video",
         payload: jobPayload,
       })
@@ -221,6 +229,7 @@ serve(async (req) => {
       ok: true,
       job_id: jobRow?.id ?? null,
       order_id: resolvedOrderId,
+      order_id: derivedOrderId,
       carousel_id: derivedCarouselId,
       slide_count: normalizedSlides.length,
       thumbnail_url: previewThumbnail,
