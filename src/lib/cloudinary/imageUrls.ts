@@ -18,16 +18,15 @@ export type SlideUrlOptions = {
 
 /** Extrait le publicId d’une URL Cloudinary ou retourne tel quel si déjà un id. */
 function extractPublicId(maybeUrlOrId: string): string {
-  const v = (maybeUrlOrId ?? "").trim();
-  if (!v) throw new Error("publicId manquant");
-  if (!/^https?:\/\//i.test(v)) return v; // déjà un id
+  const value = (maybeUrlOrId ?? "").trim();
+  if (!value) throw new Error("publicId manquant");
+  if (!/^https?:\/\//i.test(value)) return value;
 
-  // Exemples d’URL:
-  // https://res.cloudinary.com/<cloud>/image/upload/v1720000/folder/img_xyz.png
-  // https://res.cloudinary.com/<cloud>/image/upload/w_1080/v1720000/folder/a.b.c
-  const m = v.match(/\/upload\/(?:[^/]+\/)*?(?:v\d+\/)?([^.?&#]+)(?:\.[a-z0-9]+)?/i);
-  if (!m) throw new Error("URL Cloudinary invalide, impossible d’extraire le publicId");
-  return m[1]; // ex: folder/img_xyz
+  const match = value.match(/\/upload\/(?:[^/]+\/)*?(?:v\d+\/)?([^.?&#]+)(?:\.[a-z0-9]+)?/i);
+  if (!match) {
+    throw new Error("URL Cloudinary invalide, impossible d’extraire le publicId");
+  }
+  return match[1];
 }
 
 /** Dimensions en px par ratio */
@@ -35,7 +34,7 @@ function dims(ar?: AspectRatio) {
   if (ar === "9:16") return { w: 1080, h: 1920 };
   if (ar === "16:9") return { w: 1920, h: 1080 };
   if (ar === "1:1") return { w: 1080, h: 1080 };
-  return { w: 1080, h: 1350 }; // 4:5
+  return { w: 1080, h: 1350 };
 }
 
 const enc = (s: string) => encodeURIComponent(s);
@@ -108,14 +107,14 @@ export function slideUrl(publicId: string, o: SlideUrlOptions = {}): string {
   if (!cloudName) throw new Error("cloudName manquant");
 
   const { w, h } = dims(o.aspectRatio);
-  publicId = extractPublicId(publicId);
+  const resolvedPublicId = extractPublicId(publicId);
 
-  const base = `w_${w},h_${h},c_fill,f_png`; // on force PNG pour la netteté des textes
+  const baseTransform = `w_${w},h_${h},c_fill,f_png`;
   const overlays: string[] = [];
 
+  const font = sanitizeFont(o.fontFamily);
   const color = sanitizeColor(o.textColorHex, "FFFFFF");
   const subColor = sanitizeColor(o.subTextColorHex, "E5E7EB");
-  const font = sanitizeFont(o.fontFamily);
 
   const titleSize = o.aspectRatio === "9:16" ? 80 : o.aspectRatio === "16:9" ? 64 : 72;
   const subtitleSize = o.aspectRatio === "9:16" ? 52 : o.aspectRatio === "16:9" ? 38 : 42;
@@ -167,8 +166,8 @@ export function slideUrl(publicId: string, o: SlideUrlOptions = {}): string {
     );
   }
 
-  const tf = overlays.length ? `/${overlays.join("/")}` : "";
-  return `https://res.cloudinary.com/${enc(cloudName)}/image/upload/${base}${tf}/${enc(publicId)}.png`;
+  const textTransforms = overlays.length ? `/${overlays.join("/")}` : "";
+  return `https://res.cloudinary.com/${enc(cloudName)}/image/upload/${baseTransform}${textTransforms}/${enc(resolvedPublicId)}.png`;
 }
 
 /**
@@ -188,7 +187,7 @@ export function imageUrl(
   const cloudName = options.cloudName ?? (import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string | undefined);
   if (!cloudName) throw new Error("cloudName manquant");
 
-  publicId = extractPublicId(publicId);
+  const resolvedPublicId = extractPublicId(publicId);
 
   const parts: string[] = [];
   if (options.width) parts.push(`w_${options.width}`);
@@ -197,6 +196,12 @@ export function imageUrl(
   if (options.quality) parts.push(`q_${options.quality}`);
   parts.push(options.format && options.format !== "auto" ? `f_${options.format}` : "f_auto");
 
-  const tf = parts.join(",");
-  return `https://res.cloudinary.com/${enc(cloudName)}/image/upload/${tf}/${enc(publicId)}.png`;
+  const transform = parts.join(",");
+  return `https://res.cloudinary.com/${enc(cloudName)}/image/upload/${transform}/${enc(resolvedPublicId)}.png`;
+}
+
+declare const module: NodeJS.Module | undefined;
+
+if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
+  module.exports = { slideUrl, imageUrl } as const;
 }
