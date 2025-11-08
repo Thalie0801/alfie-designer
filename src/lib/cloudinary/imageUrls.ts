@@ -1,6 +1,4 @@
-import { cleanText } from './utils';
-import { encodeOverlayText } from './text';
-// src/lib/cloudinary/imageUrls.ts
+import { encodeOverlayText } from "./text";
 
 /** Ratios pris en charge */
 export type AspectRatio = "4:5" | "1:1" | "9:16" | "16:9";
@@ -17,41 +15,17 @@ export type SlideUrlOptions = {
   fontFamily?: string; // défaut Nunito
 };
 
-/* ----------------------------- utilitaires ----------------------------- */
-
-/** Nettoie et tronque pour l’affichage (pas pour l’encodage). */
-function cleanText(input: string, maxLen?: number): string {
-  let s = (input ?? "").toString();
-  s = s.replace(/[\u0000-\u0009\u000B-\u001F\u007F]/g, ""); // contrôle
-  s = s
-    .normalize("NFC")
-    .replace(/[ \t\f\v]+/g, " ")
-    .trim(); // espaces
-  if (maxLen && s.length > maxLen) s = s.slice(0, maxLen - 1).trimEnd() + "…";
-  return s;
-}
-
-/** Encodage base64 UTF-8 compatible navigateur pour Cloudinary `l_text:...:b64:` */
-function encodeOverlayText(text: string): string {
-  const bytes = new TextEncoder().encode(text.normalize("NFC"));
-  let bin = "";
-  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-  const b64 = btoa(bin);
-  return `b64:${b64}`;
-}
-
 /** Extrait le publicId d’une URL Cloudinary ou retourne tel quel si déjà un id. */
 function extractPublicId(maybeUrlOrId: string): string {
-  const v = (maybeUrlOrId ?? "").trim();
-  if (!v) throw new Error("publicId manquant");
-  if (!/^https?:\/\//i.test(v)) return v; // déjà un id
+  const value = (maybeUrlOrId ?? "").trim();
+  if (!value) throw new Error("publicId manquant");
+  if (!/^https?:\/\//i.test(value)) return value;
 
-  // Exemples d’URL:
-  // https://res.cloudinary.com/<cloud>/image/upload/v1720000/folder/img_xyz.png
-  // https://res.cloudinary.com/<cloud>/image/upload/w_1080/v1720000/folder/a.b.c
-  const m = v.match(/\/upload\/(?:[^/]+\/)*?(?:v\d+\/)?([^.?&#]+)(?:\.[a-z0-9]+)?/i);
-  if (!m) throw new Error("URL Cloudinary invalide, impossible d’extraire le publicId");
-  return m[1]; // ex: folder/img_xyz
+  const match = value.match(/\/upload\/(?:[^/]+\/)*?(?:v\d+\/)?([^.?&#]+)(?:\.[a-z0-9]+)?/i);
+  if (!match) {
+    throw new Error("URL Cloudinary invalide, impossible d’extraire le publicId");
+  }
+  return match[1];
 }
 
 /** Dimensions en px par ratio */
@@ -59,99 +33,163 @@ function dims(ar?: AspectRatio) {
   if (ar === "9:16") return { w: 1080, h: 1920 };
   if (ar === "16:9") return { w: 1920, h: 1080 };
   if (ar === "1:1") return { w: 1080, h: 1080 };
-  return { w: 1080, h: 1350 }; // 4:5
+  return { w: 1080, h: 1350 };
 }
 
 const enc = (s: string) => encodeURIComponent(s);
 
-/* ------------------------------- builders ------------------------------ */
+const CONTROL_CHAR_REGEX = /[\u0000-\u0008\u000B-\u001F\u007F]/g;
+const MAX_TITLE_LEN = 120;
+const MAX_SUBTITLE_LEN = 220;
+const MAX_BULLET_LEN = 80;
+const MAX_CTA_LEN = 60;
+
+function sanitizeText(value: string | undefined, maxLen: number): string {
+  let sanitized = (value ?? "").replace(CONTROL_CHAR_REGEX, "");
+  sanitized = sanitized.normalize("NFC").replace(/[ \t\f\v]+/g, " ").trim();
+  if (!sanitized) return "";
+  if (sanitized.length > maxLen) {
+    sanitized = `${sanitized.slice(0, maxLen - 1).trimEnd()}…`;
+  }
+  return sanitized;
+}
+
+function encodeText(value: string | undefined, maxLen: number): string | null {
+  const cleaned = sanitizeText(value, maxLen);
+  if (!cleaned) return null;
+
+  const encoded = encodeOverlayText(cleaned);
+  return encoded && encoded.trim() ? encoded : null;
+}
+
+function sanitizeColor(hex: string | undefined, fallback: string): string {
+  const trimmed = (hex ?? fallback).trim().replace(/^#/, "");
+  return trimmed.length ? trimmed : fallback;
+}
+
+function sanitizeFont(font: string | undefined): string {
+  return (font ?? "Nunito").trim().replace(/\s+/g, "%20");
+}
+
+function overlayWidth(totalWidth: number, ratio: AspectRatio | undefined, kind: "title" | "subtitle" | "bullets" | "cta"): number {
+  const multiplier = (() => {
+    switch (kind) {
+      case "title":
+        return 0.9;
+      case "subtitle":
+        return ratio === "9:16" ? 0.86 : 0.84;
+      case "bullets":
+        return 0.8;
+      case "cta":
+        return ratio === "16:9" ? 0.6 : 0.72;
+      default:
+        return 0.84;
+    }
+  })();
+  return Math.round(totalWidth * multiplier);
+}
+
+const buildTextOverlay = (options: {
+  font: string;
+  size: number;
+  encodedText: string | null;
+  color: string;
+  gravity: "north" | "center" | "south";
+  y: number;
+  width: number;
+  bold?: boolean;
+}) => {
+  if (!options.encodedText) return null;
+  const weight = options.bold ? `_bold` : "";
+  return `l_text:${options.font}_${options.size}${weight}:${options.encodedText},co_rgb:${options.color},g_${options.gravity},y_${options.y},w_${options.width},c_fit`;
+};
 
 /**
  * Génère une URL Cloudinary AVEC overlays texte.
  * Le texte vient des champs du payload (title/subtitle/bullets/cta) – pas de “intent”.
  */
-export function slideUrl(publicId: string, o: SlideUrlOptions = {}): string {
+export const slideUrl = (publicId: string, o: SlideUrlOptions = {}): string => {
   const cloudName = o.cloudName ?? (import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string | undefined);
   if (!cloudName) throw new Error("cloudName manquant");
 
   const { w, h } = dims(o.aspectRatio);
-  publicId = extractPublicId(publicId);
+  const resolvedPublicId = extractPublicId(publicId);
 
-  const base = `w_${w},h_${h},c_fill,f_png`; // on force PNG pour la netteté des textes
+  const baseTransform = `w_${w},h_${h},c_fill,f_png`;
   const overlays: string[] = [];
 
-  const title = cleanText(o.title ?? "", 120);
-  const subtitle = cleanText(o.subtitle ?? "", 220);
-  const bullets = (o.bulletPoints ?? []).map((b) => cleanText(b, 80)).slice(0, 6);
-  const cta = cleanText(o.cta ?? "", 60);
+  const font = sanitizeFont(o.fontFamily);
+  const color = sanitizeColor(o.textColorHex, "FFFFFF");
+  const subColor = sanitizeColor(o.subTextColorHex, "E5E7EB");
 
-  const color = (o.textColorHex ?? "FFFFFF").replace(/^#/, "");
-  const subColor = (o.subTextColorHex ?? "E5E7EB").replace(/^#/, "");
-  const font = o.fontFamily ?? "Nunito";
-
-  // Tailles/offsets selon ratio
   const titleSize = o.aspectRatio === "9:16" ? 80 : o.aspectRatio === "16:9" ? 64 : 72;
-  const titleY = o.aspectRatio === "9:16" ? 140 : 120;
-
-  const subSize = o.aspectRatio === "9:16" ? 52 : o.aspectRatio === "16:9" ? 38 : 42;
-  const subY = o.aspectRatio === "9:16" ? 220 : 140;
-
+  const subtitleSize = o.aspectRatio === "9:16" ? 52 : o.aspectRatio === "16:9" ? 38 : 42;
   const bulletSize = o.aspectRatio === "16:9" ? 32 : 36;
-  const bulletStartY = o.aspectRatio === "9:16" ? 380 : 300;
-
   const ctaSize = o.aspectRatio === "16:9" ? 44 : 48;
 
-  // Titre (haut)
-  if (title) {
-    overlays.push(
-      `l_text:Arial_${size}_bold:${encodeOverlayText(title)},co_rgb:FFFFFF,g_north,y_${y},w_${Math.round(
-        w * 0.9
-      )},c_fit`
-      `l_text:${font}_${titleSize}_bold:${encodeOverlayText(title)},co_rgb:${color},g_north,y_${titleY},w_${Math.round(
-        w * 0.9,
-      )},c_fit`,
-    );
-  }
+  const titleOverlay = buildTextOverlay({
+    font,
+    size: titleSize,
+    encodedText: encodeText(o.title, MAX_TITLE_LEN),
+    color,
+    gravity: "north",
+    y: o.aspectRatio === "9:16" ? 140 : 120,
+    width: overlayWidth(w, o.aspectRatio, "title"),
+    bold: true,
+  });
+  if (titleOverlay) overlays.push(titleOverlay);
 
-  // Sous-titre (bas)
-  if (subtitle) {
-    overlays.push(
-      `l_text:Arial_${size}:${encodeOverlayText(sub)},co_rgb:E5E7EB,g_south,y_${y},w_${Math.round(
-        w * 0.84
-      )},c_fit`
-      `l_text:${font}_${subSize}:${encodeOverlayText(
-        subtitle,
-      )},co_rgb:${subColor},g_south,y_${subY},w_${Math.round(w * 0.84)},c_fit`,
-    );
-  }
+  const subtitleOverlay = buildTextOverlay({
+    font,
+    size: subtitleSize,
+    encodedText: encodeText(o.subtitle, MAX_SUBTITLE_LEN),
+    color: subColor,
+    gravity: "north",
+    y: o.aspectRatio === "9:16" ? 220 : 140,
+    width: overlayWidth(w, o.aspectRatio, "subtitle"),
+  });
+  if (subtitleOverlay) overlays.push(subtitleOverlay);
 
-  // Puces (centre)
-  bullets.forEach((b, i) => {
-    overlays.push(
-      `l_text:Arial_${size}:${encodeOverlayText('• ' + b)},co_rgb:FFFFFF,g_center,y_${
-        startY + i * 60
-      },w_${Math.round(w * 0.8)},c_fit`
-      `l_text:${font}_${bulletSize}:${encodeOverlayText(
-        "• " + b,
-      )},co_rgb:${color},g_center,y_${bulletStartY + i * 60},w_${Math.round(w * 0.8)},c_fit`,
-    );
+  const bulletTexts = (o.bulletPoints ?? [])
+    .map((bullet) => sanitizeText(bullet, MAX_BULLET_LEN))
+    .filter((bullet): bullet is string => bullet.length > 0)
+    .slice(0, 6);
+
+  const bulletStartY = o.aspectRatio === "9:16" ? 380 : 300;
+  const bulletStep = o.aspectRatio === "16:9" ? 54 : 60;
+  bulletTexts.forEach((bullet, index) => {
+    const overlay = buildTextOverlay({
+      font,
+      size: bulletSize,
+      encodedText: encodeText(`• ${bullet}`, MAX_BULLET_LEN + 2),
+      color,
+      gravity: "center",
+      y: bulletStartY + index * bulletStep,
+      width: overlayWidth(w, o.aspectRatio, "bullets"),
+    });
+    if (overlay) overlays.push(overlay);
   });
 
-  // CTA (bas)
-  if (cta) {
-    const size = o.aspectRatio === '16:9' ? 44 : 48;
-    overlays.push(`l_text:Arial_${size}_bold:${encodeOverlayText(cta)},co_rgb:FFFFFF,g_south,y_80`);
-    overlays.push(`l_text:${font}_${ctaSize}_bold:${encodeOverlayText(cta)},co_rgb:${color},g_south,y_80`);
-  }
+  const ctaOverlay = buildTextOverlay({
+    font,
+    size: ctaSize,
+    encodedText: encodeText(o.cta, MAX_CTA_LEN),
+    color,
+    gravity: "south",
+    y: o.aspectRatio === "9:16" ? 120 : 80,
+    width: overlayWidth(w, o.aspectRatio, "cta"),
+    bold: true,
+  });
+  if (ctaOverlay) overlays.push(ctaOverlay);
 
-  const tf = overlays.length ? `/${overlays.join("/")}` : "";
-  return `https://res.cloudinary.com/${enc(cloudName)}/image/upload/${base}${tf}/${enc(publicId)}.png`;
-}
+  const textTransforms = overlays.length ? `/${overlays.join("/")}` : "";
+  return `https://res.cloudinary.com/${enc(cloudName)}/image/upload/${baseTransform}${textTransforms}/${enc(resolvedPublicId)}.png`;
+};
 
 /**
  * Génère une URL Cloudinary basique (sans overlay)
  */
-export function imageUrl(
+export const imageUrl = (
   publicId: string,
   options: {
     width?: number;
@@ -161,11 +199,11 @@ export function imageUrl(
     cloudName?: string;
     crop?: "fill" | "fit" | "pad" | "scale";
   } = {},
-): string {
+): string => {
   const cloudName = options.cloudName ?? (import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string | undefined);
   if (!cloudName) throw new Error("cloudName manquant");
 
-  publicId = extractPublicId(publicId);
+  const resolvedPublicId = extractPublicId(publicId);
 
   const parts: string[] = [];
   if (options.width) parts.push(`w_${options.width}`);
@@ -174,6 +212,6 @@ export function imageUrl(
   if (options.quality) parts.push(`q_${options.quality}`);
   parts.push(options.format && options.format !== "auto" ? `f_${options.format}` : "f_auto");
 
-  const tf = parts.join(",");
-  return `https://res.cloudinary.com/${enc(cloudName)}/image/upload/${tf}/${enc(publicId)}.png`;
-}
+  const transform = parts.join(",");
+  return `https://res.cloudinary.com/${enc(cloudName)}/image/upload/${transform}/${enc(resolvedPublicId)}.png`;
+};
