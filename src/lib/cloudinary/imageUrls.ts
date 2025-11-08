@@ -1,4 +1,5 @@
 import { encodeOverlayText } from "./text";
+import { cleanText } from "./utils";
 
 /** Ratios pris en charge */
 export type AspectRatio = "4:5" | "1:1" | "9:16" | "16:9";
@@ -62,6 +63,8 @@ function cleanOverlay(value: string | undefined, maxLen: number): string {
 
 function prepareOverlayText(value: string | undefined, maxLen: number): string | null {
   const cleaned = cleanOverlay(value, maxLen);
+function prepareOverlayText(value: string | undefined, maxLen: number): string | null {
+  const cleaned = cleanText(value ?? "", maxLen);
   if (!cleaned) return null;
 
   const encoded = encodeOverlayText(cleaned);
@@ -141,6 +144,7 @@ export function slideUrl(publicId: string, o: SlideUrlOptions = {}): string {
 
   const bulletTexts = (o.bulletPoints ?? [])
     .map((b) => cleanOverlay(b, MAX_BULLET_LEN))
+    .map((b) => cleanText(b ?? "", MAX_BULLET_LEN))
     .filter((b): b is string => Boolean(b))
     .slice(0, 6);
 
