@@ -4,24 +4,6 @@ on:
   workflow_dispatch: {}
   push:
     branches: [main, refonte-alfie-2025]
-    paths:
-      - '**/*.ts'
-      - '**/*.tsx'
-      - '**/*.js'
-      - '**/*.jsx'
-      - '**/*.json'
-      - '**/*.css'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'pnpm-lock.yaml'
-      - 'bun.lockb'
-      - 'tsconfig*.json'
-      - 'next.config.*'
-      - 'vite.config.*'
-      - 'tailwind.config.*'
-      - 'postcss.config.*'
-      - 'eslint.config.*'
-      - '.github/workflows/node-quality.yml'
   pull_request:
     branches: [main, refonte-alfie-2025]
     paths:
@@ -114,6 +96,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -194,6 +177,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -263,6 +247,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -327,5 +312,6 @@ jobs:
           if [ "${{ needs.lint.result }}" != "success" ]; then
             echo "::warning::Lint had issues but not blocking"; fi
           echo "✅ Quality checks completed"
+ted"
 
    
