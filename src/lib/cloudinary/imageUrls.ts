@@ -57,6 +57,24 @@ function sanitizeText(value: string | undefined, maxLen: number): string {
 
 function encodeText(value: string | undefined, maxLen: number): string | null {
   const cleaned = sanitizeText(value, maxLen);
+const CONTROL_CHAR_REGEX = /[\u0000-\u0008\u000B-\u001F\u007F]/g;
+
+function cleanOverlay(value: string | undefined, maxLen: number): string {
+  let s = (value ?? "").toString();
+  s = s.replace(CONTROL_CHAR_REGEX, "");
+  s = s
+    .normalize("NFC")
+    .replace(/[ \t\f\v]+/g, " ")
+    .trim();
+  if (!s) return "";
+  if (s.length > maxLen) {
+    s = `${s.slice(0, maxLen - 1).trimEnd()}…`;
+  }
+  return s;
+}
+
+function prepareOverlayText(value: string | undefined, maxLen: number): string | null {
+  const cleaned = cleanOverlay(value, maxLen);
 function prepareOverlayText(value: string | undefined, maxLen: number): string | null {
   const cleaned = cleanText(value ?? "", maxLen);
   if (!cleaned) return null;
@@ -133,7 +151,6 @@ export const slideUrl = (publicId: string, o: SlideUrlOptions = {}): string => {
   const subColor = sanitizeColor(o.subTextColorHex, "E5E7EB");
   const color = sanitizeColor(o.textColorHex, "FFFFFF");
   const subColor = sanitizeColor(o.subTextColorHex, "E5E7EB");
-  const font = sanitizeFont(o.fontFamily);
 
   const titleSize = o.aspectRatio === "9:16" ? 80 : o.aspectRatio === "16:9" ? 64 : 72;
   const subtitleSize = o.aspectRatio === "9:16" ? 52 : o.aspectRatio === "16:9" ? 38 : 42;
@@ -215,6 +232,7 @@ export const slideUrl = (publicId: string, o: SlideUrlOptions = {}): string => {
   }
 
   const bulletTexts = (o.bulletPoints ?? [])
+    .map((b) => cleanOverlay(b, MAX_BULLET_LEN))
     .map((b) => cleanText(b ?? "", MAX_BULLET_LEN))
     .filter((b): b is string => Boolean(b))
     .slice(0, 6);
@@ -241,6 +259,7 @@ export const slideUrl = (publicId: string, o: SlideUrlOptions = {}): string => {
   const textTransforms = overlays.length ? `/${overlays.join("/")}` : "";
   return `https://res.cloudinary.com/${enc(cloudName)}/image/upload/${baseTransform}${textTransforms}/${enc(resolvedPublicId)}.png`;
 };
+}
 
 /**
  * Génère une URL Cloudinary basique (sans overlay)
@@ -271,3 +290,10 @@ export const imageUrl = (
   const transform = parts.join(",");
   return `https://res.cloudinary.com/${enc(cloudName)}/image/upload/${transform}/${enc(resolvedPublicId)}.png`;
 };
+}
+
+declare const module: NodeJS.Module | undefined;
+
+if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
+  module.exports = { slideUrl, imageUrl } as const;
+}
