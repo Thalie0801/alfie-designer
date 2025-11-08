@@ -16,7 +16,7 @@ export interface SlideContent {
   kpis?: Array<{ label: string; delta: string }>;
 }
 
-const CONTROL_CHARS_REGEX = /\p{Cc}|\u00A0|\uFEFF/gu;
+const CONTROL = new RegExp('[\\x00-\\x1F\\x7F\\u00A0\\uFEFF]', 'g');
 
 /**
  * Sanitize text by removing control characters, NBSP, BOM, and other invisible characters
@@ -25,7 +25,7 @@ const CONTROL_CHARS_REGEX = /\p{Cc}|\u00A0|\uFEFF/gu;
 function sanitizeText(text: string): string {
   if (!text) return '';
   return text
-    .replace(CONTROL_CHARS_REGEX, '') // Remove control chars, NBSP, BOM
+    .replace(CONTROL, '') // Remove control chars, NBSP, BOM
     .trim();
 }
 
@@ -47,7 +47,7 @@ export async function renderSlideToSVG(
   
   // Couche de texte (typo contrôlée, pas d'IA)
   for (const layer of template.textLayers) {
-    let text = sanitizeText(getTextForLayer(layer, slideContent));
+    const text = sanitizeText(getTextForLayer(layer, slideContent));
     if (!text) continue;
     
     // Use consistent font from brand kit
@@ -275,6 +275,8 @@ function escapeXml(text: string): string {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;')
     // Échapper tous les caractères non-ASCII pour Cloudinary
+    .replace(/[^\p{ASCII}]/gu, (char) => `&#${char.charCodeAt(0)};`);
+    .replace(/[^\u0000-\u007F]/g, (char) => `&#${char.charCodeAt(0)};`);
     // Use \u0020-\u007E to exclude control characters (0x00-0x1F and 0x7F)
     .replace(/[^\u0020-\u007E]/g, (char) => `&#${char.charCodeAt(0)};`);
 }

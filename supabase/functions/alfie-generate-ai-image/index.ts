@@ -1,5 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { 
+  SUPABASE_URL, 
+  SUPABASE_SERVICE_ROLE_KEY,
+  INTERNAL_FN_SECRET,
+  LOVABLE_API_KEY 
+} from '../_shared/env.ts';
 
 /* ------------------------------- CORS ------------------------------- */
 const corsHeaders = {
@@ -26,7 +32,13 @@ interface BrandKit {
 }
 
 interface GenerateRequest {
+  userId?: string;
+  brandId?: string | null;
+  orderId?: string | null;
+  orderItemId?: string | null;
+  requestId?: string | null;
   templateImageUrl?: string;
+  uploadedSourceUrl?: string | null;
   brandKit?: BrandKit;
   prompt?: string;
   resolution?: string;
@@ -188,32 +200,32 @@ serve(async (req) => {
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       throw new Error("Supabase env not configured");
     }
+    if (!INTERNAL_FN_SECRET) throw new Error("INTERNAL_FN_SECRET not configured");
 
     const body = (await req.json()) as GenerateRequest;
 
-    // --- Auth: extraire le JWT utilisateur ---
-    const bearer = req.headers.get("Authorization") || "";
-    const jwt = bearer.startsWith("Bearer ") ? bearer.slice(7).trim() : null;
-    if (!jwt) return jsonRes({ error: "Unauthorized" }, { status: 401 });
+    const secret = req.headers.get("X-Internal-Secret");
+    if (secret !== INTERNAL_FN_SECRET) {
+      return jsonRes({ error: "Forbidden" }, { status: 403 });
+    }
 
-    // Client "auth" pour valider le token
-    const sbAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: { headers: { Authorization: `Bearer ${jwt}` } },
-    });
-    const { data: authData, error: authErr } = await sbAuth.auth.getUser();
-    if (authErr || !authData?.user) return jsonRes({ error: "Invalid token" }, { status: 401 });
-    const user = authData.user;
+    const userId = typeof body.userId === "string" ? body.userId : null;
+    const brandId = typeof body.brandId === "string" ? body.brandId : null;
+    const orderId = typeof body.orderId === "string" ? body.orderId : null;
+    const orderItemId = typeof body.orderItemId === "string" ? body.orderItemId : null;
+    const requestId = typeof body.requestId === "string" ? body.requestId : null;
 
-    // Client service pour insertions
+    if (!userId) {
+      return jsonRes({ error: "Missing userId" }, { status: 400 });
+    }
+    if (!orderId) {
+      console.warn("[alfie-generate-ai-image] Missing orderId in payload");
+    }
+
     const sbService = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // --- Construire prompts & payload ---
@@ -221,9 +233,11 @@ serve(async (req) => {
     const fullPrompt = buildMainPrompt(body);
     const negative = buildNegativePrompt(body);
 
+    const referenceImage =
+      body.uploadedSourceUrl?.trim() || body.templateImageUrl?.trim() || null;
     const userContent: any[] = [{ type: "text", text: fullPrompt }];
-    if (body.templateImageUrl?.trim()) {
-      userContent.push({ type: "image_url", image_url: { url: body.templateImageUrl } });
+    if (referenceImage) {
+      userContent.push({ type: "image_url", image_url: { url: referenceImage } });
     }
     if (negative) {
       // On peut glisser le negative prompt explicitement dans le message
@@ -258,8 +272,8 @@ serve(async (req) => {
         fullPrompt +
         "\n\nIMPORTANT: You MUST return an image. Generate a single canvas, no tiles, no grids, no multiple frames. One composition.";
       const retryContent = [{ type: "text", text: retryPrompt }] as any[];
-      if (body.templateImageUrl?.trim()) {
-        retryContent.push({ type: "image_url", image_url: { url: body.templateImageUrl } });
+      if (referenceImage) {
+        retryContent.push({ type: "image_url", image_url: { url: referenceImage } });
       }
       if (negative) retryContent.push({ type: "text", text: `Negative prompt: ${negative}` });
 
@@ -281,13 +295,15 @@ serve(async (req) => {
     let errorDetail: string | null = null;
 
     try {
-      const brandId = typeof body.brandKit?.id === "string" ? body.brandKit.id : null;
+      const brandIdForMetadata = brandId ?? (typeof body.brandKit?.id === "string" ? body.brandKit.id : null);
       const slideIdx = typeof body.slideIndex === "number" ? body.slideIndex : null;
       const totalSlides = typeof body.totalSlides === "number" ? body.totalSlides : null;
 
       const insertPayload = {
-        user_id: user.id,
-        brand_id: brandId,
+        user_id: userId,
+        brand_id: brandIdForMetadata,
+        order_id: orderId ?? null,
+        order_item_id: orderItemId,
         type: "image" as const,
         status: "completed" as const,
         // On log uniquement un résumé court pour conformité
@@ -307,6 +323,10 @@ serve(async (req) => {
           negativePrompt: body.negativePrompt ?? null,
           generatedAt: new Date().toISOString(),
           engine: "gemini-2.5-flash-image-preview",
+          orderId,
+          orderItemId,
+          requestId,
+          referenceImageUrl: referenceImage ?? null,
         },
       };
 
@@ -320,7 +340,7 @@ serve(async (req) => {
         console.error("Save error:", insertError);
         errorDetail = insertError.message ?? "insert error";
       } else {
-        console.log(`Saved media id=${inserted?.id} user=${user.id} brand=${brandId ?? "null"}`);
+        console.log(`Saved media id=${inserted?.id} user=${userId} brand=${brandIdForMetadata ?? "null"}`);
         saved = true;
       }
     } catch (e: any) {

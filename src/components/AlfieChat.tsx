@@ -1,19 +1,23 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { toast } from "sonner";
-import { Send, ImagePlus, Loader2, Download } from "lucide-react";
+import { Send, Loader2, Download } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useBrandKit } from "@/hooks/useBrandKit";
 import { supabase } from "@/integrations/supabase/client";
 import { getAuthHeader } from "@/lib/auth";
-import { uploadToChatBucket } from "@/lib/chatUploads";
 import { Button } from "@/components/ui/button";
 import TextareaAutosize from "react-textarea-autosize";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { useLibraryAssetsSubscription } from "@/hooks/useLibraryAssetsSubscription";
+import { useRecentAssets } from "@/hooks/useRecentAssets";
+import type { RecentAsset } from "@/hooks/useRecentAssets";
+import { MediaPicker } from "@/components/chat/MediaPicker";
+import type { PickedMedia } from "@/components/chat/MediaPicker";
 import { getAspectClass, type ConversationState, type OrchestratorResponse } from "@/types/chat";
 import { slideUrl } from "@/lib/cloudinary/imageUrls";
 import { extractCloudNameFromUrl } from "@/lib/cloudinary/utils";
+import { cn } from "@/lib/utils";
 
 // =====================
 // Détection d'intention vidéo
@@ -64,23 +68,27 @@ const backoffMs = (attempt: number) => {
   return base + jitter;
 };
 
-// Upload image: types + taille max (10 Mo)
-const ALLOWED_IMG = ["image/png", "image/jpeg", "image/webp"];
-const MAX_IMG_BYTES = 10 * 1024 * 1024;
-const MAX_VIDEO_BYTES = 200 * 1024 * 1024;
-
-type UploadedSource = {
+type SelectedMedia = {
   url: string;
-  previewUrl: string;
+  previewUrl?: string;
   type: "image" | "video";
-  name: string;
+  name?: string;
+  origin: "upload" | "library";
 };
 
 // =====================
 // TYPES
 // =====================
+type SendOptions = {
+  forceTool?: "generate_video" | "generate_image" | "render_carousel";
+  slides?: any[];
+  promptOverride?: string;
+  intentOverride?: "video" | "image" | "carousel";
+};
+
 interface Message {
   id: string;
+  key?: string; // Optional deduplication key (e.g., "order:<orderId>")
   role: "user" | "assistant";
   content: string;
   type?: "text" | "image" | "video" | "carousel" | "reasoning" | "bulk-carousel";
@@ -90,6 +98,7 @@ interface Message {
   reasoning?: string;
   brandAlignment?: string;
   quickReplies?: string[];
+  links?: Array<{ label: string; href: string }>;
   bulkCarouselData?: {
     carousels: Array<{
       carousel_index: number;
@@ -102,6 +111,7 @@ interface Message {
     totalCarousels: number;
     slidesPerCarousel: number;
   };
+  orderId?: string | null;
   timestamp: Date;
 }
 
@@ -110,7 +120,7 @@ interface Message {
 // =====================
 export function AlfieChat() {
   const { user } = useAuth();
-  const { activeBrandId } = useBrandKit();
+  const { activeBrandId, brandKit } = useBrandKit();
 
   // États
   const [messages, setMessages] = useState<Message[]>([
@@ -125,27 +135,36 @@ export function AlfieChat() {
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [uploadedSource, setUploadedSource] = useState<UploadedSource | null>(null);
-  const [uploadingSource, setUploadingSource] = useState(false);
+  const [selectedMedia, setSelectedMedia] = useState<SelectedMedia | null>(null);
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [orderId, setOrderId] = useState<string | null>(null);
   const [conversationState, setConversationState] = useState<ConversationState>("idle");
   const [expectedTotal, setExpectedTotal] = useState<number | null>(null);
+  const [lastContext, setLastContext] = useState<any | null>(null);
 
   // Subscription aux assets de l'order
   const { assets: orderAssets, total: orderTotal } = useLibraryAssetsSubscription(orderId);
+  const {
+    assets: recentAssets,
+    isLoading: isLoadingRecentAssets,
+    error: recentAssetsError,
+  } = useRecentAssets(8);
+  const selectableRecentAssets = useMemo(
+    () => recentAssets.filter((asset) => asset.type === "image" || asset.type === "video"),
+    [recentAssets],
+  );
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const seenAssetsRef = useRef(new Set<string>());
   const finishAnnouncedRef = useRef<string | null>(null);
   const mountedRef = useRef(true);
   const inFlightRef = useRef(false);
 
-  const clearUploadedSource = useCallback(() => {
-    setUploadedSource((prev) => {
-      if (prev?.previewUrl?.startsWith("blob:")) {
+  const clearSelectedMedia = useCallback(() => {
+    setSelectedMedia((prev) => {
+      if (prev?.origin === "upload" && prev?.previewUrl?.startsWith("blob:")) {
         try {
           URL.revokeObjectURL(prev.previewUrl);
         } catch (err) {
@@ -153,6 +172,60 @@ export function AlfieChat() {
         }
       }
       return null;
+    });
+  }, []);
+
+  const handleRecentAssetPick = useCallback((asset: RecentAsset) => {
+    setSelectedMedia((prev) => {
+      if (prev?.origin === "library" && prev.url === asset.url) {
+        toast.info("Référence retirée.");
+        return null;
+      }
+
+      if (prev?.origin === "upload" && prev.previewUrl?.startsWith("blob:")) {
+        try {
+          URL.revokeObjectURL(prev.previewUrl);
+        } catch (err) {
+          console.warn("[Chat] revoke preview before library select failed", err);
+        }
+      }
+
+      const type = asset.type === "video" ? "video" : "image";
+      toast.success("Référence sélectionnée depuis la bibliothèque.");
+      return {
+        url: asset.url,
+        previewUrl: asset.thumbnail_url ?? asset.url,
+        type,
+        name: asset.id,
+        origin: "library",
+      } satisfies SelectedMedia;
+    });
+  }, []);
+
+  const handleMediaUploadPick = useCallback((media: PickedMedia) => {
+    setSelectedMedia((prev) => {
+      if (prev?.origin === "upload" && prev.previewUrl && prev.previewUrl !== media.previewUrl) {
+        if (prev.previewUrl.startsWith("blob:")) {
+          try {
+            URL.revokeObjectURL(prev.previewUrl);
+          } catch (err) {
+            console.warn("[Chat] revoke previous upload preview failed", err);
+          }
+        }
+      }
+
+      if (prev?.origin === "library") {
+        // pas de blob à révoquer mais on garde un log pour debug
+        console.debug("[Chat] overriding library reference with upload");
+      }
+
+      return {
+        url: media.url,
+        previewUrl: media.previewUrl ?? media.url,
+        type: media.type,
+        name: media.name,
+        origin: "upload",
+      } satisfies SelectedMedia;
     });
   }, []);
 
@@ -165,15 +238,15 @@ export function AlfieChat() {
 
   useEffect(() => {
     return () => {
-      if (uploadedSource?.previewUrl?.startsWith("blob:")) {
+      if (selectedMedia?.origin === "upload" && selectedMedia?.previewUrl?.startsWith("blob:")) {
         try {
-          URL.revokeObjectURL(uploadedSource.previewUrl);
+          URL.revokeObjectURL(selectedMedia.previewUrl);
         } catch (err) {
           console.warn("[Chat] revoke preview cleanup failed", err);
         }
       }
     };
-  }, [uploadedSource]);
+  }, [selectedMedia]);
 
   useEffect(() => {
     seenAssetsRef.current = new Set<string>();
@@ -236,19 +309,27 @@ export function AlfieChat() {
     scrollToBottom();
   }, [messages]);
 
-  // System message during generation
+  // System message during generation (deduplicated by orderId)
   useEffect(() => {
     if (conversationState === "generating" && orderId) {
-      const hasGeneratingMessage = messages.some(
-        (m) => m.role === "assistant" && m.content.includes("🚀 Génération en cours"),
-      );
-      if (!hasGeneratingMessage) {
-        addMessage({
-          role: "assistant",
-          content: "🚀 Génération en cours... Je te tiens au courant dès que c'est prêt !",
-          type: "text",
-        });
-      }
+      const key = `order:${orderId}`;
+      setMessages((prev) => {
+        const withoutKey = prev.filter((m) => m.key !== key);
+        return [
+          ...withoutKey,
+          {
+            id: safeUuid(),
+            key,
+            role: "assistant",
+            content: "🚀 Génération en cours... Je te tiens au courant dès que c'est prêt !",
+            type: "text",
+            links: [
+              { label: "Voir dans Studio", href: "/studio" },
+              { label: "Voir la Bibliothèque", href: "/library" },
+            ],
+          },
+        ];
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationState, orderId]);
@@ -284,6 +365,27 @@ export function AlfieChat() {
     if (canAnnounce) {
       setConversationState("completed");
       finishAnnouncedRef.current = orderId;
+      setConversationState('completed');
+      finishAnnouncedRef.current = orderId;
+      setConversationState('completed');
+      finishAnnouncedRef.current = orderId;
+      setConversationState('completed');
+      finishAnnouncedRef.current = orderId;
+      setConversationState('completed');
+      finishAnnouncedRef.current = orderId;
+    const canAnnounce =
+      conversationState === 'generating' &&
+      (orderTotal ?? 0) > 0 &&
+      orderAssets.length >= (orderTotal ?? 0) &&
+      finishAnnouncedRef.current !== orderId;
+
+    if (canAnnounce) {
+      setConversationState('completed');
+      finishAnnouncedRef.current = orderId!;
+        assetUrl: asset.url,
+        metadata: isCarouselSlide
+          ? { assetUrls: [{ url: asset.url, format: asset.format }] }
+          : undefined
       addMessage({
         role: "assistant",
         content: "🎉 Génération terminée ! Tes visuels sont prêts dans la Bibliothèque.",
@@ -307,13 +409,24 @@ export function AlfieChat() {
         type: "text",
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [orderAssets, orderId, conversationState, orderTotal, expectedTotal]);
+    }
+  }, [orderAssets, orderId, conversationState, orderTotal, expectedTotal]);
+    }
+  }, [orderAssets, orderId, conversationState, orderTotal, expectedTotal]);
+    }
+  }, [orderAssets, orderId, conversationState, orderTotal, expectedTotal]);
+    }
+  }, [orderAssets, orderId, conversationState, orderTotal, expectedTotal]);
+      setQuickReplies(['Voir la bibliothèque', 'Créer un nouveau carrousel']);
+    }
+  }, [orderAssets, orderId, conversationState, orderTotal]);
 
   // Realtime job monitoring (avec garde si l'order change)
   useEffect(() => {
     if (!orderId) return;
-    let currentOrder = orderId;
+    const currentOrder = orderId;
 
     const channel = supabase
       .channel("job_queue_changes")
@@ -372,91 +485,76 @@ export function AlfieChat() {
     };
   }, [orderId]);
 
-  // =====================
-  // Upload d'image validé
-  // =====================
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const planCarouselSlides = useCallback(
+    async (brief: any) => {
+      if (!brief) throw new Error("Brief carrousel manquant");
 
-    const isImage = file.type.startsWith("image/");
-    const isVideo = file.type.startsWith("video/");
+      const slideCount = (() => {
+        const value =
+          typeof brief?.numSlides === "number" ? brief.numSlides : parseInt(String(brief?.numSlides ?? ""), 10);
+        return Number.isFinite(value) && value > 0 ? value : 5;
+      })();
 
-    if (isImage && !ALLOWED_IMG.includes(file.type)) {
-      toast.error("Format image non supporté (PNG/JPEG/WebP).");
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      return;
-    }
-    if (!isImage && !isVideo) {
-      toast.error("Format non supporté. Choisis une image ou une vidéo.");
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      return;
-    }
-
-    if (isImage && file.size > MAX_IMG_BYTES) {
-      toast.error("Image trop lourde (max 10 Mo).");
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      return;
-    }
-    if (isVideo && file.size > MAX_VIDEO_BYTES) {
-      toast.error("Vidéo trop volumineuse (max 200 Mo).");
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      return;
-    }
-
-    setUploadingSource(true);
-
-    try {
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-      if (authError) throw authError;
-      if (!user) throw new Error("Authentification requise");
-
-      const { signedUrl } = await uploadToChatBucket(file, supabase, user.id);
-
-      const previewUrl = URL.createObjectURL(file);
-      clearUploadedSource();
-      setUploadedSource({
-        url: signedUrl,
-        previewUrl,
-        type: isVideo ? "video" : "image",
-        name: file.name,
+      const { data, error } = await supabase.functions.invoke("alfie-plan-carousel", {
+        body: {
+          prompt: brief?.topic || "Carousel",
+          slideCount,
+          brandKit: brandKit
+            ? {
+                name: brandKit.name,
+                palette: brandKit.palette,
+                voice: brandKit.voice,
+                niche: brandKit.niche,
+              }
+            : undefined,
+        },
       });
+      if (error) throw error;
 
-      toast.success(isVideo ? "Vidéo importée ! Décris ce que tu veux en faire." : "Image importée ! Décris ce que tu veux en faire.");
-    } catch (error: unknown) {
-      console.error("[Upload] Error:", error);
-      toast.error(
-        `Erreur lors de l’upload${error ? ` : ${toErrorMessage(error)}` : ""}`,
-      );
-    } finally {
-      setUploadingSource(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
+      const payload = (data as any)?.data ?? data;
+      if (payload?.error) throw new Error(String(payload.error));
+
+      const prompts: string[] = Array.isArray(payload?.prompts) ? payload.prompts : [];
+      const slides: any[] = Array.isArray(payload?.slides) ? payload.slides : [];
+
+      return slides.map((slide, idx) => ({
+        title: slide?.title ?? `Slide ${idx + 1}`,
+        subtitle: slide?.subtitle ?? slide?.punchline ?? "",
+        bullets: Array.isArray(slide?.bullets) ? slide.bullets : [],
+        cta: slide?.cta ?? slide?.cta_primary ?? "",
+        prompt: prompts[idx] ?? prompts[0] ?? "",
+        type: slide?.type ?? null,
+        topic: brief?.topic ?? null,
+        angle: brief?.angle ?? null,
+        index: idx,
+      }));
+    },
+    [brandKit],
+  );
 
   // =====================
   // Handler principal (orchestrator + retry)
   // =====================
-  const handleSend = async (override?: string) => {
-    const messageToSend = (override ?? input).trim();
+  const handleSend = async (override?: string, options?: SendOptions) => {
     if (isLoading || inFlightRef.current) return;
 
-    if (uploadingSource) {
+    if (isUploadingMedia) {
       toast.error("Upload en cours. Patiente quelques secondes avant d’envoyer.");
       return;
     }
 
-    if (!messageToSend && !uploadedSource) return;
+    const rawMessage = (override ?? input).trim();
+    const promptOverride = options?.promptOverride ? options.promptOverride.trim() : "";
+    const baseMessage = promptOverride.length > 0 ? promptOverride : rawMessage;
+    const trimmed = baseMessage.slice(0, MAX_INPUT_LEN);
+
+    if (!trimmed && !selectedMedia) return;
     if (!activeBrandId) {
       toast.error("Sélectionne une marque d'abord !");
       return;
     }
 
-    const trimmed = messageToSend.slice(0, MAX_INPUT_LEN);
-    const intent = detectIntent(trimmed);
+    const intent = options?.intentOverride ?? detectIntent(trimmed || rawMessage);
 
     // lock UI
     setIsLoading(true);
@@ -466,14 +564,20 @@ export function AlfieChat() {
     setInput("");
     addMessage({
       role: "user",
-      content: trimmed || (uploadedSource ? "(média uniquement)" : "(message vide)"),
-      type: (uploadedSource?.type as Message["type"]) || "text",
-      assetUrl: uploadedSource ? uploadedSource.previewUrl || uploadedSource.url : undefined,
-      metadata: uploadedSource ? { name: uploadedSource.name, signedUrl: uploadedSource.url } : undefined,
+      content: trimmed || (selectedMedia ? "(média uniquement)" : "(message vide)"),
+      type: (selectedMedia?.type as Message["type"]) || "text",
+      assetUrl: selectedMedia ? selectedMedia.previewUrl || selectedMedia.url : undefined,
+      metadata: selectedMedia
+        ? {
+            name: selectedMedia.name,
+            signedUrl: selectedMedia.url,
+            origin: selectedMedia.origin,
+          }
+        : undefined,
     });
 
     // Commande /queue (monitoring)
-    if (trimmed.startsWith("/queue")) {
+    if (rawMessage.startsWith("/queue")) {
       try {
         const headers = await getAuthHeader();
         const { data, error } = await supabase.functions.invoke("queue-monitor", { headers });
@@ -532,13 +636,19 @@ export function AlfieChat() {
 
         const requestPayload: {
           message: string;
+          user_message?: string;
           conversationId?: string;
           brandId: string;
-          forceTool?: "generate_video";
+          forceTool?: "generate_video" | "generate_image" | "render_carousel";
           uploadedSourceUrl?: string;
-          uploadedSourceType?: UploadedSource["type"];
+          uploadedSourceType?: SelectedMedia["type"];
+          referenceMediaUrl?: string;
+          referenceMediaType?: SelectedMedia["type"];
+          prompt?: string;
+          slides?: any[];
         } = {
-          message: trimmed,
+          message: trimmed || rawMessage || "",
+          user_message: promptOverride.length > 0 ? promptOverride : trimmed || rawMessage || "",
           brandId: activeBrandId,
         };
 
@@ -547,10 +657,27 @@ export function AlfieChat() {
         }
 
         // intention vidéo
-        if (intent === "video") requestPayload.forceTool = "generate_video";
-        if (uploadedSource) {
-          requestPayload.uploadedSourceUrl = uploadedSource.url;
-          requestPayload.uploadedSourceType = uploadedSource.type;
+        if (options?.forceTool) {
+          requestPayload.forceTool = options.forceTool;
+        } else if (intent === "video") {
+          requestPayload.forceTool = "generate_video";
+        }
+
+        if (promptOverride.length > 0) {
+          requestPayload.prompt = promptOverride;
+        }
+
+        if (options?.slides && options.slides.length > 0) {
+          requestPayload.slides = options.slides;
+        }
+
+        if (selectedMedia) {
+          if (selectedMedia.origin === "upload") {
+            requestPayload.uploadedSourceUrl = selectedMedia.url;
+            requestPayload.uploadedSourceType = selectedMedia.type;
+          }
+          requestPayload.referenceMediaUrl = selectedMedia.url;
+          requestPayload.referenceMediaType = selectedMedia.type;
         }
 
         const { data, error } = await supabase.functions.invoke("alfie-orchestrator", {
@@ -565,17 +692,20 @@ export function AlfieChat() {
 
         if (payload?.conversationId) setConversationId(payload.conversationId);
 
+        if (payload?.context) setLastContext(payload.context);
+
         if (payload?.orderId) {
           setOrderId(payload.orderId);
           setConversationState("generating");
 
-          // info utilisateur
           addMessage({
             role: "assistant",
-            content:
-              "🚀 Génération lancée ! Tu peux suivre l’avancement et télécharger tes visuels directement dans la Bibliothèque.",
+            content: "🚀 Génération lancée !",
             type: "text",
-            quickReplies: ["Voir la bibliothèque"],
+            links: [
+              { label: "Voir dans Studio", href: `/studio?order=${payload.orderId}` },
+              { label: "Voir la Bibliothèque", href: `/library?order=${payload.orderId}` },
+            ],
           });
         }
 
@@ -591,6 +721,13 @@ export function AlfieChat() {
           const quickReplies =
             Array.isArray(payload.quickReplies) && payload.quickReplies.length > 0 ? payload.quickReplies : undefined;
 
+          const links = payload?.orderId
+            ? [
+                { label: "Voir dans Studio", href: `/studio?order=${payload.orderId}` },
+                { label: "Voir la Bibliothèque", href: `/library?order=${payload.orderId}` },
+              ]
+            : undefined;
+
           addMessage({
             role: "assistant",
             content: payload.response,
@@ -598,6 +735,8 @@ export function AlfieChat() {
             quickReplies,
             reasoning: payload.reasoning,
             brandAlignment: payload.brandAlignment,
+            orderId: payload.orderId ?? null,
+            links,
           });
         }
 
@@ -611,7 +750,7 @@ export function AlfieChat() {
         }
 
         // succès → reset image si envoyée
-        if (uploadedSource) clearUploadedSource();
+        if (selectedMedia) clearSelectedMedia();
 
         setIsLoading(false);
         inFlightRef.current = false;
@@ -637,11 +776,58 @@ export function AlfieChat() {
     }
   };
 
+  const handleQuickReplyClick = useCallback(
+    async (reply: string) => {
+      if (isLoading || inFlightRef.current) return;
+
+      if (reply === "Voir la bibliothèque" && orderId) {
+        window.open(`/library?order=${orderId}`, "_blank");
+        return;
+      }
+
+      if (reply === "Oui, lance !" && lastContext) {
+        try {
+          if (Array.isArray(lastContext.carouselBriefs) && lastContext.carouselBriefs.length > 0) {
+            const slides = await planCarouselSlides(lastContext.carouselBriefs[0]);
+            await handleSend(reply, { forceTool: "render_carousel", slides, intentOverride: "carousel" });
+            return;
+          }
+
+          if (Array.isArray(lastContext.imageBriefs) && lastContext.imageBriefs.length > 0) {
+            const brief = lastContext.imageBriefs[0] || {};
+            const parts = [brief.objective, brief.content, brief.style]
+              .map((part: unknown) => (typeof part === "string" ? part.trim() : ""))
+              .filter((part: string) => part.length > 0);
+            const prompt = parts.join(" • ");
+            await handleSend(prompt || reply, {
+              forceTool: "generate_image",
+              promptOverride: prompt || reply,
+              intentOverride: "image",
+            });
+            return;
+          }
+        } catch (err) {
+          console.error("[Chat] Quick reply launch error:", err);
+          toast.error(`Impossible de lancer : ${toErrorMessage(err)}`);
+          return;
+        }
+      }
+
+      setInput(reply);
+      await handleSend(reply);
+    },
+    [handleSend, isLoading, lastContext, orderId, planCarouselSlides],
+  );
+
   // =====================
   // Rendu
   // =====================
   return (
     <div className="flex flex-col h-full min-h-0 bg-background">
+    <div className="flex flex-col h-screen bg-background">
+      {/* Header */}
+      <CreateHeader />
+
       {/* Messages */}
       <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
         {messages.map((message) => (
@@ -705,13 +891,8 @@ export function AlfieChat() {
                             variant="outline"
                             size="sm"
                             disabled={isLoading}
-                            onClick={async () => {
-                              if (reply === "Voir la bibliothèque" && orderId) {
-                                window.open(`/library?order=${orderId}`, "_blank");
-                                return;
-                              }
-                              setInput(reply);
-                              await handleSend(reply);
+                            onClick={() => {
+                              void handleQuickReplyClick(reply);
                             }}
                             className="text-xs"
                           >
@@ -719,6 +900,26 @@ export function AlfieChat() {
                           </Button>
                         ))}
                       </div>
+                    </div>
+                  )}
+
+                  {message.orderId && (!message.links || message.links.length === 0) && (
+                    <div className="mt-3">
+                      <Button asChild variant="link" className="px-0">
+                        <a href={`/studio?order=${message.orderId}`}>Voir dans Studio →</a>
+                      </Button>
+                    </div>
+                  )}
+
+                  {message.links && message.links.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {message.links.map((link, linkIdx) => (
+                        <Button key={linkIdx} asChild variant="link" className="px-0 text-xs">
+                          <a href={link.href} target="_blank" rel="noreferrer">
+                            {link.label} →
+                          </a>
+                        </Button>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -762,60 +963,21 @@ export function AlfieChat() {
               {message.type === "carousel" && (
                 <div className="space-y-2">
                   <p className="text-sm">{message.content}</p>
-                  {message.metadata?.total && (
-                    <Progress value={(message.metadata.done / message.metadata.total) * 100} className="w-full" />
-                  )}
-                  {message.metadata?.assetUrls && (
+                  {message.metadata?.total && message.metadata?.done ? (
+                    <Progress value={(Number(message.metadata.done) / Number(message.metadata.total)) * 100} className="w-full" />
+                  ) : null}
+                  {message.metadata?.assetUrls && Array.isArray(message.metadata.assetUrls) ? (
                     <div className="grid grid-cols-2 gap-2 mt-2">
-                      {message.metadata.assetUrls.map((entry: any, i: number) => {
-                        const item = typeof entry === "string" ? { url: entry } : entry;
-                        if (!item?.url) return null;
-
-                        const aspectClass = getAspectClass(item.format || "4:5");
-
-                        const imageUrl = (() => {
-                          if (item.publicId && item.text) {
-                            const cloudName =
-                              extractCloudNameFromUrl(item.url) ||
-                              (import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string | undefined);
-
-                            if (!cloudName) return item.url ?? "/placeholder.svg";
-
-                            try {
-                              return slideUrl(item.publicId, {
-                                title: item.text.title,
-                                subtitle: item.text.subtitle,
-                                bulletPoints: item.text.bullets,
-                                aspectRatio: (item.format || "4:5") as "4:5" | "1:1" | "9:16" | "16:9",
-                                cloudName,
-                              });
-                            } catch {
-                              return item.url ?? "/placeholder.svg";
-                            }
-                          }
-
-                          if (item.url?.startsWith("https://")) return item.url;
-                          return "/placeholder.svg";
-                        })();
-
-                        return (
-                          <div key={i} className={`relative ${aspectClass} rounded-lg overflow-hidden`}>
-                            <img
-                              src={imageUrl}
-                              alt={`Slide ${i + 1}`}
-                              className="absolute inset-0 w-full h-full object-cover"
-                              loading="lazy"
-                              onError={(e) => {
-                                if (item.url?.startsWith("https://")) {
-                                  (e.currentTarget as HTMLImageElement).src = item.url;
-                                }
-                              }}
-                            />
-                          </div>
-                        );
-                      })}
+                      {message.metadata.assetUrls.map((entry: any, i: number) => (
+                          <img
+                            key={i}
+                            src={typeof entry === 'string' ? entry : entry.url}
+                            alt={`Asset ${i + 1}`}
+                            className="rounded-lg w-full"
+                          />
+                        ))}
                     </div>
-                  )}
+                  ) : null}
                 </div>
               )}
 
@@ -954,18 +1116,62 @@ export function AlfieChat() {
       </div>
 
       {/* Composer */}
-      <div className="border-t bg-background p-4">
-        {uploadedSource && (
-          <div className="mb-2 relative inline-block">
-            {uploadedSource.type === "image" ? (
+      <div className="border-t bg-background p-4 space-y-3">
+        {(selectableRecentAssets.length > 0 || recentAssetsError) && (
+          <div>
+            <div className="mb-2 flex items-center gap-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Références récentes
+              </p>
+              {isLoadingRecentAssets && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+            </div>
+            {selectableRecentAssets.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {selectableRecentAssets.map((asset) => {
+                  const isActive = selectedMedia?.origin === "library" && selectedMedia.url === asset.url;
+                  const previewSrc = asset.thumbnail_url ?? asset.url;
+                  const label = asset.type === "video" ? "Sélectionner la vidéo" : "Sélectionner l'image";
+                  return (
+                    <button
+                      key={asset.id}
+                      type="button"
+                      onClick={() => handleRecentAssetPick(asset)}
+                      className={cn(
+                        "relative h-16 w-16 shrink-0 overflow-hidden rounded-md border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                        isActive ? "border-primary ring-2 ring-primary" : "border-border hover:border-primary/70",
+                      )}
+                      aria-pressed={isActive}
+                      aria-label={`${label} ${asset.id}`}
+                      title={`${label} ${asset.id}`}
+                    >
+                      {asset.type === "video" ? (
+                        <video src={previewSrc} className="h-full w-full object-cover" muted loop playsInline />
+                      ) : (
+                        <img src={previewSrc} alt={label} className="h-full w-full object-cover" loading="lazy" />
+                      )}
+                      {isActive && <span className="pointer-events-none absolute inset-0 bg-primary/20" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {recentAssetsError && (
+              <p className="mt-2 text-xs text-destructive">{recentAssetsError}</p>
+            )}
+          </div>
+        )}
+
+        {selectedMedia && (
+          <div className="relative inline-block">
+            {selectedMedia.type === "image" ? (
               <img
-                src={uploadedSource.previewUrl || uploadedSource.url}
-                alt="Média uploadé"
+                src={selectedMedia.previewUrl || selectedMedia.url}
+                alt="Média sélectionné"
                 className="h-20 rounded-lg border object-cover"
               />
             ) : (
               <video
-                src={uploadedSource.previewUrl || uploadedSource.url}
+                src={selectedMedia.previewUrl || selectedMedia.url}
                 className="h-20 rounded-lg border object-cover"
                 muted
                 loop
@@ -976,28 +1182,21 @@ export function AlfieChat() {
               size="sm"
               variant="destructive"
               className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
-              onClick={clearUploadedSource}
-              aria-label="Retirer le média"
-              title="Retirer le média"
+              onClick={clearSelectedMedia}
+              aria-label="Retirer la référence"
+              title="Retirer la référence"
             >
               <span aria-hidden>×</span>
             </Button>
           </div>
         )}
 
-        <div className="flex gap-2 items-end">
-          <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*" onChange={handleFileUpload} />
-
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isLoading || uploadingSource}
-            aria-label="Importer un média"
-            title="Importer un média"
-          >
-            {uploadingSource ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
-          </Button>
+        <div className="flex items-end gap-2">
+          <MediaPicker
+            disabled={isLoading}
+            onPick={handleMediaUploadPick}
+            onUploadingChange={setIsUploadingMedia}
+          />
 
           <TextareaAutosize
             value={input}
@@ -1018,7 +1217,7 @@ export function AlfieChat() {
 
           <Button
             onClick={() => void handleSend()}
-            disabled={isLoading || uploadingSource || (!input.trim() && !uploadedSource)}
+            disabled={isLoading || isUploadingMedia || (!input.trim() && !selectedMedia)}
             size="icon"
             aria-label="Envoyer"
             title="Envoyer"
