@@ -1,4 +1,6 @@
 // Upload et gestion Cloudinary avancée
+import { env } from "./env.ts";
+import { encodeOverlayText as encodeCloudinaryText } from "./cloudinaryText.ts";
 
 export interface CloudinaryUploadResult {
   publicId: string;
@@ -18,9 +20,9 @@ export async function uploadToCloudinary(
     context?: Record<string, string>;
   }
 ): Promise<CloudinaryUploadResult> {
-  const cloudName = Deno.env.get('CLOUDINARY_CLOUD_NAME');
-  const apiKey = Deno.env.get('CLOUDINARY_API_KEY');
-  const apiSecret = Deno.env.get('CLOUDINARY_API_SECRET');
+  const cloudName = env('CLOUDINARY_CLOUD_NAME');
+  const apiKey = env('CLOUDINARY_API_KEY');
+  const apiSecret = env('CLOUDINARY_API_SECRET');
 
   if (!cloudName || !apiKey || !apiSecret) {
     throw new Error('Cloudinary credentials not configured');
@@ -96,23 +98,16 @@ export async function uploadToCloudinary(
 }
 
 // Encode texte pour URL Cloudinary (robuste, identique à imageCompositor)
-export function encodeCloudinaryText(text: string): string {
-  let encoded = encodeURIComponent(text);
-  // Protéger les caractères sensibles Cloudinary
-  encoded = encoded.replace(/%2C/g, '%252C'); // virgule
-  encoded = encoded.replace(/%2F/g, '%252F'); // slash
-  encoded = encoded.replace(/%3A/g, '%253A'); // deux-points
-  encoded = encoded.replace(/%23/g, '%2523'); // hash
-  encoded = encoded.replace(/\(/g, '%28');
-  encoded = encoded.replace(/\)/g, '%29');
-  encoded = encoded.replace(/\n/g, '%0A'); // newline
-  return encoded;
-}
+export { encodeCloudinaryText };
 
 // Construire la chaîne de transformation pour text overlay (réutilisable pour eager)
 export function buildTextOverlayTransform(options: {
   title?: string;
   subtitle?: string;
+  bullets?: string[];
+  cta?: string;
+  ctaPrimary?: string;
+  ctaSecondary?: string;
   titleColor?: string;
   subtitleColor?: string;
   titleSize?: number;
@@ -127,6 +122,10 @@ export function buildTextOverlayTransform(options: {
   const {
     title,
     subtitle = '',
+    bullets = [],
+    cta = '',
+    ctaPrimary = '',
+    ctaSecondary = '',
     titleColor = '1E1E1E',
     subtitleColor = '5A5A5A',
     titleSize = 64,
@@ -144,18 +143,45 @@ export function buildTextOverlayTransform(options: {
   // Title layer
   if (title) {
     const encodedTitle = encodeCloudinaryText(title);
-    const fontStyle = titleWeight === 'bold' ? `${titleFont}_Bold_${titleSize}` : `${titleFont}_${titleSize}`;
+    const safeTitleFont = (titleFont || 'Arial').replace(/\s+/g, '%20');
+    const fontStyle = titleWeight === 'bold' ? `${safeTitleFont}_${titleSize}_Bold` : `${safeTitleFont}_${titleSize}`;
     transformations.push(
-      `l_text:${fontStyle}:${encodedTitle},co_rgb:${titleColor},w_${width},c_fit/fl_layer_apply,g_north,y_200`
+      `l_text:${fontStyle}:${encodedTitle},co_rgb:${titleColor},e_outline:12:color_black,w_${width},c_fit,g_north,y_200/fl_layer_apply`
     );
   }
 
-  // Subtitle layer
+  // Subtitle layer (limit to 150 characters)
   if (subtitle) {
-    const encodedSubtitle = encodeCloudinaryText(subtitle);
-    const fontStyle = subtitleWeight === 'bold' ? `${subtitleFont}_Bold_${subtitleSize}` : `${subtitleFont}_${subtitleSize}`;
+    const subtitleTrimmed = subtitle.length > 150 ? subtitle.substring(0, 147) + '...' : subtitle;
+    const encodedSubtitle = encodeCloudinaryText(subtitleTrimmed);
+    const safeSubtitleFont = (subtitleFont || 'Arial').replace(/\s+/g, '%20');
+    const fontStyle = subtitleWeight === 'bold' ? `${safeSubtitleFont}_${subtitleSize}_Bold` : `${safeSubtitleFont}_${subtitleSize}`;
     transformations.push(
-      `l_text:${fontStyle}:${encodedSubtitle},co_rgb:${subtitleColor},w_${width},c_fit/fl_layer_apply,g_north,y_${280 + lineSpacing}`
+      `l_text:${fontStyle}:${encodedSubtitle},co_rgb:${subtitleColor},e_outline:10:color_black,w_${width},c_fit,g_north,y_${280 + lineSpacing}/fl_layer_apply`
+    );
+  }
+
+  // Bullets layers (each bullet on its own line, limit to 5)
+  if (bullets && bullets.length > 0) {
+    const safeBulletFont = (subtitleFont || 'Arial').replace(/\s+/g, '%20');
+    bullets.slice(0, 5).forEach((bullet, index) => {
+      const bulletTrimmed = bullet.length > 80 ? bullet.substring(0, 77) + '...' : bullet;
+      const encodedBullet = encodeCloudinaryText(`• ${bulletTrimmed}`);
+      const yPos = 450 + (index * 60);
+      transformations.push(
+        `l_text:${safeBulletFont}_28:${encodedBullet},co_rgb:${subtitleColor},e_outline:10:color_black,w_${width - 120},c_fit,g_north_west,x_80,y_${yPos}/fl_layer_apply`
+      );
+    });
+  }
+
+  // CTA layer (bottom center, limit to 50 characters)
+  const ctaText = ctaPrimary || cta;
+  if (ctaText) {
+    const ctaTrimmed = ctaText.length > 50 ? ctaText.substring(0, 47) + '...' : ctaText;
+    const encodedCta = encodeCloudinaryText(ctaTrimmed);
+    const safeCtaFont = (titleFont || 'Arial').replace(/\s+/g, '%20');
+    transformations.push(
+      `l_text:${safeCtaFont}_44_Bold:${encodedCta},co_rgb:${titleColor},e_outline:16:color_black,w_700,c_fit,g_south,y_80/fl_layer_apply`
     );
   }
 
@@ -211,6 +237,10 @@ export function buildCloudinaryTextOverlayUrl(
   options: {
     title?: string;
     subtitle?: string;
+    bullets?: string[];
+    cta?: string;
+    ctaPrimary?: string;
+    ctaSecondary?: string;
     titleColor?: string;
     subtitleColor?: string;
     titleSize?: number;
@@ -223,7 +253,7 @@ export function buildCloudinaryTextOverlayUrl(
     lineSpacing?: number;
   }
 ): string {
-  const cloudName = Deno.env.get('CLOUDINARY_CLOUD_NAME');
+  const cloudName = env('CLOUDINARY_CLOUD_NAME');
   if (!cloudName) throw new Error('CLOUDINARY_CLOUD_NAME not configured');
 
   const transformString = buildTextOverlayTransform(options);
@@ -263,9 +293,9 @@ export async function uploadWithRichMetadata(
   imageData: string,
   metadata: RichMetadata
 ): Promise<CloudinaryUploadResult> {
-  const cloudName = Deno.env.get('CLOUDINARY_CLOUD_NAME');
-  const apiKey = Deno.env.get('CLOUDINARY_API_KEY');
-  const apiSecret = Deno.env.get('CLOUDINARY_API_SECRET');
+  const cloudName = env('CLOUDINARY_CLOUD_NAME');
+  const apiKey = env('CLOUDINARY_API_KEY');
+  const apiSecret = env('CLOUDINARY_API_SECRET');
 
   if (!cloudName || !apiKey || !apiSecret) {
     throw new Error('Cloudinary credentials not configured');
@@ -305,13 +335,19 @@ export async function uploadWithRichMetadata(
 
   const timestamp = Math.round(Date.now() / 1000);
   
+  // IMPORTANT: Calculer contextStr AVANT signature pour l'inclure dans paramsToSign
+  const contextStr = Object.keys(context).length > 0
+    ? Object.entries(context).map(([k, v]) => `${k}=${v}`).join('|')
+    : '';
+  
   const paramsToSign: Record<string, any> = {
     timestamp,
     folder,
     public_id: publicId,
     tags: tags.join(','),
     overwrite: false,
-    unique_filename: false
+    unique_filename: false,
+    ...(contextStr && { context: contextStr })
   };
 
   const signatureString = Object.keys(paramsToSign)
@@ -319,9 +355,11 @@ export async function uploadWithRichMetadata(
     .map(key => `${key}=${paramsToSign[key]}`)
     .join('&') + apiSecret;
 
+  console.log('[Cloudinary] Signing keys:', Object.keys(paramsToSign).sort());
+
   const encoder = new TextEncoder();
   const data = encoder.encode(signatureString);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashBuffer = await crypto.subtle.digest('SHA-1', data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   const signature = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
@@ -336,10 +374,7 @@ export async function uploadWithRichMetadata(
   formData.append('overwrite', 'false');
   formData.append('unique_filename', 'false');
   
-  if (Object.keys(context).length > 0) {
-    const contextStr = Object.entries(context)
-      .map(([k, v]) => `${k}=${v}`)
-      .join('|');
+  if (contextStr) {
     formData.append('context', contextStr);
   }
 
@@ -351,9 +386,21 @@ export async function uploadWithRichMetadata(
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    console.error('[Cloudinary] Upload error:', error);
-    throw new Error(`Cloudinary upload failed: ${response.status}`);
+    const errorText = await response.text();
+    let errorDetail;
+    try {
+      errorDetail = JSON.parse(errorText);
+    } catch {
+      errorDetail = errorText;
+    }
+    console.error('[Cloudinary] Upload failed:', {
+      status: response.status,
+      error: errorDetail,
+      publicId,
+      folder,
+      timestamp
+    });
+    throw new Error(`Cloudinary upload failed: ${response.status} - ${JSON.stringify(errorDetail)}`);
   }
 
   const result = await response.json();
@@ -378,9 +425,9 @@ export async function uploadTextAsRaw(
     language: string;
   }
 ): Promise<string> {
-  const cloudName = Deno.env.get('CLOUDINARY_CLOUD_NAME');
-  const apiKey = Deno.env.get('CLOUDINARY_API_KEY');
-  const apiSecret = Deno.env.get('CLOUDINARY_API_SECRET');
+  const cloudName = env('CLOUDINARY_CLOUD_NAME');
+  const apiKey = env('CLOUDINARY_API_KEY');
+  const apiSecret = env('CLOUDINARY_API_SECRET');
 
   if (!cloudName || !apiKey || !apiSecret) {
     throw new Error('Cloudinary credentials not configured');
@@ -391,12 +438,16 @@ export async function uploadTextAsRaw(
   
   const timestamp = Math.round(Date.now() / 1000);
   
+  // IMPORTANT: Calculer context AVANT signature pour l'inclure dans paramsToSign
+  const contextStr = `type=carousel_copy|language=${metadata.language}|text_version=${metadata.textVersion}`;
+  
+  // CRITICAL: Ne PAS inclure resource_type dans la signature pour raw uploads
   const paramsToSign: Record<string, any> = {
-    timestamp,
+    context: contextStr,
+    overwrite: false,
     public_id: publicId,
     tags: tags.join(','),
-    resource_type: 'raw',
-    overwrite: false
+    timestamp
   };
 
   const signatureString = Object.keys(paramsToSign)
@@ -404,9 +455,11 @@ export async function uploadTextAsRaw(
     .map(key => `${key}=${paramsToSign[key]}`)
     .join('&') + apiSecret;
 
+  console.log('[Cloudinary] Raw upload signing keys:', Object.keys(paramsToSign).sort());
+
   const encoder = new TextEncoder();
   const data = encoder.encode(signatureString);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashBuffer = await crypto.subtle.digest('SHA-1', data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   const signature = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
@@ -420,8 +473,6 @@ export async function uploadTextAsRaw(
   formData.append('tags', tags.join(','));
   formData.append('resource_type', 'raw');
   formData.append('overwrite', 'false');
-  
-  const contextStr = `type=carousel_copy|language=${metadata.language}|text_version=${metadata.textVersion}`;
   formData.append('context', contextStr);
 
   const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/raw/upload`;
@@ -432,9 +483,20 @@ export async function uploadTextAsRaw(
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    console.error('[Cloudinary] Raw text upload error:', error);
-    throw new Error(`Cloudinary raw upload failed: ${response.status}`);
+    const errorText = await response.text();
+    let errorDetail;
+    try {
+      errorDetail = JSON.parse(errorText);
+    } catch {
+      errorDetail = errorText;
+    }
+    console.error('[Cloudinary] Raw text upload failed:', {
+      status: response.status,
+      error: errorDetail,
+      publicId,
+      timestamp
+    });
+    throw new Error(`Cloudinary raw upload failed: ${response.status} - ${JSON.stringify(errorDetail)}`);
   }
 
   const result = await response.json();

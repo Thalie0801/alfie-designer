@@ -1,3 +1,5 @@
+import { encodeCloudinaryText } from "./cloudinaryText.ts";
+
 // Phase 5: Compositeur d'images via Cloudinary - Text Overlay natif
 
 // ============= TYPES =============
@@ -32,25 +34,16 @@ type TextLayer = {
 // ============= ENCODING & LAYER BUILDING =============
 
 /**
- * Encode text safely for Cloudinary URLs
- */
-function encodeCloudinaryText(text: string): string {
-  return encodeURIComponent(text)
-    .replace(/%2C/g, '%252C')
-    .replace(/%2F/g, '%252F')
-    .replace(/%3A/g, '%253A')
-    .replace(/%23/g, '%2523')
-    .replace(/\n/g, '%0A');
-}
-
-/**
  * Build a single text layer transformation for Cloudinary
  */
 function buildTextLayer(layer: TextLayer): string {
-  const fontFamily = layer.font || 'Inter';
-  const fontWeight = layer.weight || 'Bold';
+  // ✅ FIX: Encode font names with spaces (e.g., "Nunito Sans" -> "Nunito%20Sans")
+  const fontFamily = (layer.font || 'Inter').replace(/\s+/g, '%20');
+  // ✅ CRITICAL FIX: Normalize ExtraBold to Bold (Cloudinary doesn't support ExtraBold)
+  const fontWeight = layer.weight === 'ExtraBold' ? 'Bold' : (layer.weight || 'Bold');
   const fontSize = layer.size || 64;
-  const font = `${fontFamily}_${fontWeight}_${fontSize}`;
+  // ✅ CRITICAL FIX: Font order must be font_family_size_style
+  const font = `${fontFamily}_${fontSize}_${fontWeight}`;
   
   const styleParams = [
     layer.color ? `co_rgb:${layer.color.replace('#', '')}` : '',
@@ -68,6 +61,7 @@ function buildTextLayer(layer: TextLayer): string {
   
   const positionParams = [gravity, position].filter(Boolean).join(',');
   
+  // ✅ CRITICAL FIX: All parameters BEFORE /fl_layer_apply
   return `${base}${styleParams ? ',' + styleParams : ''}${positionParams ? ',' + positionParams : ''}/fl_layer_apply`;
 }
 
@@ -345,6 +339,7 @@ export function buildCloudinaryTextOverlayUrl(
   
   // Add title overlay
   if (options.title) {
+    // ✅ FIX: Font already encoded above, keep it
     const titleFont = (options.titleFont || 'Inter').replace(/\s+/g, '%20');
     const titleSize = options.titleSize || 64;
     const titleWeight = options.titleWeight || 'Bold';
@@ -358,6 +353,7 @@ export function buildCloudinaryTextOverlayUrl(
   
   // Add subtitle overlay
   if (options.subtitle) {
+    // ✅ FIX: Font already encoded above, keep it
     const subtitleFont = (options.subtitleFont || 'Inter').replace(/\s+/g, '%20');
     const subtitleSize = options.subtitleSize || 36;
     const subtitleWeight = options.subtitleWeight || 'Regular';
