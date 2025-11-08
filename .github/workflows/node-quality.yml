@@ -312,6 +312,4 @@ jobs:
           if [ "${{ needs.lint.result }}" != "success" ]; then
             echo "::warning::Lint had issues but not blocking"; fi
           echo "✅ Quality checks completed"
-ted"
-
    
