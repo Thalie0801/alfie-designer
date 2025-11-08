@@ -1,4 +1,5 @@
 import { encodeOverlayText } from "./text";
+import { cleanText } from "./utils";
 
 /** Ratios pris en charge */
 export type AspectRatio = "4:5" | "1:1" | "9:16" | "16:9";
@@ -56,6 +57,8 @@ function sanitizeText(value: string | undefined, maxLen: number): string {
 
 function encodeText(value: string | undefined, maxLen: number): string | null {
   const cleaned = sanitizeText(value, maxLen);
+function prepareOverlayText(value: string | undefined, maxLen: number): string | null {
+  const cleaned = cleanText(value ?? "", maxLen);
   if (!cleaned) return null;
 
   const encoded = encodeOverlayText(cleaned);
@@ -69,6 +72,13 @@ function sanitizeColor(hex: string | undefined, fallback: string): string {
 
 function sanitizeFont(font: string | undefined): string {
   return (font ?? "Nunito").trim().replace(/\s+/g, "%20");
+  const value = (hex ?? fallback).trim().replace(/^#/, "");
+  return value.length ? value : fallback;
+}
+
+function sanitizeFont(font: string | undefined): string {
+  const value = (font ?? "Nunito").trim();
+  return value.replace(/\s+/g, "%20");
 }
 
 function overlayWidth(totalWidth: number, ratio: AspectRatio | undefined, kind: "title" | "subtitle" | "bullets" | "cta"): number {
@@ -121,6 +131,9 @@ export const slideUrl = (publicId: string, o: SlideUrlOptions = {}): string => {
   const font = sanitizeFont(o.fontFamily);
   const color = sanitizeColor(o.textColorHex, "FFFFFF");
   const subColor = sanitizeColor(o.subTextColorHex, "E5E7EB");
+  const color = sanitizeColor(o.textColorHex, "FFFFFF");
+  const subColor = sanitizeColor(o.subTextColorHex, "E5E7EB");
+  const font = sanitizeFont(o.fontFamily);
 
   const titleSize = o.aspectRatio === "9:16" ? 80 : o.aspectRatio === "16:9" ? 64 : 72;
   const subtitleSize = o.aspectRatio === "9:16" ? 52 : o.aspectRatio === "16:9" ? 38 : 42;
@@ -181,6 +194,49 @@ export const slideUrl = (publicId: string, o: SlideUrlOptions = {}): string => {
     bold: true,
   });
   if (ctaOverlay) overlays.push(ctaOverlay);
+  const titleY = o.aspectRatio === "9:16" ? 140 : 120;
+  const subtitleY = o.aspectRatio === "9:16" ? 220 : 140;
+  const bulletStartY = o.aspectRatio === "9:16" ? 380 : 300;
+  const bulletStep = o.aspectRatio === "16:9" ? 54 : 60;
+  const ctaY = o.aspectRatio === "9:16" ? 120 : 80;
+
+  const encodedTitle = prepareOverlayText(o.title, MAX_TITLE_LEN);
+  if (encodedTitle) {
+    overlays.push(
+      `l_text:${font}_${titleSize}_bold:${encodedTitle},co_rgb:${color},g_north,y_${titleY},w_${overlayWidth(w, o.aspectRatio, "title")},c_fit`,
+    );
+  }
+
+  const encodedSubtitle = prepareOverlayText(o.subtitle, MAX_SUBTITLE_LEN);
+  if (encodedSubtitle) {
+    overlays.push(
+      `l_text:${font}_${subtitleSize}:${encodedSubtitle},co_rgb:${subColor},g_north,y_${subtitleY},w_${overlayWidth(w, o.aspectRatio, "subtitle")},c_fit`,
+    );
+  }
+
+  const bulletTexts = (o.bulletPoints ?? [])
+    .map((b) => cleanText(b ?? "", MAX_BULLET_LEN))
+    .filter((b): b is string => Boolean(b))
+    .slice(0, 6);
+
+  bulletTexts.forEach((bullet, index) => {
+    const encodedBullet = prepareOverlayText(`• ${bullet}`, MAX_BULLET_LEN + 2);
+    if (!encodedBullet) return;
+    overlays.push(
+      `l_text:${font}_${bulletSize}:${encodedBullet},co_rgb:${color},g_center,y_${bulletStartY + index * bulletStep},w_${overlayWidth(
+        w,
+        o.aspectRatio,
+        "bullets",
+      )},c_fit`,
+    );
+  });
+
+  const encodedCta = prepareOverlayText(o.cta, MAX_CTA_LEN);
+  if (encodedCta) {
+    overlays.push(
+      `l_text:${font}_${ctaSize}_bold:${encodedCta},co_rgb:${color},g_south,y_${ctaY},w_${overlayWidth(w, o.aspectRatio, "cta")},c_fit`,
+    );
+  }
 
   const textTransforms = overlays.length ? `/${overlays.join("/")}` : "";
   return `https://res.cloudinary.com/${enc(cloudName)}/image/upload/${baseTransform}${textTransforms}/${enc(resolvedPublicId)}.png`;
