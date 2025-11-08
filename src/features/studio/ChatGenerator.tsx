@@ -318,6 +318,7 @@ export function ChatGenerator() {
       if (isMountedRef.current && refetchSeqRef.current === requestId) {
         setError(message);
       }
+      setError(message);
     } finally {
       if (isMountedRef.current && refetchSeqRef.current === requestId) {
         setLoading(false);
