@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { downloadUrl } from '@/lib/download';
 
 const MEDIA_URL_KEYS = [
   'videoUrl',
@@ -390,42 +391,28 @@ export function useLibraryAssets(userId: string | undefined, type: 'images' | 'v
         return;
       }
 
-      let blob: Blob;
-      
-      // Si c'est une image base64, la convertir en blob
-      if (outputUrl.startsWith('data:')) {
-        const base64Data = outputUrl.split(',')[1];
-        const mimeType = outputUrl.match(/data:([^;]+);/)?.[1] || 'image/png';
-        const byteString = atob(base64Data);
-        const arrayBuffer = new ArrayBuffer(byteString.length);
-        const uint8Array = new Uint8Array(arrayBuffer);
-        
-        for (let i = 0; i < byteString.length; i++) {
-          uint8Array[i] = byteString.charCodeAt(i);
+      const SUPABASE_STORAGE_MARKER = '/storage/v1/object/public/media-generations/';
+      if (outputUrl.includes(SUPABASE_STORAGE_MARKER)) {
+        const [, pathPart] = outputUrl.split(SUPABASE_STORAGE_MARKER);
+        if (pathPart) {
+          const { data: signed, error: signedError } = await supabase.storage
+            .from('media-generations')
+            .createSignedUrl(pathPart, 60 * 60);
+          if (!signedError && signed?.signedUrl) {
+            window.open(signed.signedUrl, '_blank');
+            toast.success('Téléchargement prêt');
+            return;
+          }
+          if (signedError) {
+            console.warn('[Download] Signed URL error:', signedError);
+          }
         }
-        
-        blob = new Blob([arrayBuffer], { type: mimeType });
-      } else {
-        // Sinon, télécharger depuis l'URL
-        const response = await fetch(outputUrl);
-        if (!response.ok) throw new Error('Erreur lors du téléchargement');
-        blob = await response.blob();
       }
-      
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      
-      // Extension basée sur le type
-      const extension = asset.type === 'image' ? 'png' : 'mp4';
+
+      // Use robust download helper
       const timestamp = new Date().toISOString().slice(0, 10);
-      a.download = `${asset.type}-${timestamp}-${asset.id.slice(0, 8)}.${extension}`;
-      
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      
+      const suggestedName = `${asset.type}-${timestamp}-${asset.id.slice(0, 8)}`;
+      await downloadUrl(outputUrl, suggestedName);
       toast.success('Téléchargement démarré');
     } catch (error) {
       console.error('Error downloading asset:', error);

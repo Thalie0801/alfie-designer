@@ -1,8 +1,12 @@
 project_id = "itsjonazifiiikozengd"
 
-[functions.process-job-worker]
+[functions.alfie-job-worker]
 verify_jwt = false
-schedule = "* * * * *"
+schedule = "*/2 * * * *"
+
+[functions.trigger-job-worker]
+verify_jwt = true
+
 
 [functions.creations-api]
 verify_jwt = true
@@ -14,13 +18,13 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.alfie-generate-ai-image]
-verify_jwt = true
+verify_jwt = false
 
 [functions.alfie-plan-carousel]
 verify_jwt = true
 
 [functions.alfie-render-carousel-slide]
-verify_jwt = true
+verify_jwt = false
 
 [functions.alfie-proofread-fr]
 verify_jwt = true
@@ -134,13 +138,16 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.alfie-render-image]
-verify_jwt = true
+verify_jwt = false
+
+[functions.alfie-render-carousel-slide]
+verify_jwt = false
 
 [functions.alfie-score-coherence]
 verify_jwt = true
 
 [functions.alfie-render-video]
-verify_jwt = true
+verify_jwt = false
 
 [functions.alfie-video-upscale]
 verify_jwt = true
@@ -171,6 +178,13 @@ verify_jwt = true
 
 [functions.cleanup-stuck-jobs]
 verify_jwt = false
+schedule = "*/5 * * * *"
 
 [functions.cancel-job-set]
+verify_jwt = true
+
+[functions.admin-reset-stuck-jobs]
+verify_jwt = true
+
+[functions.queue-monitor]
 verify_jwt = true

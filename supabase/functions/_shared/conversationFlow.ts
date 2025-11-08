@@ -1,10 +1,12 @@
 // Gestion du workflow conversationnel Alfie
 
-export type ConversationState = 
+export type ConversationState =
   | 'initial'
   | 'collecting_order_size'
   | 'collecting_image_brief'
   | 'collecting_carousel_brief'
+  | 'awaiting_video_params'
+  | 'awaiting_video_prompt'
   | 'confirming'
   | 'generating'
   | 'completed';
@@ -14,10 +16,16 @@ export interface ConversationContext {
   numCarousels?: number;
   currentImageIndex?: number;
   currentCarouselIndex?: number;
-  imageBriefs?: any[];
-  carouselBriefs?: any[];
+  imageBriefs?: Array<Record<string, unknown>>;
+  carouselBriefs?: Array<Record<string, unknown>>;
   globalStyle?: string;
   campaign?: string;
+  video?: {
+    aspectRatio: string | null;
+    durationSec: number | null;
+    prompt?: string | null;
+    sourceUrl?: string | null;
+  } | null;
 }
 
 export interface BriefQuestion {
@@ -32,6 +40,12 @@ export const IMAGE_BRIEF_QUESTIONS: BriefQuestion[] = [
   {
     key: 'objective',
     question: 'Quel est l\'objectif de cette image ? (ex: acquisition, conversion, awareness)',
+    type: 'text',
+    required: true
+  },
+  {
+    key: 'content',
+    question: 'Que veux-tu voir sur cette image ? Décris le contenu visuel (ex: produit, paysage, personne, objet, etc.)',
     type: 'text',
     required: true
   },
@@ -88,17 +102,50 @@ export const CAROUSEL_BRIEF_QUESTIONS: BriefQuestion[] = [
 export function detectOrderIntent(message: string): { numImages: number; numCarousels: number } | null {
   const normalized = message.toLowerCase();
   
-  // Patterns pour détecter les quantités
-  const imagePattern = /(\d+)\s*(image|visuel|photo)/i;
-  const carouselPattern = /(\d+)\s*(carrousel|carousel)/i;
+  // Mapping des nombres en lettres français
+  const numberWords: Record<string, number> = {
+    'un': 1, 'une': 1,
+    'deux': 2,
+    'trois': 3,
+    'quatre': 4,
+    'cinq': 5,
+    'six': 6,
+    'sept': 7,
+    'huit': 8,
+    'neuf': 9,
+    'dix': 10
+  };
   
-  const imageMatch = normalized.match(imagePattern);
-  const carouselMatch = normalized.match(carouselPattern);
+  // Helper pour extraire nombre (chiffre ou mot)
+  const extractNumber = (pattern: RegExp): number | null => {
+    const match = normalized.match(pattern);
+    if (!match) return null;
+    
+    const numStr = match[1].trim();
+    // Tenter chiffre d'abord
+    if (/^\d+$/.test(numStr)) {
+      return parseInt(numStr);
+    }
+    // Sinon chercher dans le mapping
+    return numberWords[numStr] || null;
+  };
   
-  if (imageMatch || carouselMatch) {
+  // Patterns pour détecter quantités (chiffres ou mots)
+  const imagePattern = /(\d+|un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix)\s*(image|visuel|photo)/i;
+  const carouselPattern = /(\d+|un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix)\s*(carrousel|carousel|diaporama|slides)/i;
+  
+  const numImages = extractNumber(imagePattern);
+  const numCarousels = extractNumber(carouselPattern);
+  
+  // Détection sans nombre explicite (par défaut 1)
+  const hasImageKeyword = /\b(image|visuel|photo)\b/i.test(normalized);
+  const hasCarouselKeyword = /\b(carrousel|carousel|diaporama|slides)\b/i.test(normalized);
+  
+  // Si au moins un élément détecté
+  if (numImages !== null || numCarousels !== null || hasImageKeyword || hasCarouselKeyword) {
     return {
-      numImages: imageMatch ? parseInt(imageMatch[1]) : 0,
-      numCarousels: carouselMatch ? parseInt(carouselMatch[1]) : 0
+      numImages: numImages !== null ? numImages : (hasImageKeyword ? 1 : 0),
+      numCarousels: numCarousels !== null ? numCarousels : (hasCarouselKeyword ? 1 : 0)
     };
   }
   
@@ -164,7 +211,12 @@ Réponds UNIQUEMENT en JSON valide avec cette structure exacte :
     });
 
     if (!response.ok) {
-      console.error('[detectTopicIntent] AI error:', response.status);
+      const errorText = await response.text().catch(() => 'Unknown error');
+      if (response.status === 402) {
+        console.warn('[detectTopicIntent] 402 Payment Required - Using fallback (raw text)');
+      } else {
+        console.error('[detectTopicIntent] AI error:', response.status, errorText);
+      }
       return { topic: userMessage, confidence: 0.5 };
     }
 
@@ -204,19 +256,25 @@ export function validateResponse(question: BriefQuestion, response: string): { v
   return { valid: true };
 }
 
-export function extractResponseValue(question: BriefQuestion, response: string): any {
+export function extractResponseValue(question: BriefQuestion | { key: string }, response: string): any {
   const normalized = response.toLowerCase().trim();
+  const key = 'key' in question ? question.key : '';
   
-  if (question.type === 'select' && question.options) {
+  // Cast pour accéder aux propriétés
+  const fullQuestion = question as BriefQuestion;
+  
+  if (fullQuestion.type === 'select' && fullQuestion.options) {
     // Trouver l'option qui correspond
-    const match = question.options.find(opt => normalized.includes(opt.toLowerCase()));
+    const match = fullQuestion.options.find(opt => normalized.includes(opt.toLowerCase()));
     return match || normalized;
   }
   
-  // Pour numSlides, extraire le nombre
-  if (question.key === 'numSlides') {
+  // ✅ FIX: Pour numSlides, extraire le nombre (support "5", "5 slides", "5-8", etc.)
+  if (key === 'numSlides') {
     const match = response.match(/(\d+)/);
-    return match ? parseInt(match[1]) : 5;
+    const value = match ? parseInt(match[1]) : 5;
+    console.log(`[extractResponseValue] numSlides: "${response}" → ${value}`);
+    return value;
   }
   
   return response.trim();
@@ -251,6 +309,13 @@ export function getNextQuestion(
           question: `📸 Image ${currentIndex + 1}/${context.numImages}: Quel est l'objectif ? (acquisition, conversion, awareness)`,
           quickReplies: ['Acquisition', 'Conversion', 'Awareness'],
           questionKey: 'objective'
+        };
+      }
+      if (!currentBrief.content) {
+        return {
+          question: `Image ${currentIndex + 1}: Que veux-tu voir sur cette image ? Décris le contenu visuel (ex: produit, paysage, personne, objet, etc.)`,
+          quickReplies: [],
+          questionKey: 'content'
         };
       }
       if (!currentBrief.format) {
@@ -333,7 +398,9 @@ export function buildSummary(context: ConversationContext): string {
     const grouped = new Map<string, { brief: any; indices: number[] }>();
     
     context.carouselBriefs?.forEach((brief, idx) => {
-      const key = `${(brief.topic || 'n/a').toLowerCase()}|${(brief.angle || 'n/a').toLowerCase()}|${brief.numSlides || 5}`;
+      const topic = typeof brief.topic === 'string' ? brief.topic : 'n/a';
+      const angle = typeof brief.angle === 'string' ? brief.angle : 'n/a';
+      const key = `${topic.toLowerCase()}|${angle.toLowerCase()}|${brief.numSlides || 5}`;
       
       if (grouped.has(key)) {
         grouped.get(key)!.indices.push(idx + 1);

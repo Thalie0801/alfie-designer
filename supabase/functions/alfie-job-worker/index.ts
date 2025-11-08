@@ -1,669 +1,1006 @@
+// supabase/functions/alfie-job-worker/index.ts
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { uploadToCloudinary } from "../_shared/cloudinaryUploader.ts";
+import { buildSpliceVideoUrl } from "../_shared/cloudinaryVideo.ts";
+import { buildImageThumbnailUrl, extractCloudName } from "../_shared/cloudinaryUtils.ts";
+import { consumeBrandQuotas } from "../_shared/quota.ts";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, INTERNAL_FN_SECRET, CLOUDINARY_CLOUD_NAME } from "../_shared/env.ts";
+import { attachJobIdempotency } from "../_shared/idempotency.ts";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Initialize Supabase admin client
+type JobRow = {
+  id: string;
+  user_id: string;
+  order_id: string;
+  type: "generate_texts" | "render_images" | "render_carousels" | "generate_video" | "stitch_carousel_video";
+  status: "queued" | "running" | "completed" | "failed";
+  retry_count: number | null;
+  max_retries: number | null;
+  payload: any;
+  error?: string | null;
+  attempts?: number | null;
+  locked_by?: string | null;
+  started_at?: string | null;
+  idempotency_key?: string | null;
+};
+
 const supabaseAdmin = createClient(
-  Deno.env.get('SUPABASE_URL') ?? '',
-  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-  { auth: { autoRefreshToken: false, persistSession: false } }
+  SUPABASE_URL ?? "",
+  SUPABASE_SERVICE_ROLE_KEY ?? "",
+  { auth: { autoRefreshToken: false, persistSession: false } },
 );
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+// ---------- Utils ----------
+const ok = (data: any, status = 200) =>
+  new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
+const err = (message: string, status = 500) =>
+  new Response(JSON.stringify({ error: message }), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
+const THIRTY_DAYS_MS = 30 * 24 * 3600 * 1000;
+
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function isHttp429(e: unknown) {
+  const msg = e instanceof Error ? e.message : String(e ?? "");
+  return /429|rate limit/i.test(msg);
+}
+
+function isHttp402(e: unknown) {
+  const msg = e instanceof Error ? e.message : String(e ?? "");
+  return /402|payment required|insufficient credits/i.test(msg);
+}
+
+async function callFn<T = unknown>(name: string, body: unknown): Promise<T> {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw new Error(`Missing Supabase configuration for ${name}`);
+  }
+  if (!INTERNAL_FN_SECRET) {
+    throw new Error(`Missing INTERNAL_FN_SECRET for ${name}`);
   }
 
-  try {
-    console.log('🚀 [Worker] Starting job processing...');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 60_000);
 
-    // 🧪 Environment check
-    console.log('🧪 env.check', {
-      hasUrl: !!Deno.env.get('SUPABASE_URL'),
-      hasAnon: !!Deno.env.get('SUPABASE_ANON_KEY'),
-      hasService: !!Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        "X-Internal-Secret": INTERNAL_FN_SECRET,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body ?? {}),
+      signal: controller.signal,
     });
 
-    // 🧪 Queue visibility probes
-    const { count: queued } = await supabaseAdmin
-      .from('job_queue')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'queued');
-    
-    console.log('🧪 probe.queue_count', { queued: queued ?? 0 });
-
-    // 🧪 Check for legacy 'jobs' table
-    try {
-      const { data: dbgJobs, error: dbgErr } = await supabaseAdmin
-        .from('jobs')
-        .select('id')
-        .limit(1);
-      console.log('🧪 probe.jobs_table', { exists: !dbgErr, sample: dbgJobs?.length ?? 0 });
-    } catch {
-      console.log('🧪 probe.jobs_table', { exists: false });
+    const text = await resp.text().catch(() => "");
+    if (!resp.ok) {
+      throw new Error(`${name} failed: ${resp.status} ${resp.statusText} ${text}`);
     }
-    
-    console.log(`[WORKER] Boot: ${queued ?? 0} jobs queued in job_queue`);
 
-    // Process batch of jobs (3-5 max to avoid HTTP timeout)
-    let processedCount = 0;
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      return text as unknown as T;
+    }
+  } catch (error: unknown) {
+    const isAbort =
+      (error as any)?.name === "AbortError" ||
+      (error instanceof DOMException && error.name === "AbortError");
+    if (isAbort) {
+      throw new Error(`${name} timed out after 60s`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function unwrapResult<T = unknown>(input: any): T {
+  if (input && typeof input === "object" && "data" in input && (input as any).data != null) {
+    return unwrapResult<T>((input as any).data);
+  }
+  return input as T;
+}
+
+function extractError(input: any): string | null {
+  if (!input || typeof input !== "object") return null;
+  if ("error" in input) {
+    const value = (input as any).error;
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  if ("data" in input) {
+    return extractError((input as any).data);
+  }
+  return null;
+}
+
+function getResultValue<T = unknown>(input: any, keys: string[]): T | null {
+  for (const key of keys) {
+    const value = deepGet(input, key);
+    if (value !== undefined && value !== null) {
+      return value as T;
+    }
+  }
+  return null;
+}
+
+function deepGet(obj: any, key: string): any {
+  if (!obj || typeof obj !== "object") return null;
+  if (key in obj && (obj as any)[key] != null) {
+    return (obj as any)[key];
+  }
+  if ("data" in obj) {
+    return deepGet((obj as any).data, key);
+  }
+  return null;
+}
+
+// ---------- HTTP Entrypoint ----------
+serve(async (req) => {
+  console.log("[alfie-job-worker] 🚀 Invoked at", new Date().toISOString());
+  
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  try {
+    console.log("🚀 [Worker] Starting job processing...");
+
+    // Basic env sanity
+    console.log("🧪 env", {
+      supabaseUrl: !!Deno.env.get("SUPABASE_URL"),
+      anonKey: !!Deno.env.get("SUPABASE_ANON_KEY"),
+      serviceKey: !!Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+    });
+
+    // Quick probe
+    const { count: queued } = await supabaseAdmin
+      .from("job_queue")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "queued");
+    console.log("[WORKER] Boot: " + (queued ?? 0) + " jobs queued in job_queue");
+
+    // Process a small batch to avoid function timeout
+    const workerId = `worker-${crypto.randomUUID().slice(0, 8)}`;
+    const results: Array<{ job_id: string; success: boolean; error?: string; retried?: boolean }> = [];
     const maxJobs = 5;
-    const results: any[] = [];
+    let processed = 0;
 
     for (let i = 0; i < maxJobs; i++) {
-      // Atomically claim next job using RPC function
-      const { data: claimedJobs, error: claimError } = await supabaseAdmin
-        .rpc('claim_next_job');
-
+      const { data: claimed, error: claimError } = await supabaseAdmin.rpc("claim_next_job", { worker_id: workerId });
       if (claimError) {
-        console.error('❌ [Worker] Error claiming job:', claimError);
+        console.error("❌ claim_next_job", claimError);
+        break;
+      }
+      const job = claimed as JobRow | null;
+      if (!job) {
+        if ((queued ?? 0) > 0) console.warn("🧪 claim_empty_but_queued_gt0");
+        console.log(`ℹ️ No more jobs to process (processed ${processed})`);
         break;
       }
 
-      if (!claimedJobs || claimedJobs.length === 0) {
-        // 🧪 Warn if claim returns empty but we saw queued jobs
-        if ((queued ?? 0) > 0) {
-          console.warn('🧪 claim_empty_but_queued_gt0');
-        }
-        console.log(`ℹ️ [Worker] No more jobs to process (processed ${processedCount})`);
-        break;
-      }
-
-      const job = claimedJobs[0];
-      console.log(`🟢 [Worker] start_job`, { jobId: job.id, order_id: job.order_id, type: job.type });
-
-      let result: any = null;
-      let error: string | null = null;
+      console.log("🟢 start_job", { id: job.id, type: job.type, order_id: job.order_id });
 
       try {
-        // Execute job based on type
+        let result: any;
+
         switch (job.type) {
-          case 'generate_texts':
+          case "generate_texts":
             result = await processGenerateTexts(job.payload);
             break;
-          case 'render_images':
+          case "render_images":
             result = await processRenderImages(job.payload);
             break;
-          case 'render_carousels':
+          case "render_carousels":
             result = await processRenderCarousels(job.payload);
             break;
-          case 'generate_video':
+          case "generate_video":
             result = await processGenerateVideo(job.payload);
+            break;
+          case "stitch_carousel_video":
+            result = await processStitchCarouselVideo(job.payload);
             break;
           default:
             throw new Error(`Unknown job type: ${job.type}`);
         }
 
-        // Mark job as completed
         await supabaseAdmin
-          .from('job_queue')
+          .from("job_queue")
           .update({
-            status: 'completed',
+            status: "completed",
             result,
             updated_at: new Date().toISOString(),
+            locked_by: null,
+            started_at: null,
+            attempts: 0,
+            error: null,
           })
-          .eq('id', job.id);
+          .eq("id", job.id);
 
-        console.log(`✅ [Worker] job_done`, { jobId: job.id, order_id: job.order_id });
-
-        // Create cascade jobs if needed
-        if (job.type === 'generate_texts') {
-          await createCascadeJobs(job, result, supabaseAdmin);
-        }
-
-        processedCount++;
+        console.log("✅ job_done", { id: job.id, type: job.type });
+        processed++;
         results.push({ job_id: job.id, success: true });
 
-      } catch (processingError) {
-        console.error(`🔴 [Worker] job_failed`, { jobId: job.id, error: processingError instanceof Error ? processingError.message : 'Unknown error' });
-        error = processingError instanceof Error ? processingError.message : 'Unknown error';
+        // Check for remaining jobs and reinvoke if needed
+        const { data: remainingJobs } = await supabaseAdmin
+          .from("job_queue")
+          .select("id")
+          .eq("status", "queued")
+          .limit(1);
 
-        // Check retry logic
-        const retryCount = job.retry_count || 0;
-        const maxRetries = job.max_retries || 3;
-        const shouldRetry = retryCount < maxRetries;
-        
-        if (shouldRetry) {
-          // Increment retry count and requeue
-          await supabaseAdmin
-            .from('job_queue')
-            .update({
-              status: 'queued',
-              retry_count: retryCount + 1,
-              error,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', job.id);
-          
-          console.log(`🔄 [Worker] Job ${job.id} requeued (retry ${retryCount + 1}/${maxRetries})`);
-        } else {
-          // Mark as failed permanently
-          await supabaseAdmin
-            .from('job_queue')
-            .update({
-              status: 'failed',
-              error,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', job.id);
-          
-          console.log(`❌ [Worker] Job ${job.id} failed permanently after ${retryCount} retries`);
+        if (remainingJobs && remainingJobs.length > 0) {
+          console.log("[alfie-job-worker] 🔁 Remaining jobs detected, reinvoking...");
+          try {
+            const { error: invokeError } = await supabaseAdmin.functions.invoke("alfie-job-worker", {
+              body: { trigger: "self-reinvoke" }
+            });
+            if (invokeError) {
+              console.error("[alfie-job-worker] ⚠️ Reinvoke failed:", invokeError);
+            }
+          } catch (e) {
+            console.error("[alfie-job-worker] ⚠️ Reinvoke error:", e);
+          }
         }
 
-        results.push({ job_id: job.id, success: false, error, retried: shouldRetry });
+        // Cascade for text → generate children jobs
+        if (job.type === "generate_texts") {
+          await createCascadeJobs(job, result, supabaseAdmin);
+        }
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Unknown error";
+        console.error("🔴 job_failed", { id: job.id, message });
+
+        const retryCount = job.retry_count ?? 0;
+        const maxRetries = job.max_retries ?? 3;
+        const shouldRetry = retryCount < maxRetries && !isHttp402(e);
+
+        if (shouldRetry) {
+          await supabaseAdmin
+            .from("job_queue")
+            .update({
+              status: "queued",
+              retry_count: retryCount + 1,
+              error: message,
+              result: null,
+              updated_at: new Date().toISOString(),
+              locked_by: null,
+              started_at: null,
+              attempts: 0,
+            })
+            .eq("id", job.id);
+
+          console.log(`🔄 requeued ${job.id} (${retryCount + 1}/${maxRetries})`);
+          results.push({ job_id: job.id, success: false, retried: true, error: message });
+        } else {
+          await supabaseAdmin
+            .from("job_queue")
+            .update({
+              status: "failed",
+              error: message,
+              result: null,
+              updated_at: new Date().toISOString(),
+              locked_by: null,
+              started_at: null,
+            })
+            .eq("id", job.id);
+
+          console.log(`❌ permanently_failed ${job.id}`);
+          results.push({ job_id: job.id, success: false, retried: false, error: message });
+        }
       }
     }
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        processed: processedCount,
-        results 
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      }
-    );
-
-  } catch (error) {
-    console.error('❌ [Worker] Fatal error:', error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      }
-    );
+    return ok({ success: true, processed, results });
+  } catch (e) {
+    console.error("❌ [Worker] Fatal", e);
+    return err(e instanceof Error ? e.message : "Unknown error");
   }
 });
 
 // ========== JOB PROCESSORS ==========
 
-async function processGenerateTexts(payload: any): Promise<any> {
-  console.log('📝 [processGenerateTexts] Starting...');
-  
+async function processGenerateTexts(payload: any) {
+  console.log("📝 [processGenerateTexts]");
+
   const { brief, brandKit, count = 1, type } = payload;
-  
-  // Call Lovable AI Gateway to generate texts
-  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-  
-  const systemPrompt = type === 'image' 
-    ? `Tu es un expert en création de contenu social media. Génère ${count} variations de texte pour une image Instagram/Facebook avec: headline (max 30 car), body (max 125 car), cta (max 20 car), alt (max 100 car).`
-    : `Tu es un expert en storytelling pour carrousels. Génère un plan structuré de carousel avec slides cohérentes.`;
-  
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY missing");
+
+  const systemPrompt =
+    type === "image"
+      ? "Tu es expert social media. Génère des variations de texte (headline ≤30, body ≤125, cta ≤20, alt ≤100). Réponds en JSON."
+      : "Tu es expert storytelling carrousel. Génère un plan structuré de carousel. Réponds en JSON.";
+
   const userPrompt = `Brief: ${JSON.stringify(brief)}\nBrand Kit: ${JSON.stringify(brandKit)}`;
-  
-  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-    method: 'POST',
+
+  const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
     headers: {
-      'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-      'Content-Type': 'application/json',
+      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: 'google/gemini-2.5-flash',
+      model: "google/gemini-2.5-flash",
       messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
       ],
+      temperature: 0.7,
     }),
   });
-  
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Lovable AI error: ${response.status} - ${errorText}`);
+
+  if (!r.ok) {
+    const t = await r.text().catch(() => "");
+    throw new Error(`Lovable AI error: ${r.status} - ${t}`);
   }
-  
-  const aiResponse = await response.json();
-  const generatedText = aiResponse.choices[0]?.message?.content;
-  
-  console.log('✅ [processGenerateTexts] Generated texts successfully');
-  return { texts: generatedText, count, type };
+  const data = await r.json();
+  const content = data?.choices?.[0]?.message?.content ?? "{}";
+
+  return { texts: content, count, type };
 }
 
-async function processRenderImages(payload: any): Promise<any> {
-  console.log('🖼️ [processRenderImages] Starting...', { payload });
-  
-  // ✅ Adapter au nouveau format de payload
-  let imagesToRender = [];
-  
+async function processRenderImage(payload: any) {
+  console.log("🖼️ [processRenderImage]", payload?.orderId);
+
+  const { userId, brandId, orderId, prompt, sourceUrl } = payload || {};
+  if (!userId || !brandId || !orderId || !prompt) {
+    throw new Error("Invalid render_image payload");
+  }
+
+  const resp = await callFn<any>("alfie-render-image", {
+    prompt,
+    brand_id: brandId,
+    sourceUrl,
+    userId,
+    orderId,
+  });
+  const data = resp as any;
+  const error = data && data.error ? { message: data.error } : null;
+
+  if (error || (data as any)?.error) {
+    const message = (data as any)?.error || error?.message || "render_image_failed";
+    throw new Error(message);
+  }
+
+  const imageUrl = (data as any)?.imageUrl || (data as any)?.data?.url || (data as any)?.url;
+  if (!imageUrl || typeof imageUrl !== "string") {
+    throw new Error("Missing imageUrl");
+  }
+
+  const expiresAt = new Date(Date.now() + THIRTY_DAYS_MS).toISOString();
+
+  const { error: mediaErr } = await supabaseAdmin.from("media_generations").insert({
+    user_id: userId,
+    brand_id: brandId,
+    order_id: orderId,
+    type: "image",
+    status: "completed",
+    output_url: imageUrl,
+    metadata: { prompt, sourceUrl },
+    expires_at: expiresAt,
+  });
+  if (mediaErr) throw new Error(mediaErr.message);
+
+  const { error: libErr } = await supabaseAdmin.from("library_assets").insert({
+    user_id: userId,
+    brand_id: brandId,
+    order_id: orderId,
+    type: "image",
+    cloudinary_url: imageUrl,
+    src_url: imageUrl,
+    title: typeof prompt === "string" && prompt.trim() ? prompt.trim().slice(0, 80) : "Image",
+    tags: ["studio", "auto"],
+    expires_at: expiresAt,
+    metadata: { prompt, sourceUrl },
+  } as any);
+  if (libErr) throw new Error(libErr.message);
+
+  return { imageUrl };
+}
+
+async function processRenderImages(payload: any) {
+  console.log("🖼️ [processRenderImages] payload.in", payload);
+
+  if (
+    payload &&
+    typeof payload.prompt === "string" &&
+    payload.prompt.trim().length > 0 &&
+    !payload.images &&
+    !payload.brief
+  ) {
+    return processRenderImage(payload);
+  }
+
+  if (!payload?.userId || !payload?.orderId) {
+    throw new Error("Invalid render_images payload: missing userId or orderId");
+  }
+
+  const results: Array<{ url: string; aspectRatio: string; resolution: string }> = [];
+  let imagesToRender: Array<{
+    prompt: string;
+    resolution: string;
+    aspectRatio: "1:1" | "4:5" | "9:16" | "16:9";
+    brandId?: string;
+    briefIndex?: number;
+    templateImageUrl?: string;
+  }> = [];
+
   if (payload.images) {
-    // Format ancien (compatibilité)
     imagesToRender = payload.images;
   } else if (payload.brief) {
-    // ✅ NOUVEAU FORMAT (depuis order_items)
-    const { count, briefs } = payload.brief;
+    const { briefs } = payload.brief;
     const brandId = payload.brandId;
-    
-    // Charger le brand kit une fois
+
     const { data: brand } = await supabaseAdmin
-      .from('brands')
-      .select('name, palette, voice, niche')
-      .eq('id', brandId)
+      .from("brands")
+      .select("name, palette, voice, niche")
+      .eq("id", brandId)
       .single();
-    
-    console.log('📦 [processRenderImages] Brand loaded:', brand?.name);
-    
-    // Convertir chaque brief en objet image avec prompt construit
+
+    const AR_MAP: Record<string, { w: number; h: number }> = {
+      "1:1": { w: 1024, h: 1024 },
+      "4:5": { w: 1080, h: 1350 },
+      "9:16": { w: 1080, h: 1920 },
+      "16:9": { w: 1920, h: 1080 },
+    };
+
     imagesToRender = (briefs || [payload.brief]).map((brief: any, i: number) => {
-      const { objective, format, style } = brief;
-      
-      // Mapper format vers résolution
-      const AR_MAP: Record<string, { w: number; h: number }> = {
-        '1:1': { w: 1024, h: 1024 },
-        '4:5': { w: 1080, h: 1350 },
-        '9:16': { w: 1080, h: 1920 },
-        '16:9': { w: 1920, h: 1080 },
-      };
-      
-      const aspectRatio = format?.split(' ')[0] || '1:1';
-      const { w, h } = AR_MAP[aspectRatio] || AR_MAP['1:1'];
-      
-      // Construire prompt enrichi
-      const prompt = `Professional ${style || 'minimalist'} background for social media.
-Context: ${objective || 'generic post'}
-Brand: ${brand?.niche || ''}, tone: ${brand?.voice || 'professional'}
-Colors: ${brand?.palette?.slice(0, 3).join(', ') || 'modern palette'}
-Requirements: clean composition, no text, high contrast, ${aspectRatio} aspect ratio optimized.`;
-      
-      console.log(`🖼️ [processRenderImages] Image ${i + 1}: ${aspectRatio} (${w}x${h})`);
-      
+      const aspectRatio = (brief?.format?.split(" ")?.[0] as string) || "1:1";
+      const { w, h } = AR_MAP[aspectRatio] || AR_MAP["1:1"];
+
+      const prompt = `${brief?.content || "A detailed subject scene"}.
+Style: ${brief?.style || "realistic photo or clean illustration"}.
+Context: ${brief?.objective || "social media post"}.
+Brand: ${brand?.niche || ""}, tone: ${brand?.voice || "professional"}.
+Colors: ${brand?.palette?.slice(0, 3).join(", ") || "modern palette"}.
+Composition: clear main subject, depth, lighting, natural shadows. No text overlays.
+Format: ${aspectRatio} aspect ratio optimized.`;
+
       return {
         prompt,
         resolution: `${w}x${h}`,
-        aspectRatio,
+        aspectRatio: aspectRatio as any,
         brandId,
-        briefIndex: i
+        briefIndex: i,
       };
     });
   } else {
-    throw new Error('Invalid payload: missing images or brief');
+    throw new Error("Invalid payload: missing images or brief");
   }
-  
-  console.log(`🖼️ [processRenderImages] Processing ${imagesToRender.length} images`);
-  
-  const results = [];
-  
+
+  console.log(`🖼️ [processRenderImages] total=${imagesToRender.length}`);
+
   for (const img of imagesToRender) {
+    const aspectRatio = img.aspectRatio || "4:5";
     try {
-      // ✅ Appeler alfie-generate-ai-image (public, pas besoin JWT)
-      console.log(`🎨 [processRenderImages] Generating image ${results.length + 1}/${imagesToRender.length}`);
-      
-      const { data: brand } = await supabaseAdmin
-        .from('brands')
-        .select('name, palette, voice')
-        .eq('id', img.brandId)
-        .single();
-      
-      const { data, error } = await supabaseAdmin.functions.invoke('alfie-generate-ai-image', {
-        body: {
-          prompt: img.prompt,
+      // 1) generate
+      console.log("🎨 generate", { aspectRatio, resolution: img.resolution });
+      const imageResult = await callFn<any>("alfie-generate-ai-image", {
+        prompt: img.prompt,
+        resolution: img.resolution,
+        backgroundOnly: false,
+        brandKit: await loadBrandMini(img.brandId ?? payload.brandId),
+        userId: payload.userId,
+        brandId: img.brandId ?? payload.brandId ?? null,
+        orderId: payload.orderId,
+        orderItemId: payload.orderItemId ?? null,
+        requestId: payload.requestId ?? null,
+        templateImageUrl: img.templateImageUrl ?? payload.sourceUrl ?? null,
+        uploadedSourceUrl: payload.sourceUrl ?? null,
+      });
+
+      const imagePayload = unwrapResult<any>(imageResult);
+      const imageError = extractError(imageResult) ?? extractError(imagePayload);
+      if (imageError) throw new Error(imageError || "Image generation failed");
+
+      const imageUrl =
+        (typeof imagePayload === "string"
+          ? imagePayload
+          : getResultValue<string>(imagePayload, ["imageUrl", "url", "outputUrl", "output_url"])) ??
+        getResultValue<string>(imageResult, ["imageUrl", "url", "outputUrl", "output_url"]);
+      if (!imageUrl) throw new Error("No image URL returned");
+
+      // 2) upload cloudinary
+      console.log("📤 upload cloudinary");
+      const cloud = await uploadToCloudinary(imageUrl, {
+        folder: `brands/${img.brandId}/images`,
+        publicId: `order_${payload.orderId}_img_${results.length + 1}`,
+        tags: ["ai-generated", "worker", `order-${payload.orderId}`],
+        context: {
+          order_id: String(payload.orderId),
+          order_item_id: String(payload.orderItemId ?? ""),
+          brand_id: String(img.brandId ?? ""),
+          aspect_ratio: aspectRatio,
+        },
+      });
+
+      // 3) persist media_generations (best-effort)
+      await supabaseAdmin.from("media_generations").insert({
+        user_id: payload.userId,
+        brand_id: img.brandId ?? null,
+        type: "image",
+        status: "completed",
+        output_url: cloud.secureUrl,
+        thumbnail_url: cloud.secureUrl,
+        prompt: img.prompt,
+        metadata: {
+          orderId: payload.orderId,
+          orderItemId: payload.orderItemId ?? null,
+          aspectRatio,
           resolution: img.resolution,
-          backgroundOnly: true,
-          brandKit: brand ? {
-            name: brand.name,
-            palette: brand.palette,
-            voice: brand.voice
-          } : undefined
-        }
+          source: "worker",
+          cloudinary_public_id: cloud.publicId,
+        },
       });
-      
-      if (error || data?.error) {
-        throw new Error(data?.error || error?.message || 'Image generation failed');
-      }
-      
-      const imageUrl = data?.imageUrl || data?.data?.imageUrl;
-      if (!imageUrl) {
-        throw new Error('No image URL returned');
-      }
-      
-      console.log(`✅ [processRenderImages] Image generated: ${imageUrl}`);
-      
-      // ✅ Sauvegarder dans media_generations
-      const { error: saveError } = await supabaseAdmin
-        .from('media_generations')
-        .insert({
+
+      // 4) idempotent library_assets
+      const { data: existing } = await supabaseAdmin
+        .from("library_assets")
+        .select("id")
+        .eq("order_id", payload.orderId)
+        .eq("order_item_id", payload.orderItemId ?? null)
+        .eq("cloudinary_url", cloud.secureUrl)
+        .maybeSingle();
+
+      if (!existing) {
+        await supabaseAdmin.from("library_assets").insert({
           user_id: payload.userId,
-          brand_id: img.brandId,
-          type: 'image',
-          status: 'completed',
-          output_url: imageUrl,
-          thumbnail_url: imageUrl,
-          prompt: img.prompt,
-          metadata: {
-            orderId: payload.orderId,
-            orderItemId: payload.orderItemId,
-            aspectRatio: img.aspectRatio,
-            resolution: img.resolution,
-            source: 'worker-cascade'
-          }
-        });
-      
-      if (saveError) {
-        console.warn('⚠️ Failed to save to media_generations:', saveError);
-      } else {
-        console.log('💾 [processRenderImages] Saved to media_generations');
-      }
-      
-      // ✅ Également sauvegarder dans library_assets pour visibilité immédiate
-      const { error: libError } = await supabaseAdmin
-        .from('library_assets')
-        .insert({
-          user_id: payload.userId,
-          brand_id: img.brandId,
+          brand_id: img.brandId ?? null,
           order_id: payload.orderId,
-          order_item_id: payload.orderItemId,
-          type: 'image',
-          cloudinary_url: imageUrl,
-          format: img.aspectRatio,
+          order_item_id: payload.orderItemId ?? null,
+          type: "image",
+          cloudinary_url: cloud.secureUrl,
+          format: aspectRatio,
           metadata: {
             orderId: payload.orderId,
-            orderItemId: payload.orderItemId,
-            aspectRatio: img.aspectRatio,
+            orderItemId: payload.orderItemId ?? null,
+            aspectRatio,
             resolution: img.resolution,
-            source: 'worker-cascade'
-          }
+            source: "worker",
+            cloudinary_public_id: cloud.publicId,
+          },
         });
-      
-      if (libError) {
-        console.warn('⚠️ Failed to save to library_assets:', libError);
-      } else {
-        console.log('💾 [processRenderImages] Saved to library_assets');
       }
-      
-      results.push({
-        url: imageUrl,
-        aspectRatio: img.aspectRatio,
-        resolution: img.resolution
-      });
-      
-    } catch (imgError) {
-      console.error(`❌ Failed to generate image:`, imgError);
-      throw imgError; // Propagate pour le retry du job
+
+      results.push({ url: cloud.secureUrl, aspectRatio, resolution: img.resolution });
+    } catch (e) {
+      console.error("❌ image_failed", e);
+      if (isHttp429(e)) {
+        await sleep(1500);
+      } else if (isHttp402(e)) {
+        throw e; // bubble up to mark job failed permanently
+      }
+      throw e;
     }
   }
-  
-  console.log(`✅ [processRenderImages] Rendered ${results.length} images`);
+
+  console.log(`✅ [processRenderImages] done=${results.length}`);
+
+  // Quotas (best-effort)
+  try {
+    await consumeBrandQuotas(payload.brandId, results.length);
+    console.log("📊 quota_consume", results.length);
+  } catch (qErr) {
+    console.warn("⚠️ quota_consume_failed", qErr);
+  }
+
   return { images: results };
 }
 
-async function processRenderCarousels(payload: any): Promise<any> {
-  console.log('📚 [processRenderCarousels] Starting...', { payload });
-  
-  // ✅ Adapter au nouveau format de payload
-  let carouselsToRender = [];
-  
-  if (payload.carousels) {
-    // Format ancien (compatibilité)
+async function processRenderCarousels(payload: any) {
+  console.log("📚 [processRenderCarousels] START", {
+    hasSlides: !!payload?.slides,
+    slidesCount: Array.isArray(payload?.slides) ? payload.slides.length : 0,
+    hasBrief: !!payload?.brief,
+    briefCount: payload?.brief?.briefs?.length || 0,
+    userId: payload?.userId,
+    brandId: payload?.brandId,
+    orderId: payload?.orderId
+  });
+
+  // ✅ Phase B: Removed alfie-render-carousel call (function doesn't exist)
+  // Always convert payload.slides to carousel object and use slide-by-slide rendering
+
+  let carouselsToRender: any[] = [];
+
+  // ✅ Phase B: Handle payload.slides by converting to carousel format
+  if (Array.isArray(payload?.slides) && payload.slides.length > 0) {
+    const { userId, brandId, orderId } = payload || {};
+    if (!userId || !brandId || !orderId) {
+      throw new Error("Invalid render_carousels payload: missing userId, brandId, or orderId");
+    }
+
+    // Convert slides array to carousel object for slide-by-slide processing
+    carouselsToRender = [{
+      id: crypto.randomUUID(),
+      aspectRatio: payload.aspectRatio || "9:16",
+      textVersion: 1,
+      slides: payload.slides,
+      prompts: payload.slides.map((_: any, i: number) => `Slide ${i + 1}`),
+      style: "minimalist",
+      brandId,
+    }];
+  } else if (payload.carousels) {
     carouselsToRender = payload.carousels;
   } else if (payload.brief) {
-    // ✅ NOUVEAU FORMAT (depuis order_items)
-    const { count, briefs } = payload.brief;
+    const { briefs } = payload.brief;
     const brandId = payload.brandId;
-    
-    const { data: brand } = await supabaseAdmin
-      .from('brands')
-      .select('name, palette, voice, niche')
-      .eq('id', brandId)
-      .single();
-    
-    console.log('📦 [processRenderCarousels] Brand loaded:', brand?.name);
-    
-    // Pour chaque brief de carousel, générer un plan
-    const planPromises = (briefs || [payload.brief]).map(async (brief: any, idx: number) => {
-      const { topic, numSlides, angle } = brief;
-      
-      console.log(`📋 [processRenderCarousels] Planning carousel ${idx + 1}: "${topic}"`);
-      
-      // ✅ Appeler alfie-plan-carousel (public)
-      const { data, error } = await supabaseAdmin.functions.invoke('alfie-plan-carousel', {
-        body: {
-          prompt: topic,
-          slideCount: numSlides || 5,
-          brandKit: brand ? {
-            name: brand.name,
-            palette: brand.palette,
-            voice: brand.voice,
-            niche: brand.niche
-          } : undefined
-        }
+    const brandMini = await loadBrandMini(brandId, true);
+
+    const planPromises = (briefs || [payload.brief]).map(async (brief: any) => {
+      const slideCount =
+        typeof brief?.numSlides === "number" ? brief.numSlides : parseInt(String(brief?.numSlides ?? "5")) || 5;
+
+      const planResult = await callFn<any>("alfie-plan-carousel", {
+        prompt: brief?.topic ?? "Carousel",
+        slideCount,
+        brandKit: brandMini,
       });
-      
-      if (error || data?.error) {
-        throw new Error(`Carousel planning failed: ${data?.error || error?.message}`);
-      }
-      
-      console.log(`✅ [processRenderCarousels] Carousel ${idx + 1} planned: ${data.slides?.length || 0} slides`);
-      
+
+      const planPayload = unwrapResult<any>(planResult);
+      const planError = extractError(planResult) ?? extractError(planPayload);
+      if (planError) throw new Error(planError);
+
+      const planObject =
+        (planPayload && typeof planPayload === "object"
+          ? (planPayload as Record<string, any>)
+          : null) ??
+        (typeof planResult === "object" && planResult !== null
+          ? (planResult as Record<string, any>)
+          : null);
+
+      if (!planObject) throw new Error("Plan returned invalid payload");
+
+      const slides = Array.isArray(planObject.slides) ? planObject.slides : [];
+      if (slides.length === 0) throw new Error("Plan returned no slides");
+
+      const prompts = Array.isArray(planObject.prompts) ? planObject.prompts : [];
+      const style =
+        typeof planObject.style === "string"
+          ? planObject.style
+          : typeof (planObject as any).meta?.style === "string"
+            ? (planObject as any).meta.style
+            : "minimalist";
+
       return {
         id: crypto.randomUUID(),
-        aspectRatio: '4:5', // Défaut Instagram
+        aspectRatio: payload.aspectRatio || "9:16",
         textVersion: 1,
-        slides: data.slides || [],
-        prompts: data.prompts || [],
-        style: data.style || 'minimalist',
-        brandId
+        slides,
+        prompts,
+        style,
+        brandId,
       };
     });
-    
+
     carouselsToRender = await Promise.all(planPromises);
   } else {
-    throw new Error('Invalid payload: missing carousels or brief');
+    throw new Error("Invalid payload: missing carousels or brief");
   }
-  
-  console.log(`📚 [processRenderCarousels] Processing ${carouselsToRender.length} carousels`);
-  
-  const results = [];
-  
+
+  const results: any[] = [];
+
   for (const carousel of carouselsToRender) {
-    const slides = [];
-    
-    console.log(`🎠 [processRenderCarousels] Rendering carousel ${results.length + 1}/${carouselsToRender.length} (${carousel.slides.length} slides)`);
-    
-    const { data: brand } = await supabaseAdmin
-      .from('brands')
-      .select('name, palette, voice, niche')
-      .eq('id', carousel.brandId)
-      .single();
-    
+    console.log("🎠 rendering_carousel", { slides: carousel.slides?.length, id: carousel.id });
+
+    if (!Array.isArray(carousel.slides) || carousel.slides.length === 0) {
+      throw new Error("Carousel has no slides");
+    }
+
+    const slidesOut: Array<{ index: number; url: string; publicId?: string; text: any }> = [];
+
     for (let i = 0; i < carousel.slides.length; i++) {
       const slide = carousel.slides[i];
-      const slidePrompt = carousel.prompts[i] || `Slide ${i + 1}`;
-      
-      try {
-        console.log(`🎨 [processRenderCarousels] Generating slide ${i + 1}/${carousel.slides.length}`);
-        
-        // Générer le background via alfie-generate-ai-image
-        const { data: imgData, error: imgError } = await supabaseAdmin.functions.invoke('alfie-generate-ai-image', {
-          body: {
-            prompt: `${slidePrompt}. Style: ${carousel.style}. Brand: ${brand?.niche}. Colors: ${brand?.palette?.slice(0,3).join(', ')}`,
-            resolution: '1080x1350',
-            backgroundOnly: true,
-            brandKit: brand ? { name: brand.name, palette: brand.palette, voice: brand.voice } : undefined
-          }
-        });
-        
-        if (imgError || imgData?.error) {
-          throw new Error(`Slide ${i + 1} generation failed: ${imgData?.error || imgError?.message}`);
-        }
-        
-        const bgUrl = imgData?.imageUrl || imgData?.data?.imageUrl;
-        if (!bgUrl) {
-          throw new Error(`Slide ${i + 1}: No image URL returned`);
-        }
-        
-        console.log(`✅ [processRenderCarousels] Slide ${i + 1} generated: ${bgUrl}`);
-        
-        // ✅ Sauvegarder dans library_assets (carousel slides)
-        const { error: saveError } = await supabaseAdmin
-          .from('library_assets')
-          .insert({
-            user_id: payload.userId,
-            brand_id: carousel.brandId,
-            order_id: payload.orderId,
-            order_item_id: payload.orderItemId,
-            carousel_id: carousel.id,
-            slide_index: i,
-            type: 'carousel_slide',
-            cloudinary_url: bgUrl,
-            text_json: slide,
-            format: '4:5',
-            metadata: {
-              orderId: payload.orderId,
-              orderItemId: payload.orderItemId,
-              style: carousel.style,
-              source: 'worker-cascade'
-            }
+      const slidePrompt = carousel.prompts?.[i] || `Slide ${i + 1}`;
+
+      let attempt = 0;
+      const maxRetry = 2;
+
+      while (true) {
+        try {
+          const slideResult = await callFn<any>("alfie-render-carousel-slide", {
+            userId: payload.userId,
+            prompt: slidePrompt,
+            globalStyle: carousel.style || "minimalist",
+            slideContent: slide,
+            brandId: carousel.brandId,
+            orderId: payload.orderId,
+            orderItemId: payload.orderItemId ?? null,
+            carouselId: carousel.id,
+            slideIndex: i,
+            totalSlides: carousel.slides.length,
+            aspectRatio: carousel.aspectRatio || "9:16",
+            textVersion: carousel.textVersion || 1,
+            renderVersion: 1,
+            campaign: "carousel_generation",
+            language: "FR",
+            requestId: payload.requestId ?? null,
           });
-        
-        if (saveError) {
-          console.warn(`⚠️ Failed to save slide ${i + 1}:`, saveError);
-        } else {
-          console.log(`💾 [processRenderCarousels] Slide ${i + 1} saved to library_assets`);
+
+          const slidePayload = unwrapResult<any>(slideResult);
+          const slideError = extractError(slideResult) ?? extractError(slidePayload);
+          if (slideError) throw new Error(slideError);
+
+          const cloudinaryUrl =
+            (typeof slidePayload === "string"
+              ? slidePayload
+              : getResultValue<string>(slidePayload, ["cloudinary_url", "url"])) ??
+            getResultValue<string>(slideResult, ["cloudinary_url", "url"]);
+          const cloudinaryPublicId =
+            getResultValue<string>(slidePayload, ["cloudinary_public_id"]) ??
+            getResultValue<string>(slideResult, ["cloudinary_public_id"]);
+
+          if (!cloudinaryUrl) throw new Error("Slide renderer did not return cloudinary_url");
+
+          slidesOut.push({
+            index: i,
+            url: cloudinaryUrl,
+            publicId: cloudinaryPublicId ?? undefined,
+            text: slide,
+          });
+          break;
+        } catch (e) {
+          attempt++;
+          if (isHttp429(e) && attempt <= maxRetry) {
+            const backoff = Math.round(Math.pow(1.6, attempt) * 1200);
+            console.warn(`⏳ rate_limited retry=${attempt}/${maxRetry} wait=${backoff}ms`);
+            await sleep(backoff);
+            continue;
+          }
+          throw e;
         }
-        
-        slides.push({
-          index: i,
-          url: bgUrl,
-          text: slide
-        });
-        
-      } catch (slideError) {
-        console.error(`❌ Failed to generate slide ${i + 1}:`, slideError);
-        throw slideError;
       }
     }
-    
-    results.push({
-      carouselId: carousel.id,
-      slides,
-      totalSlides: slides.length
-    });
-    
-    console.log(`✅ [processRenderCarousels] Carousel ${results.length}/${carouselsToRender.length} completed`);
+
+    try {
+      await consumeBrandQuotas(carousel.brandId, slidesOut.length);
+      console.log("📊 quota_consume", slidesOut.length);
+    } catch (qErr) {
+      console.warn("⚠️ quota_consume_failed", qErr);
+    }
+
+    results.push({ carouselId: carousel.id, slides: slidesOut, totalSlides: slidesOut.length });
+    console.log("✅ carousel_done", { id: carousel.id, slides: slidesOut.length });
   }
-  
-  console.log(`✅ [processRenderCarousels] Rendered ${results.length} carousels`);
+
   return { carousels: results };
 }
 
-async function processGenerateVideo(payload: any): Promise<any> {
-  console.log('🎥 [processGenerateVideo] Starting...');
-  
-  const { slides, narration, brandId, orderId } = payload;
-  
-  // Phase 1: Generate images for each slide
-  const imagePromises = slides.map((slide: any) => 
-    supabaseAdmin.functions.invoke('alfie-render-image', {
-      body: {
-        prompt: slide.prompt,
-        brandId,
-        orderId,
-        format: '1280x720', // 16:9 for video
-        useNanoBanana: true,
-      },
-    })
-  );
-  
-  const imageResults = await Promise.all(imagePromises);
-  const imageUrls = imageResults.map(r => r.data?.url).filter(Boolean);
-  
-  if (imageUrls.length !== slides.length) {
-    throw new Error('Some images failed to generate');
-  }
-  
-  // Phase 2: Generate TTS audio (using Lovable AI Gateway)
-  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-  
-  const ttsResponse = await fetch('https://ai.gateway.lovable.dev/v1/audio/speech', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'google/gemini-2.5-tts', // À vérifier disponibilité
-      input: narration,
-      voice: 'female_warm',
-    }),
+async function processGenerateVideo(payload: any) {
+  console.log("🎥 [processGenerateVideo]", payload?.orderId);
+
+  const { userId, brandId, orderId, aspectRatio, duration, prompt, sourceUrl, sourceType } = payload;
+
+  // ✅ Phase C: Use existing generate-video function instead of non-existent alfie-assemble-video
+  const renderResult = await callFn<any>("generate-video", {
+    userId, // ✅ Required for internal call validation
+    aspectRatio,
+    duration,
+    prompt,
+    sourceUrl,
+    sourceType,
+    brandId,
+    orderId,
   });
-  
-  if (!ttsResponse.ok) {
-    throw new Error('TTS generation failed');
+
+  const renderPayload = unwrapResult<any>(renderResult);
+  const renderError = extractError(renderResult) ?? extractError(renderPayload);
+  if (renderError) throw new Error(renderError || "Video render failed");
+
+  const videoUrl =
+    (typeof renderPayload === "string"
+      ? renderPayload
+      : getResultValue<string>(renderPayload, ["video_url", "videoUrl", "output_url", "outputUrl"])) ??
+    getResultValue<string>(renderResult, ["video_url", "videoUrl", "output_url", "outputUrl"]);
+
+  if (!videoUrl) throw new Error("Missing video_url from renderer response");
+
+  const seconds = Number(duration) || 12;
+  const woofs = Math.max(1, Math.ceil(seconds / 12));
+
+  const { error: debitError } = await supabaseAdmin.rpc("debit_woofs", {
+    user_id_input: userId,
+    amount: woofs,
+  });
+  if (debitError) throw new Error(debitError.message);
+
+  const { error: assetErr } = await supabaseAdmin.from("media_generations").insert({
+    user_id: userId,
+    brand_id: brandId,
+    order_id: orderId,
+    type: "video",
+    status: "completed",
+    output_url: videoUrl,
+    metadata: {
+      aspectRatio,
+      duration: seconds,
+      prompt,
+      sourceUrl,
+      sourceType,
+      generator: "generate-video",
+      woofs,
+    },
+  });
+  if (assetErr) throw new Error(assetErr.message);
+
+  return { videoUrl };
+}
+
+async function processStitchCarouselVideo(payload: any) {
+  console.log("🎞️ [processStitchCarouselVideo]", {
+    orderId: payload?.orderId,
+    carouselId: payload?.carouselId,
+    slides: Array.isArray(payload?.slides) ? payload.slides.length : 0,
+  });
+
+  const userId = payload?.userId as string | undefined;
+  const brandId = payload?.brandId as string | undefined;
+  const orderId = payload?.orderId as string | undefined;
+  const carouselId = payload?.carouselId as string | undefined;
+  const slides = Array.isArray(payload?.slides) ? payload.slides : [];
+
+  if (!userId || !brandId || !orderId) {
+    throw new Error("Invalid payload: missing userId, brandId or orderId");
   }
-  
-  const audioBlob = await ttsResponse.blob();
-  
-  // Phase 3: Assemble video using Cloudinary Video API
-  // Note: ffmpeg n'est pas disponible dans Edge Functions
-  // Cette partie nécessite une API externe ou Cloudinary Video transformations
-  
-  console.log('⚠️ [processGenerateVideo] Video assembly not fully implemented (needs external service or Cloudinary Video API)');
-  
+  if (!slides.length) {
+    throw new Error("Invalid payload: no slides provided for stitching");
+  }
+
+  const aspectRaw = typeof payload?.aspect === "string" ? payload.aspect.trim() : "";
+  const allowedAspects = new Set(["1:1", "16:9", "9:16", "4:3", "3:4", "4:5"]);
+  const aspect = allowedAspects.has(aspectRaw) ? (aspectRaw as any) : "4:5";
+
+  const durationPerSlide = Math.max(
+    1,
+    Number.isFinite(payload?.durationPerSlide) ? Number(payload.durationPerSlide) : 2,
+  );
+
+  const normalizedSlides = slides
+    .map((slide: any, index: number) => {
+      const publicId = slide?.cloudinary_public_id ?? slide?.publicId ?? null;
+      if (!publicId || typeof publicId !== "string") return null;
+      const durationCandidate = Number(slide?.durationSec ?? durationPerSlide);
+      return {
+        publicId,
+        url: typeof slide?.cloudinary_url === "string" ? slide.cloudinary_url : slide?.url ?? null,
+        format: typeof slide?.format === "string" ? slide.format : null,
+        durationSec: Math.max(1, Number.isFinite(durationCandidate) ? durationCandidate : durationPerSlide),
+        slideIndex: typeof slide?.slide_index === "number" ? slide.slide_index : index,
+      };
+    })
+    .filter((item): item is {
+      publicId: string;
+      url: string | null;
+      format: string | null;
+      durationSec: number;
+      slideIndex: number;
+    } => !!item);
+
+  if (!normalizedSlides.length) {
+    throw new Error("Unable to stitch carousel video: slides missing public IDs");
+  }
+
+  const referenceSlide = normalizedSlides[0];
+  const resolvedCloudName = extractCloudName(referenceSlide.url ?? undefined) || CLOUDINARY_CLOUD_NAME;
+  if (!resolvedCloudName) {
+    throw new Error("Missing Cloudinary cloud name for carousel video stitching");
+  }
+
+  const videoUrl = buildSpliceVideoUrl({
+    cloudName: resolvedCloudName,
+    items: normalizedSlides.map((slide) => ({
+      type: "image" as const,
+      publicId: slide.publicId,
+      durationSec: slide.durationSec,
+    })),
+    aspect,
+    title: typeof payload?.title === "string" ? payload.title : undefined,
+    subtitle: typeof payload?.subtitle === "string" ? payload.subtitle : undefined,
+    cta: typeof payload?.cta === "string" ? payload.cta : undefined,
+    audioPublicId:
+      typeof payload?.audioPublicId === "string" && payload.audioPublicId.trim()
+        ? payload.audioPublicId.trim()
+        : null,
+  });
+
+  const thumbnailUrl = buildImageThumbnailUrl({
+    secureUrl: referenceSlide.url ?? undefined,
+    publicId: referenceSlide.publicId,
+    format: referenceSlide.format,
+    cloudName: resolvedCloudName,
+    width: aspect === "16:9" ? 640 : 600,
+    height: aspect === "9:16" ? 1066 : 600,
+  });
+
+  const metadata: Record<string, unknown> = {
+    source: "carousel_video",
+    carousel_id: carouselId ?? null,
+    slide_count: normalizedSlides.length,
+    aspect_ratio: aspect,
+    duration_per_slide: durationPerSlide,
+    audio_public_id:
+      typeof payload?.audioPublicId === "string" && payload.audioPublicId.trim()
+        ? payload.audioPublicId.trim()
+        : null,
+    slide_public_ids: normalizedSlides.map((slide) => slide.publicId),
+    slide_indexes: normalizedSlides.map((slide) => slide.slideIndex),
+    request_id: payload?.requestId ?? null,
+  };
+
+  const { data: mediaRecord, error: mediaError } = await supabaseAdmin
+    .from("media_generations")
+    .insert({
+      user_id: userId,
+      brand_id: brandId,
+      order_id: orderId,
+      type: "video",
+      status: "completed",
+      prompt: typeof payload?.title === "string" ? payload.title.slice(0, 500) : null,
+      output_url: videoUrl,
+      thumbnail_url: thumbnailUrl,
+      metadata,
+    })
+    .select("id")
+    .maybeSingle();
+
+  if (mediaError) {
+    throw new Error(mediaError.message);
+  }
+
   return {
-    imageUrls,
-    audioGenerated: true,
-    message: 'Video slideshow feature requires external video assembly service',
+    video_url: videoUrl,
+    thumbnail_url: thumbnailUrl,
+    media_generation_id: mediaRecord?.id ?? null,
   };
 }
 
 // ========== CASCADE JOB CREATION ==========
 
-async function createCascadeJobs(job: any, result: any, supabaseAdmin: any): Promise<void> {
-  console.log('📋 [Cascade] Creating follow-up jobs for order:', job.order_id);
-  
-  // ✅ STEP 1: Retry to fetch order_items (max 10 attempts over 1 second)
+async function createCascadeJobs(job: JobRow, result: any, sb: SupabaseClient) {
+  console.log("📋 [Cascade] order:", job.order_id);
+
+  // Try to fetch order_items (with small retry)
   let orderItems: any[] = [];
-  const maxRetries = 10;
-  const retryDelay = 100; // ms
-  
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    const { data, error } = await supabaseAdmin
-      .from('order_items')
-      .select('*')
-      .eq('order_id', job.order_id)
-      .order('sequence_number');
-    
-    if (error) {
-      console.error(`❌ [Cascade] Error fetching items (attempt ${attempt + 1}):`, error);
-    } else if (data && data.length > 0) {
+  for (let i = 0; i < 8; i++) {
+    const { data, error } = await sb
+      .from("order_items")
+      .select("*")
+      .eq("order_id", job.order_id)
+      .order("sequence_number");
+    if (!error && data?.length) {
       orderItems = data;
-      console.log(`✅ [Cascade] Found ${orderItems.length} order_items (attempt ${attempt + 1})`);
       break;
     }
-    
-    // Wait before retry
-    if (attempt < maxRetries - 1) {
-      await new Promise(resolve => setTimeout(resolve, retryDelay));
-    }
+    await sleep(120);
   }
-  
-  // ✅ STEP 2: Fallback to payload if still no items found
-  if (orderItems.length === 0) {
-    // 🧪 Explicit log when no items found after retries
-    console.warn('🧪 no_items_after_texts', { orderId: job.order_id });
-    console.warn('⚠️ [Cascade] No order_items found after retries. Using payload fallback.');
-    
-    const { imageBriefs = [], carouselBriefs = [], brandId } = job.payload;
-    const cascadeJobs: Array<{
-      user_id: string;
-      order_id: string;
-      type: string;
-      status: string;
-      payload: any;
-    }> = [];
-    
-    // Create jobs from imageBriefs
+
+  // Fallback from payload if still empty
+  if (!orderItems.length) {
+    console.warn("🧪 no_items_after_texts → payload fallback");
+    const { imageBriefs = [], carouselBriefs = [], brandId } = job.payload ?? {};
+    const cascadeJobs: any[] = [];
+
     imageBriefs.forEach((brief: any, index: number) => {
       cascadeJobs.push({
         user_id: job.user_id,
         order_id: job.order_id,
-        type: 'render_images',
-        status: 'queued',
+        type: "render_images",
+        status: "queued",
         payload: {
           userId: job.user_id,
           orderId: job.order_id,
@@ -671,18 +1008,17 @@ async function createCascadeJobs(job: any, result: any, supabaseAdmin: any): Pro
           textData: result.texts,
           brandId,
           imageIndex: index,
-          fallbackMode: true
-        }
+          fallbackMode: true,
+        },
       });
     });
-    
-    // Create jobs from carouselBriefs
+
     carouselBriefs.forEach((brief: any, index: number) => {
       cascadeJobs.push({
         user_id: job.user_id,
         order_id: job.order_id,
-        type: 'render_carousels',
-        status: 'queued',
+        type: "render_carousels",
+        status: "queued",
         payload: {
           userId: job.user_id,
           orderId: job.order_id,
@@ -690,131 +1026,154 @@ async function createCascadeJobs(job: any, result: any, supabaseAdmin: any): Pro
           textData: result.texts,
           brandId,
           carouselIndex: index,
-          fallbackMode: true
-        }
+          fallbackMode: true,
+        },
       });
     });
-    
-  if (cascadeJobs.length > 0) {
-    // Check for existing jobs with same type AND status to avoid duplicates
-    const { data: existingJobs } = await supabaseAdmin
-      .from('job_queue')
-      .select('id, type, status')
-      .eq('order_id', job.order_id)
-      .in('status', ['queued', 'running']); // Only check non-terminal states
-    
-    const existingKeys = new Set(
-      existingJobs?.map((j: any) => `${j.type}_${j.status}`) || []
-    );
-    
-    const newJobs = cascadeJobs.filter((j: any) => 
-      !existingKeys.has(`${j.type}_${j.status}`)
-    );
-    
-    if (newJobs.length > 0) {
-      const { error: cascadeError } = await supabaseAdmin
-        .from('job_queue')
-        .insert(newJobs);
-      
-      if (cascadeError) {
-        console.error('❌ [Cascade] Failed to create fallback jobs:', cascadeError);
+
+    if (cascadeJobs.length) {
+      const keyedJobs = cascadeJobs.map((job) => attachJobIdempotency(job));
+      const { data: inserted, error: insErr } = await sb
+        .from("job_queue")
+        .upsert(keyedJobs, { onConflict: "idempotency_key", ignoreDuplicates: true })
+        .select("id");
+      if (insErr) console.error("❌ fallback cascade insert", insErr);
+      else if (inserted && inserted.length) {
+        console.log(`✅ fallback cascade created: ${inserted.length}`);
+        await safeReinvoke(sb);
       } else {
-        console.log(`✅ [Cascade] Created ${newJobs.length} jobs via FALLBACK`);
-        // Trigger worker again to process newly queued jobs
-        try {
-          await supabaseAdmin.functions.invoke('alfie-job-worker', {
-            body: { trigger: 'cascade' }
-          });
-          console.log('▶️ [Cascade] Worker reinvoked for FALLBACK jobs');
-        } catch (e) {
-          console.warn('[Cascade] Worker reinvoke error (fallback):', e);
-        }
+        console.log("ℹ️ fallback: all jobs already exist");
       }
-    } else {
-      console.log('ℹ️ [Cascade] All fallback jobs already exist');
     }
+    return;
   }
-    
-    return; // Exit after fallback
-  }
-  
-  // ✅ STEP 3: Normal cascade from order_items
-  const cascadeJobs: Array<{
-    user_id: string;
-    order_id: string;
-    type: string;
-    status: string;
-    payload: any;
-  }> = [];
-  
+
+  // Normal cascade from order_items
+  const toCreate: any[] = [];
   for (const item of orderItems) {
-    if (item.type === 'carousel') {
-      cascadeJobs.push({
+    if (item.type === "carousel") {
+      toCreate.push({
         user_id: job.user_id,
         order_id: job.order_id,
-        type: 'render_carousels',
-        status: 'queued',
+        type: "render_carousels",
+        status: "queued",
         payload: {
-          userId: job.user_id, // ✅ Ajouté pour sauvegardes DB
-          orderId: job.order_id, // ✅ Ajouté pour traçabilité
+          userId: job.user_id,
+          orderId: job.order_id,
           orderItemId: item.id,
           brief: item.brief_json,
           textData: result.texts,
-          brandId: job.payload.brandId,
-          carouselIndex: item.sequence_number
-        }
+          brandId: job.payload?.brandId,
+          carouselIndex: item.sequence_number,
+        },
       });
-    } else if (item.type === 'image') {
-      cascadeJobs.push({
+    } else if (item.type === "image") {
+      toCreate.push({
         user_id: job.user_id,
         order_id: job.order_id,
-        type: 'render_images',
-        status: 'queued',
+        type: "render_images",
+        status: "queued",
         payload: {
-          userId: job.user_id, // ✅ Ajouté pour sauvegardes DB
-          orderId: job.order_id, // ✅ Ajouté pour traçabilité
+          userId: job.user_id,
+          orderId: job.order_id,
           orderItemId: item.id,
           brief: item.brief_json,
           textData: result.texts,
-          brandId: job.payload.brandId,
-          imageIndex: item.sequence_number
-        }
+          brandId: job.payload?.brandId,
+          imageIndex: item.sequence_number,
+        },
       });
     }
   }
-  
-  if (cascadeJobs.length > 0) {
-    // Check for existing jobs to avoid duplicates (type + non-terminal status)
-    const { data: existingJobs } = await supabaseAdmin
-      .from('job_queue')
-      .select('id, type, status')
-      .eq('order_id', job.order_id)
-      .in('status', ['queued','running']);
-    
-    const existingKeys = new Set(existingJobs?.map((j: any) => `${j.type}_${j.status}`) || []);
-    const newJobs = cascadeJobs.filter((j: any) => !existingKeys.has(`${j.type}_${j.status}`));
-    
-    if (newJobs.length > 0) {
-      const { error: cascadeError } = await supabaseAdmin
-        .from('job_queue')
-        .insert(newJobs);
-      
-      if (cascadeError) {
-        console.error('❌ [Cascade] Failed to create jobs:', cascadeError);
+
+  if (toCreate.length) {
+    const { data: existing } = await sb
+      .from("job_queue")
+      .select("id, type, status")
+      .eq("order_id", job.order_id)
+      .in("status", ["queued", "running"]);
+
+    const existingKeys = new Set(existing?.map((j: any) => `${j.type}_${j.status}`) || []);
+    const toInsert = toCreate.filter((j) => !existingKeys.has(`${j.type}_${j.status}`));
+
+    if (toInsert.length) {
+      const keyedJobs = toInsert.map((job) => attachJobIdempotency(job));
+      const { data: insertedJobs, error: insErr } = await sb
+        .from("job_queue")
+        .upsert(keyedJobs, { onConflict: "idempotency_key", ignoreDuplicates: true })
+        .select("id");
+      if (insErr) console.error("❌ cascade insert", insErr);
+      else if (insertedJobs && insertedJobs.length) {
+        console.log(`✅ cascade created: ${insertedJobs.length}`);
+        await safeReinvoke(sb);
       } else {
-        console.log(`✅ [Cascade] Created ${newJobs.length} jobs from order_items`);
-        // Trigger worker again to process newly queued jobs
-        try {
-          await supabaseAdmin.functions.invoke('alfie-job-worker', {
-            body: { trigger: 'cascade' }
-          });
-          console.log('▶️ [Cascade] Worker reinvoked for order_items jobs');
-        } catch (e) {
-          console.warn('[Cascade] Worker reinvoke error:', e);
-        }
+        console.log("ℹ️ cascade: jobs already exist");
       }
     } else {
-      console.log('ℹ️ [Cascade] All cascade jobs already exist');
+      console.log("ℹ️ cascade: jobs already exist");
     }
   }
 }
+
+// ---------- helpers ----------
+async function loadBrandMini(brandId?: string, full = false) {
+  if (!brandId) return undefined;
+  
+  type BrandMini = { name: string | null; palette: any; voice: any; niche?: any };
+  
+  const { data, error } = await supabaseAdmin
+    .from("brands")
+    .select(full ? "name, palette, voice, niche" : "name, palette, voice")
+    .eq("id", brandId)
+    .maybeSingle();
+    
+  if (error || !data) return undefined;
+  
+  const brand = data as unknown as BrandMini;
+  return {
+    name: brand.name,
+    palette: brand.palette,
+    voice: brand.voice,
+    niche: full ? brand.niche : undefined,
+  };
+}
+
+async function safeReinvoke(sb: SupabaseClient) {
+  try {
+    await sb.functions.invoke("alfie-job-worker", { body: { trigger: "cascade" } });
+    console.log("▶️ worker reinvoked");
+  } catch (e) {
+    console.warn("⚠️ reinvoke failed", e);
+  }
+}
+
+/**
+ * 🔧 SQL attendu côté DB pour claim_next_job:
+ *
+ * create or replace function claim_next_job(worker_id text)
+ * returns job_queue
+ * language plpgsql
+ * as $$
+ * declare claimed job_queue%rowtype;
+ * begin
+ *   with next_job as (
+ *     select id from job_queue
+ *     where status = 'queued'
+ *     order by created_at asc
+ *     limit 1
+ *     for update skip locked
+ *   )
+ *   update job_queue
+ *   set status = 'running',
+ *       locked_by = worker_id,
+ *       started_at = now(),
+ *       attempts = coalesce(attempts, 0) + 1,
+ *       updated_at = now()
+ *   from next_job
+ *   where job_queue.id = next_job.id
+ *   returning job_queue.* into claimed;
+ *
+ *   return claimed;
+ * end;
+ * $$;
+ */

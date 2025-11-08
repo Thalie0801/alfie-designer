@@ -1,13 +1,18 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
+import type { AspectFormat, LibraryAsset } from '@/types/chat';
 
-export interface LibraryAsset {
-  id: string;
-  url: string;
-  slideIndex: number;
-  type: string;
-}
+// Normaliser les formats pour éviter les surprises
+const normalizeFormat = (v?: string): AspectFormat => {
+  if (!v) return '4:5';
+  const s = v.toLowerCase();
+  if (s.includes('1080x1350') || s.includes('4:5')) return '4:5';
+  if (s.includes('9:16') || s.includes('portrait')) return '9:16';
+  if (s.includes('16:9') || s.includes('landscape')) return '16:9';
+  if (s.includes('1:1') || s.includes('square')) return '1:1';
+  return '4:5';
+};
 
 /**
  * Hook pour s'abonner aux assets d'un order en temps réel
@@ -49,10 +54,17 @@ export function useLibraryAssetsSubscription(orderId: string | null) {
     for (const item of data) {
       if (item.type === 'carousel') {
         const brief = item.brief_json as any;
-        const slideCount = brief?.slideCount || brief?.slides?.length || 5;
+        // Check multiple possible locations for slide count
+        const slideCount = 
+          brief?.slideCount || 
+          brief?.slides?.length || 
+          brief?.briefs?.[0]?.numSlides ||
+          brief?.count ||
+          5;
         expectedTotal += slideCount;
       } else if (item.type === 'image') {
-        expectedTotal += 1;
+        const brief = item.brief_json as any;
+        expectedTotal += brief?.count || 1;
       }
     }
 
@@ -67,7 +79,7 @@ export function useLibraryAssetsSubscription(orderId: string | null) {
 
     const { data, error } = await supabase
       .from('library_assets')
-      .select('id, cloudinary_url, slide_index, type')
+      .select('id, cloudinary_url, cloudinary_public_id, text_json, slide_index, type, format')
       .eq('order_id', orderId)
       .order('slide_index', { ascending: true });
 
@@ -80,9 +92,13 @@ export function useLibraryAssetsSubscription(orderId: string | null) {
       const mapped: LibraryAsset[] = data.map(row => ({
         id: row.id,
         url: row.cloudinary_url,
+        publicId: row.cloudinary_public_id ?? undefined,
+        text: row.text_json as any,
         slideIndex: row.slide_index ?? 0,
-        type: row.type
+        type: row.type,
+        format: normalizeFormat(row.format ?? undefined)
       }));
+
       setAssets(mapped);
       console.log('[LibraryAssets] Loaded existing assets:', mapped.length);
     }
@@ -120,8 +136,11 @@ export function useLibraryAssetsSubscription(orderId: string | null) {
           const newItem: LibraryAsset = {
             id: newAsset.id,
             url: newAsset.cloudinary_url,
+            publicId: newAsset.cloudinary_public_id ?? undefined,
+            text: newAsset.text_json as any,
             slideIndex: newAsset.slide_index ?? 0,
-            type: newAsset.type
+            type: newAsset.type,
+            format: normalizeFormat(newAsset.format ?? undefined)
           };
 
           setAssets(prev => {
@@ -143,9 +162,9 @@ export function useLibraryAssetsSubscription(orderId: string | null) {
 
     channelRef.current = channel;
 
-    // 4. Polling fallback (every 3s, max 40 times = 2 minutes)
+    // 4. Polling fallback (every 3s, max 100 times = 5 minutes)
     let pollCount = 0;
-    const maxPolls = 40;
+    const maxPolls = 100;
 
     pollingIntervalRef.current = setInterval(async () => {
       pollCount++;

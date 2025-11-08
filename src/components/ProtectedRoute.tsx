@@ -2,6 +2,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect, useState } from 'react';
 import { hasRole } from '@/lib/access';
+import { useBrandKit } from '@/hooks/useBrandKit';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -9,8 +10,13 @@ interface ProtectedRouteProps {
   allowPending?: boolean;
 }
 
-export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRouteProps) {
+export function ProtectedRoute({
+  children,
+  requireAdmin = false,
+  allowPending = false,
+}: ProtectedRouteProps) {
   const { user, isAdmin, isAuthorized, roles, loading, refreshProfile } = useAuth();
+  const { brands, activeBrandId } = useBrandKit();
   const [checkingAdmin, setCheckingAdmin] = useState(false);
 
   // ============================================================================
@@ -21,6 +27,7 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
   // Flags effectifs pour la navigation (whitelist ou autorisé normalement)
   const effectiveIsAuthorized = isAuthorized || isWhitelisted;
   const effectiveIsAdmin = isAdmin; // Admin déjà calculé dans useAuth
+  const hasAccess = effectiveIsAuthorized || allowPending;
 
   useEffect(() => {
     if (requireAdmin && user && !effectiveIsAdmin && !checkingAdmin) {
@@ -50,20 +57,30 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
     return <Navigate to="/dashboard" replace />;
   }
 
-  // Priorité 2: Admin général → toujours /admin si pas déjà sur une route admin
-  if (effectiveIsAdmin && requireAdmin === false) {
-    // Laisser passer, l'admin peut accéder aux routes normales
+  // Bypass onboarding if user has at least one brand or is enterprise
+  const hasBrand = Boolean(activeBrandId) || (brands?.length ?? 0) > 0;
+  const isEnterprise = hasRole(roles, 'enterprise');
+  
+  // Vérifier les accès généraux (abonnement/autorisation)
+  if (!hasAccess && !hasBrand && !isEnterprise) {
+    console.debug('[ProtectedRoute] Access denied, redirecting to /onboarding/activate', {
+      email: user?.email,
+      effectiveIsAuthorized,
+      allowPending,
+      isWhitelisted,
+      hasBrand,
+      isEnterprise,
+    });
+    return <Navigate to="/onboarding/activate" replace />;
   }
 
-  // Note: On ne redirige JAMAIS vers /onboarding/activate ici
-  // La redirection onboarding est gérée uniquement dans Auth.tsx après login
-  // Une fois dans l'app, les utilisateurs whitelist (Sandrine/Patricia) 
-  // sont traités comme autorisés grâce à effectiveIsAuthorized
+  // Note: On ne redirige JAMAIS vers /onboarding/activate ici pour les admins whitelistes
   console.debug('[ProtectedRoute] Access granted', {
     email: user?.email,
     effectiveIsAdmin,
     effectiveIsAuthorized,
-    isWhitelisted
+    allowPending,
+    isWhitelisted,
   });
 
   return <>{children}</>;

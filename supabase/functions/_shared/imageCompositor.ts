@@ -1,4 +1,310 @@
+import { encodeCloudinaryText } from "./cloudinaryText.ts";
+
 // Phase 5: Compositeur d'images via Cloudinary - Text Overlay natif
+
+// ============= TYPES =============
+
+export type Slide = {
+  type: 'hero' | 'problem' | 'solution' | 'impact' | 'cta';
+  title: string;
+  subtitle?: string;
+  punchline?: string;
+  bullets?: string[];
+  cta?: string;
+  cta_primary?: string;
+  cta_secondary?: string;
+  note?: string;
+  badge?: string;
+  kpis?: Array<{ label: string; delta: string }>;
+};
+
+type TextLayer = {
+  text: string;
+  font?: string;
+  size?: number;
+  weight?: 'Regular' | 'Bold' | 'ExtraBold';
+  color?: string;
+  outline?: number;
+  gravity?: 'north_west' | 'south_west' | 'center' | 'north' | 'south' | 'east' | 'west' | 'south_east';
+  x?: number;
+  y?: number;
+  w?: number;
+};
+
+// ============= ENCODING & LAYER BUILDING =============
+
+/**
+ * Build a single text layer transformation for Cloudinary
+ */
+function buildTextLayer(layer: TextLayer): string {
+  // ✅ FIX: Encode font names with spaces (e.g., "Nunito Sans" -> "Nunito%20Sans")
+  const fontFamily = (layer.font || 'Inter').replace(/\s+/g, '%20');
+  // ✅ CRITICAL FIX: Normalize ExtraBold to Bold (Cloudinary doesn't support ExtraBold)
+  const fontWeight = layer.weight === 'ExtraBold' ? 'Bold' : (layer.weight || 'Bold');
+  const fontSize = layer.size || 64;
+  // ✅ CRITICAL FIX: Font order must be font_family_size_style
+  const font = `${fontFamily}_${fontSize}_${fontWeight}`;
+  
+  const styleParams = [
+    layer.color ? `co_rgb:${layer.color.replace('#', '')}` : '',
+    layer.outline ? `e_outline:${layer.outline}:color_black` : '',
+    layer.w ? `w_${layer.w},c_fit` : ''
+  ].filter(Boolean).join(',');
+  
+  const encodedText = encodeCloudinaryText(layer.text);
+  const base = `l_text:${font}:${encodedText}`;
+  
+  const gravity = layer.gravity ? `g_${layer.gravity}` : '';
+  const position = (layer.x !== undefined || layer.y !== undefined) 
+    ? `x_${layer.x || 0},y_${layer.y || 0}` 
+    : '';
+  
+  const positionParams = [gravity, position].filter(Boolean).join(',');
+  
+  // ✅ CRITICAL FIX: All parameters BEFORE /fl_layer_apply
+  return `${base}${styleParams ? ',' + styleParams : ''}${positionParams ? ',' + positionParams : ''}/fl_layer_apply`;
+}
+
+// ============= SLIDE TYPE MAPPERS =============
+
+/**
+ * Generate text layers for hero slide (title + punchline + CTA + badge)
+ */
+function layersForHero(slide: Slide, primaryColor: string, secondaryColor: string): TextLayer[] {
+  const layers: TextLayer[] = [];
+  
+  // Badge (top-left)
+  if (slide.badge) {
+    layers.push({
+      text: slide.badge.toUpperCase(),
+      font: 'Inter',
+      weight: 'Bold',
+      size: 28,
+      color: primaryColor,
+      outline: 8,
+      gravity: 'north_west',
+      x: 64,
+      y: 64,
+      w: 600
+    });
+  }
+  
+  // Main title (center)
+  layers.push({
+    text: slide.title,
+    font: 'Inter',
+    weight: 'ExtraBold',
+    size: 76,
+    color: 'ffffff',
+    outline: 16,
+    gravity: 'center',
+    y: slide.badge ? -50 : 0,
+    w: 900
+  });
+  
+  // Punchline/subtitle (center-bottom)
+  if (slide.punchline) {
+    layers.push({
+      text: slide.punchline,
+      font: 'Inter',
+      weight: 'Regular',
+      size: 40,
+      color: 'ffffff',
+      outline: 10,
+      gravity: 'center',
+      y: 100,
+      w: 900
+    });
+  }
+  
+  // CTA (bottom-center)
+  if (slide.cta_primary) {
+    layers.push({
+      text: slide.cta_primary,
+      font: 'Inter',
+      weight: 'Bold',
+      size: 44,
+      color: primaryColor,
+      outline: 12,
+      gravity: 'south',
+      y: 80,
+      w: 700
+    });
+  }
+  
+  return layers;
+}
+
+/**
+ * Generate text layers for content slides (problem/solution/impact)
+ * Title + bullets list
+ */
+function layersForContent(slide: Slide, primaryColor: string): TextLayer[] {
+  const layers: TextLayer[] = [];
+  
+  // Title (top-left)
+  layers.push({
+    text: slide.title,
+    font: 'Inter',
+    weight: 'ExtraBold',
+    size: 68,
+    color: 'ffffff',
+    outline: 14,
+    gravity: 'north_west',
+    x: 64,
+    y: 80,
+    w: 900
+  });
+  
+  // Bullets (bottom-left as list)
+  if (slide.bullets && slide.bullets.length > 0) {
+    const bulletText = slide.bullets.map(b => `• ${b}`).join('\n');
+    layers.push({
+      text: bulletText,
+      font: 'Inter',
+      weight: 'Regular',
+      size: 42,
+      color: 'ffffff',
+      outline: 10,
+      gravity: 'south_west',
+      x: 80,
+      y: 100,
+      w: 950
+    });
+  }
+  
+  return layers;
+}
+
+/**
+ * Generate text layers for CTA slide
+ * Title + subtitle + CTA + note
+ */
+function layersForCTA(slide: Slide, primaryColor: string): TextLayer[] {
+  const layers: TextLayer[] = [];
+  
+  // Title (center-top)
+  layers.push({
+    text: slide.title,
+    font: 'Inter',
+    weight: 'ExtraBold',
+    size: 72,
+    color: 'ffffff',
+    outline: 16,
+    gravity: 'center',
+    y: -100,
+    w: 900
+  });
+  
+  // Subtitle (center)
+  if (slide.subtitle) {
+    layers.push({
+      text: slide.subtitle,
+      font: 'Inter',
+      weight: 'Regular',
+      size: 36,
+      color: 'ffffff',
+      outline: 10,
+      gravity: 'center',
+      y: 0,
+      w: 900
+    });
+  }
+  
+  // Primary CTA (center-bottom)
+  if (slide.cta_primary) {
+    layers.push({
+      text: slide.cta_primary,
+      font: 'Inter',
+      weight: 'Bold',
+      size: 48,
+      color: primaryColor,
+      outline: 12,
+      gravity: 'south',
+      y: 150,
+      w: 700
+    });
+  }
+  
+  // Note (very bottom)
+  if (slide.note) {
+    layers.push({
+      text: slide.note,
+      font: 'Inter',
+      weight: 'Regular',
+      size: 28,
+      color: 'ffffff',
+      outline: 8,
+      gravity: 'south',
+      y: 64,
+      w: 900
+    });
+  }
+  
+  return layers;
+}
+
+// ============= MAIN FUNCTION =============
+
+/**
+ * Build complete carousel slide URL with text overlays
+ * This is the NEW primary function to use for carousel rendering
+ */
+export function buildCarouselSlideUrl(
+  backgroundPublicId: string,
+  slide: Slide,
+  primaryColor: string,
+  secondaryColor: string
+): string {
+  const CLOUD_NAME = Deno.env.get('CLOUDINARY_CLOUD_NAME')?.trim();
+  if (!CLOUD_NAME) {
+    throw new Error('Missing Cloudinary cloud name');
+  }
+  
+  const cloudName = CLOUD_NAME.toLowerCase();
+  const baseUrl = `https://res.cloudinary.com/${cloudName}/image/upload`;
+  
+  // Select appropriate layer mapper based on slide type
+  let layers: TextLayer[] = [];
+  
+  switch (slide.type) {
+    case 'hero':
+      layers = layersForHero(slide, primaryColor, secondaryColor);
+      break;
+    case 'problem':
+    case 'solution':
+    case 'impact':
+      layers = layersForContent(slide, primaryColor);
+      break;
+    case 'cta':
+      layers = layersForCTA(slide, primaryColor);
+      break;
+    default:
+      // Fallback: simple centered title
+      layers = [{
+        text: slide.title,
+        font: 'Inter',
+        weight: 'ExtraBold',
+        size: 68,
+        color: 'ffffff',
+        outline: 14,
+        gravity: 'center',
+        w: 900
+      }];
+  }
+  
+  // Build all text overlays
+  const overlays = layers.map(buildTextLayer).join('/');
+  
+  // Final URL with quality params
+  const url = `${baseUrl}/${overlays}/f_png,q_auto,cs_srgb/${backgroundPublicId}.png`;
+  
+  console.log(`🎨 [buildCarouselSlideUrl] Generated URL for ${slide.type} slide (${layers.length} layers)`);
+  
+  return url;
+}
+
+// ============= LEGACY FUNCTION (backward compatibility) =============
 
 interface CloudinaryTextOverlayOptions {
   title?: string;
@@ -14,8 +320,8 @@ interface CloudinaryTextOverlayOptions {
 }
 
 /**
- * Construit une URL Cloudinary avec text overlays natifs (sans upload SVG)
- * Cette approche est beaucoup plus fiable et garantit la fidélité des couleurs
+ * Legacy function - kept for backward compatibility
+ * @deprecated Use buildCarouselSlideUrl instead
  */
 export function buildCloudinaryTextOverlayUrl(
   backgroundPublicId: string,
@@ -29,46 +335,37 @@ export function buildCloudinaryTextOverlayUrl(
   const cloudName = CLOUD_NAME.toLowerCase();
   const baseUrl = `https://res.cloudinary.com/${cloudName}/image/upload`;
   
-  // Transformations de base pour garantir qualité et couleurs fidèles
-  const qualityParams = 'f_png,q_100,cs_srgb,fl_preserve_transparency';
-  const colorCorrection = 'e_brightness:5,e_saturation:8';
+  const transformations: string[] = [];
   
-  const transformations: string[] = [qualityParams, colorCorrection];
-  
-  // Ajouter overlay titre si présent
+  // Add title overlay
   if (options.title) {
-    const titleFont = (options.titleFont || 'Arial').replace(/\s+/g, '%20');
+    // ✅ FIX: Font already encoded above, keep it
+    const titleFont = (options.titleFont || 'Inter').replace(/\s+/g, '%20');
     const titleSize = options.titleSize || 64;
-    const titleWeight = options.titleWeight || 'bold';
+    const titleWeight = options.titleWeight || 'Bold';
     const titleColor = (options.titleColor || '000000').replace('#', '');
-    const encodedTitle = encodeURIComponent(options.title);
+    const encodedTitle = encodeCloudinaryText(options.title);
     
-    // Text overlay Cloudinary : l_text:{font}_{size}_{weight}:{text},co_rgb:{color},g_center,y_{offset}
     transformations.push(
-      `l_text:${titleFont}_${titleSize}_${titleWeight}:${encodedTitle},co_rgb:${titleColor},g_center,y_-150`
+      `l_text:${titleFont}_${titleSize}_${titleWeight}:${encodedTitle},co_rgb:${titleColor},e_outline:12:color_black,g_center,y_-150,w_900,c_fit/fl_layer_apply`
     );
   }
   
-  // Ajouter overlay sous-titre si présent
+  // Add subtitle overlay
   if (options.subtitle) {
-    const subtitleFont = (options.subtitleFont || 'Arial').replace(/\s+/g, '%20');
-    const subtitleSize = options.subtitleSize || 28;
-    const subtitleWeight = options.subtitleWeight || 'normal';
-    const subtitleColor = (options.subtitleColor || '5A5A5A').replace('#', '');
-    const encodedSubtitle = encodeURIComponent(options.subtitle);
+    // ✅ FIX: Font already encoded above, keep it
+    const subtitleFont = (options.subtitleFont || 'Inter').replace(/\s+/g, '%20');
+    const subtitleSize = options.subtitleSize || 36;
+    const subtitleWeight = options.subtitleWeight || 'Regular';
+    const subtitleColor = (options.subtitleColor || 'ffffff').replace('#', '');
+    const encodedSubtitle = encodeCloudinaryText(options.subtitle);
     
     transformations.push(
-      `l_text:${subtitleFont}_${subtitleSize}_${subtitleWeight}:${encodedSubtitle},co_rgb:${subtitleColor},g_center,y_-60`
+      `l_text:${subtitleFont}_${subtitleSize}_${subtitleWeight}:${encodedSubtitle},co_rgb:${subtitleColor},e_outline:10:color_black,g_center,y_-60,w_900,c_fit/fl_layer_apply`
     );
   }
   
-  // Appliquer les transformations de texte avec contraintes
-  transformations.push('fl_relative,w_0.9,c_fit');
-  
-  // Construire l'URL finale
-  const url = `${baseUrl}/${transformations.join('/')}/${backgroundPublicId}.png`;
-  
-  console.log('🎨 [buildCloudinaryTextOverlayUrl] Generated URL:', url.substring(0, 150));
+  const url = `${baseUrl}/${transformations.join('/')}/f_png,q_auto,cs_srgb/${backgroundPublicId}.png`;
   
   return url;
 }
