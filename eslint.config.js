@@ -5,6 +5,19 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 const typedConfig = tseslint.config(
+export default tseslint.config(
+  {
+    ignores: [
+      "dist/**",
+      "build/**",
+      "node_modules/**",
+      "coverage/**",
+      "examples/**",
+      "apps/assistant/**",
+      "**/*.generated.*",
+      "**/vendor/**",
+    ],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],

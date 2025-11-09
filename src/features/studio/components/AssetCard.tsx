@@ -60,6 +60,14 @@ export function AssetCard({ asset, className, onEnqueueVideo }: AssetCardProps) 
   const downloadHref = hasDownloadUrl
     ? `${asset!.url!}${asset!.url!.includes("?") ? "&" : "?"}fl_attachment`
     : undefined;
+  onEnqueueVideo?: (asset: Asset) => void;
+};
+
+export function AssetCard({ asset, className, onEnqueueVideo }: AssetCardProps) {
+  const hasUrl = Boolean(asset?.url);
+  const openHref = hasUrl ? String(asset.url) : undefined;
+  const downloadHref =
+    hasUrl ? `${asset!.url!}${asset!.url!.includes("?") ? "&" : "?"}fl_attachment` : undefined;
 
   const typeLabel = TYPE_LABEL[asset.type] ?? asset.type ?? "Asset";
   const createdAt = formatDate(asset.created_at);
@@ -88,6 +96,7 @@ export function AssetCard({ asset, className, onEnqueueVideo }: AssetCardProps) 
       </div>
 
       <header className="flex items-center justify-between">
+      <div className="flex items-center justify-between">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">
             {asset.title ?? typeLabel}
@@ -103,6 +112,12 @@ export function AssetCard({ asset, className, onEnqueueVideo }: AssetCardProps) 
       </header>
 
       <footer className="flex flex-wrap items-center gap-2">
+        <div className="text-xs px-2 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800">
+          {asset.type}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
         <a
           href={openHref}
           target="_blank"
@@ -112,12 +127,15 @@ export function AssetCard({ asset, className, onEnqueueVideo }: AssetCardProps) 
             hasDownloadUrl
               ? "hover:bg-neutral-50 dark:hover:bg-neutral-800"
               : "pointer-events-none opacity-50",
+            "inline-flex items-center gap-1 px-3 py-2 rounded-lg border text-sm",
+            hasUrl ? "hover:bg-neutral-50 dark:hover:bg-neutral-800" : "pointer-events-none opacity-50"
           )}
           aria-disabled={!hasDownloadUrl}
         >
           <ExternalLink size={16} />
           Ouvrir
         </a>
+
         <a
           href={downloadHref}
           download
@@ -126,6 +144,8 @@ export function AssetCard({ asset, className, onEnqueueVideo }: AssetCardProps) 
             hasDownloadUrl
               ? "hover:bg-neutral-50 dark:hover:bg-neutral-800"
               : "pointer-events-none opacity-50",
+            "inline-flex items-center gap-1 px-3 py-2 rounded-lg border text-sm",
+            hasUrl ? "hover:bg-neutral-50 dark:hover:bg-neutral-800" : "pointer-events-none opacity-50"
           )}
           aria-disabled={!hasDownloadUrl}
         >
@@ -133,6 +153,8 @@ export function AssetCard({ asset, className, onEnqueueVideo }: AssetCardProps) 
           Télécharger
         </a>
         {asset.type === "carousel" && typeof onEnqueueVideo === "function" && (
+
+        {isCarousel && typeof onEnqueueVideo === "function" && (
           <button
             type="button"
             onClick={() => onEnqueueVideo(asset)}
