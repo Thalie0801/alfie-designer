@@ -1,41 +1,26 @@
-import { fileURLToPath } from 'node:url';
 import js from '@eslint/js';
 import ts from 'typescript-eslint';
 import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 
-const tsconfigRootDir = fileURLToPath(new URL('.', import.meta.url));
-const tsConfigs = ts.configs.recommended.map((config) => ({
+const tsProject = ['./tsconfig.app.json', './tsconfig.node.json'];
+const tsTypedConfigs = ts.configs.recommendedTypeChecked.map((config) => ({
   ...config,
-  files: ['**/*.{ts,tsx}'],
+  files: ['src/**/*.{ts,tsx}', 'actions/**/*.{ts,tsx}'],
+  ignores: [...(config.ignores ?? []), 'supabase/functions/**', 'tailwind.config.ts', 'vite.config.ts'],
 }));
 
 export default [
-  {
-    ignores: [
-      'node_modules',
-      'dist',
-      'build',
-      '.next',
-      'coverage',
-      'examples',
-      'apps/assistant',
-      'packages/eslint-plugin-react',
-      '**/*.generated.*',
-      '**/vendor/**',
-      'eslint.config.mjs',
-      'scripts/codex/**',
-    ],
-  },
+  { ignores: ['node_modules', 'dist', 'build', '.next', 'coverage', 'eslint.config.mjs', 'packages/eslint-plugin-react', 'scripts/codex/**'] },
   js.configs.recommended,
-  ...tsConfigs,
+  ...tsTypedConfigs,
   {
-    files: ['**/*.{ts,tsx}'],
+    files: ['src/**/*.{ts,tsx}', 'actions/**/*.{ts,tsx}'],
     languageOptions: {
-      parser: ts.parser,
       parserOptions: {
-        tsconfigRootDir,
+        project: tsProject,
+        tsconfigRootDir: new URL('.', import.meta.url),
       },
       globals: {
         ...globals.browser,
@@ -43,7 +28,6 @@ export default [
       },
     },
     plugins: {
-      '@typescript-eslint': ts.plugin,
       react,
       'react-hooks': reactHooks,
     },
@@ -68,11 +52,50 @@ export default [
       '@typescript-eslint/no-unnecessary-type-assertion': 'off',
       '@typescript-eslint/only-throw-error': 'off',
       '@typescript-eslint/no-redundant-type-constituents': 'off',
+      '@typescript-eslint/restrict-template-expressions': 'off',
+      '@typescript-eslint/prefer-promise-reject-errors': 'off',
+      '@typescript-eslint/require-await': 'off',
+      '@typescript-eslint/no-base-to-string': 'off',
       'prefer-const': 'warn',
       'no-irregular-whitespace': 'error',
       'no-control-regex': 'error',
       'no-useless-escape': 'warn',
       'no-empty': 'warn',
+    },
+  },
+  {
+    files: ['tailwind.config.ts', 'vite.config.ts'],
+    languageOptions: {
+      parser: ts.parser,
+      parserOptions: {
+        project: null,
+      },
+      globals: globals.node,
+    },
+  },
+  {
+    files: ['**/*.{js,mjs,cjs}'],
+    languageOptions: {
+      sourceType: 'module',
+      globals: globals.node,
+    },
+  },
+  {
+    files: ['**/*.test.ts', '**/*.test.tsx', 'examples/**/*'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
+  },
+  {
+    files: ['src/components/ui/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-empty-object-type': 'off',
+    },
+  },
+  {
+    files: ['scripts/**/*.mjs'],
+    rules: {
+      'no-unused-vars': 'off',
     },
   },
   {
@@ -96,41 +119,9 @@ export default [
       '@typescript-eslint/no-explicit-any': 'off',
       'no-unused-vars': 'off',
       'prefer-const': 'warn',
-    },
-  },
-  {
-    files: ['**/*.test.ts', '**/*.test.tsx', 'examples/**/*'],
-    rules: {
-      '@typescript-eslint/no-explicit-any': 'off',
-    },
-  },
-  {
-    files: ['src/components/ui/**/*.{ts,tsx}'],
-    rules: {
-      '@typescript-eslint/no-empty-object-type': 'off',
-    },
-  },
-  {
-    files: ['tailwind.config.ts', 'vite.config.ts'],
-    languageOptions: {
-      parser: ts.parser,
-      parserOptions: {
-        project: null,
-      },
-      globals: globals.node,
-    },
-  },
-  {
-    files: ['**/*.{js,mjs,cjs}'],
-    languageOptions: {
-      sourceType: 'module',
-      globals: globals.node,
-    },
-  },
-  {
-    files: ['scripts/**/*.mjs'],
-    rules: {
-      'no-unused-vars': 'off',
+      'no-useless-escape': 'off',
+      'no-empty': 'off',
+      'no-redeclare': 'off',
     },
   },
 ];

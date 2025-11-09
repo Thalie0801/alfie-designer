@@ -31,7 +31,7 @@ function createJsxNoUndefRule(context) {
 }
 
 const plugin = {
-  meta: { name: 'local-react-plugin', version: '0.0.1' },
+  meta: { name: 'local-react-plugin', version: '0.0.2' },
   rules: {
     'jsx-no-undef': {
       meta: {
@@ -54,6 +54,18 @@ const plugin = {
         },
       },
       create: createJsxNoUndefRule,
+    },
+    'react-in-jsx-scope': {
+      meta: {
+        type: 'problem',
+        docs: {
+          description: 'Stub rule to satisfy flat config when disabling react/react-in-jsx-scope.',
+        },
+        schema: [],
+      },
+      create() {
+        return {};
+      },
     },
   },
 };
