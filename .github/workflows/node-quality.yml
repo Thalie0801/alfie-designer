@@ -65,6 +65,16 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Fail on control chars in source
+        shell: bash
+        run: |
+          bad=$(git ls-files | grep -E '\\.(ts|tsx|js|jsx|json|md|yaml|yml|sh)$' | xargs -I{} bash -lc "LC_ALL=C grep -nU $'[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]' '{}' || true")
+          if [ -n "$bad" ]; then
+            echo "::error title=Control chars detected::"
+            echo "$bad"
+            exit 1
+          fi
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}

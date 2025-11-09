@@ -5,9 +5,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabaseClient";
+import { createGeneration, forceProcess } from "@/api/alfie";
 import { useToast } from "@/hooks/use-toast";
 import { uploadToChatBucket } from "@/lib/chatUploads";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { useBrandKit } from "@/hooks/useBrandKit";
 import { toast } from "sonner";
 import { useQueueMonitor } from "@/hooks/useQueueMonitor";
@@ -67,16 +68,6 @@ const PROMPT_EXAMPLES = {
   ],
 };
 
-const MEDIA_URL_KEYS = [
-  "imageUrl",
-  "image_url",
-  "url",
-  "outputUrl",
-  "output_url",
-  "videoUrl",
-  "video_url",
-];
-
 const ASPECT_TO_TW: Record<AspectRatio, string> = {
   "1:1": "aspect-square",
   "9:16": "aspect-[9/16]",
@@ -123,30 +114,9 @@ function resolveRefreshErrorMessage(error: unknown): string {
   return UNKNOWN_REFRESH_ERROR;
 }
 
-function extractMediaUrl(payload: unknown): string | null {
-  if (!payload || typeof payload !== "object") return null;
-
-  const obj = payload as Record<string, unknown>;
-  for (const key of MEDIA_URL_KEYS) {
-    const val = obj[key];
-    if (typeof val === "string" && val.trim()) {
-      return val.trim();
-    }
-  }
-
-  for (const v of Object.values(obj)) {
-    if (typeof v === "object" && v !== null) {
-      const nested = extractMediaUrl(v);
-      if (nested) return nested;
-    }
-  }
-  return null;
-}
-
 export function ChatGenerator() {
   const { activeBrandId } = useBrandKit();
   const location = useLocation();
-  const navigate = useNavigate();
   const orderId =
     useMemo(() => {
       const params = new URLSearchParams(location.search);
@@ -436,7 +406,14 @@ export function ChatGenerator() {
   const videoDuration = 12;
 
   const handleGenerateImage = useCallback(async () => {
-    if (!prompt.trim() && !uploadedSource) {
+    const trimmedPrompt = prompt.trim();
+
+    if (!activeBrandId) {
+      toast.error("Sélectionne une marque avant de générer.");
+      return;
+    }
+
+    if (!trimmedPrompt && !uploadedSource) {
       showToast({
         title: "Prompt requis",
         description: "Veuillez entrer un prompt ou uploader un média",
@@ -449,58 +426,42 @@ export function ChatGenerator() {
     setGeneratedAsset(null);
 
     try {
-      // ✅ Phase A: Get session token for authentication
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-
-      const targetFunction = "alfie-render-image";
-
       const resolutionMap: Record<AspectRatio, string> = {
         "1:1": "1024x1024",
         "9:16": "1080x1920",
         "16:9": "1920x1080",
       };
 
-      const payload: Record<string, unknown> = {
-        prompt: prompt || "transform this",
-        brand_id: activeBrandId ?? null,
+      const payload = {
+        type: "image" as const,
+        prompt: trimmedPrompt,
+        aspect_ratio: aspectRatio,
         resolution: resolutionMap[aspectRatio],
+        reference: uploadedSource
+          ? {
+              type: uploadedSource.type,
+              url: uploadedSource.url,
+              name: uploadedSource.name,
+            }
+          : null,
       };
 
-      if (uploadedSource) {
-        // Pass uploaded image as reference for style/composition
-        payload.templateImageUrl = uploadedSource.url;
-      }
+      const res = await createGeneration(activeBrandId, payload);
+      toast.success(`Commande créée #${res.order_id}`);
 
-      // ✅ Phase A: Include Authorization header if token is available
-      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-
-      const { data, error } = await supabase.functions.invoke(targetFunction, {
-        body: payload,
-        headers,
-      });
-
-      if (error) throw error;
-
-      const imageUrl = extractMediaUrl(data);
-      if (!imageUrl) throw new Error("No image URL in response");
-
-      setGeneratedAsset({ url: imageUrl, type: "image" });
-      showToast({ title: "Image générée !", description: "Prête à télécharger" });
+      await refetchAll();
     } catch (err: unknown) {
       console.error("[Studio] image generation error:", err);
       const message = err instanceof Error ? err.message : "Une erreur est survenue";
-      showToast({
-        title: "Erreur de génération",
-        description: message,
-        variant: "destructive",
-      });
+      toast.error(`Génération impossible: ${message}`);
     } finally {
       setIsSubmitting(false);
     }
-  }, [prompt, uploadedSource, aspectRatio, activeBrandId, showToast]);
+  }, [activeBrandId, aspectRatio, prompt, refetchAll, showToast, uploadedSource]);
 
   const handleGenerateVideo = useCallback(async () => {
+    const promptText = (prompt || "").trim();
+
     try {
       setIsSubmitting(true);
       setGeneratedAsset(null);
@@ -512,45 +473,37 @@ export function ChatGenerator() {
       if (authError) throw authError;
       if (!user) throw new Error("Tu dois être connecté pour lancer une génération.");
       if (!activeBrandId) throw new Error("Sélectionne une marque.");
-
-      const promptText = (prompt || "").trim();
       if (!promptText) throw new Error("Ajoute un prompt (1–2 phrases suffisent).");
       if (!aspectRatio) throw new Error("Choisis un format (9:16, 16:9, ...).");
 
       const durationSec = Number(videoDuration) > 0 ? Number(videoDuration) : 12;
 
-      const sourceUrl = uploadedSource?.url ?? null;
-      const sourceType = uploadedSource?.type ?? null;
+      const payload = {
+        type: "video" as const,
+        prompt: promptText,
+        aspect_ratio: aspectRatio,
+        duration: durationSec,
+        reference: uploadedSource
+          ? {
+              type: uploadedSource.type,
+              url: uploadedSource.url,
+              name: uploadedSource.name,
+            }
+          : null,
+      };
 
-      const { data, error } = await supabase.functions.invoke("alfie-orchestrator", {
-        body: {
-          message: promptText,
-          user_message: promptText,
-          brandId: activeBrandId,
-          forceTool: "generate_video",
-          aspectRatio,
-          durationSec,
-          uploadedSourceUrl: sourceUrl,
-          uploadedSourceType: sourceType,
-        },
-      });
+      const res = await createGeneration(activeBrandId, payload);
+      toast.success(`Commande créée #${res.order_id}`);
 
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error as string);
-
-      const orderId = data?.orderId as string | undefined;
-      if (!orderId) throw new Error("L’orchestrateur n’a pas renvoyé d’orderId.");
-
-      toast.success("🚀 Vidéo lancée ! Retrouve-la dans le Studio.");
-      navigate(`/studio?order=${orderId}`);
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : String(e);
-      console.error("[Studio] generate video error:", e);
-      toast.error(`Échec de génération : ${message}`);
+      await refetchAll();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error("[Studio] generate video error:", err);
+      toast.error(`Génération impossible: ${message}`);
     } finally {
       setIsSubmitting(false);
     }
-  }, [activeBrandId, aspectRatio, navigate, prompt, uploadedSource, videoDuration]);
+  }, [activeBrandId, aspectRatio, prompt, refetchAll, uploadedSource, videoDuration]);
 
   const handleGenerate = useCallback(() => {
     if (contentType === "image") {
@@ -598,20 +551,17 @@ export function ChatGenerator() {
   };
 
   // ✅ Trigger manual worker
-  const handleTriggerWorker = useCallback(async () => {
+  const onForce = useCallback(async () => {
     setIsTriggeringWorker(true);
     try {
-      const { data, error } = await supabase.functions.invoke('trigger-job-worker', {});
-      
-      if (error) throw error;
-      
-      toast.success(`Worker déclenché: ${data?.jobsQueued || 0} jobs à traiter`);
-      
-      // Refresh jobs after triggering
+      const result = await forceProcess();
+      toast.success("Traitement forcé OK");
+      console.log("forceProcess result:", result);
+
       await refetchAll();
     } catch (err) {
-      console.error('[Studio] trigger worker error:', err);
-      toast.error(`Échec du déclenchement: ${err instanceof Error ? err.message : 'Erreur inconnue'}`);
+      console.error("[Studio] trigger worker error:", err);
+      toast.error(`Forçage échoué: ${err instanceof Error ? err.message : "Erreur inconnue"}`);
     } finally {
       setIsTriggeringWorker(false);
     }
@@ -659,7 +609,7 @@ export function ChatGenerator() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleTriggerWorker}
+                onClick={onForce}
                 disabled={isTriggeringWorker || queueData.counts.queued === 0}
               >
                 {isTriggeringWorker ? (
