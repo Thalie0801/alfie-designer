@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { Upload, Wand2, Download, X, Sparkles, Loader2, AlertCircle, CheckCircle, Clock } from "lucide-react";
+import { Upload, Wand2, Download, X, Sparkles, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
@@ -14,6 +14,9 @@ import { toast } from "sonner";
 import { useQueueMonitor } from "@/hooks/useQueueMonitor";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AssetCard, type StudioAsset } from "./components/AssetCard";
+import { JobCard } from "./components/JobCard";
+import { AssetCard as StudioAssetCard } from "./components/AssetCard";
+import type { JobEntry, MediaEntry } from "./types";
 
 type GeneratedAsset = {
   url: string;
@@ -857,40 +860,17 @@ export function ChatGenerator() {
             ) : (
               <div className="space-y-3">
                 {jobs.map((job) => {
-                  const jobError = job.error_message || job.error;
-
+                  const isJobStuck = stuckJobs.some((item) => item.id === job.id);
                   return (
-                    <div key={job.id} className="rounded-lg border p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-medium capitalize">
-                            {job.type.replace(/_/g, " ")}
-                          </p>
-                          <p className="text-xs text-muted-foreground">{formatDate(job.created_at)}</p>
-                        </div>
-                        <Badge variant={jobBadgeVariant(job.status)} className="uppercase">
-                          {job.status}
-                        </Badge>
-                      </div>
-                      {job.order_id && (
-                        <p className="mt-1 text-xs text-muted-foreground">Order #{job.order_id}</p>
-                      )}
-                      {jobError && (
-                        <div className="mt-2 text-xs text-red-600 flex flex-wrap items-center gap-2">
-                          <span className="break-words flex-1">{jobError}</span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            title="Retenter"
-                            onClick={() => {
-                              void requeueJob(job);
-                            }}
-                          >
-                            Retenter
-                          </Button>
-                        </div>
-                      )}
-                    </div>
+                    <JobCard
+                      key={job.id}
+                      job={job}
+                      createdAt={formatDate(job.created_at)}
+                      isStuck={isJobStuck}
+                      onRetry={(target) => {
+                        void requeueJob(target);
+                      }}
+                    />
                   );
                 })}
               </div>
@@ -936,6 +916,41 @@ export function ChatGenerator() {
                 {assets.map((item) => (
                   <AssetCard key={item.id} asset={item} onEnqueueVideo={onEnqueueVideo} />
                 ))}
+                {assets.map((item) => {
+                  const metadata = (item.metadata ?? {}) as Record<string, unknown>;
+                  const previewUrl =
+                    (typeof metadata.thumbnail_url === "string" ? metadata.thumbnail_url : null) ??
+                    (typeof metadata.preview_url === "string" ? metadata.preview_url : null) ??
+                    item.cloudinary_url ??
+                    undefined;
+                  const assetStatus =
+                    (typeof metadata.status === "string" ? metadata.status : null) ?? item.status ?? "done";
+                  const woofs = typeof metadata.woofs === "number" ? metadata.woofs : null;
+                  const downloadUrl = typeof metadata.download_url === "string" ? metadata.download_url : null;
+                  const videoUrl = typeof metadata.video_url === "string" ? metadata.video_url : null;
+                  const engine = typeof metadata.engine === "string" ? metadata.engine : null;
+
+                  return (
+                    <StudioAssetCard
+                      key={item.id}
+                      asset={{
+                        id: item.id,
+                        type: item.type,
+                        status: assetStatus,
+                        createdAt: formatDate(item.created_at),
+                        previewUrl,
+                        assetUrl: item.cloudinary_url ?? undefined,
+                        downloadUrl,
+                        videoUrl,
+                        woofs,
+                        engine,
+                      }}
+                      onMissingUrl={() => {
+                        toast.error("URL indisponible");
+                      }}
+                    />
+                  );
+                })}
               </div>
             )}
           </Card>
