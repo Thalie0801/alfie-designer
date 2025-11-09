@@ -303,7 +303,7 @@ export function ChatGenerator() {
         supabase.removeChannel(channel);
       }
     };
-  }, [refetchAll]);
+  }, [forceProcessJobs, refetchAll]);
 
   const requeueJob = useCallback(
     async (job: JobEntry) => {
@@ -553,6 +553,7 @@ export function ChatGenerator() {
   // ✅ Trigger manual worker
   const handleTriggerWorker = useCallback(async () => {
     if (isForcing) return; // anti double-clic
+    if (isForcing) return;
     setIsForcing(true);
     try {
       const result = await forceProcessJobs();
@@ -571,6 +572,13 @@ export function ChatGenerator() {
       setIsForcing(false);
     }
   }, [isForcing, forceProcessJobs, refetchAll]);
+      const message = err instanceof Error ? err.message : "Erreur inconnue";
+      toast.error(`Forçage échoué: ${message}`);
+    } finally {
+      setIsForcing(false);
+    }
+  }, [forceProcessJobs, refetchAll]);
+  }, [forceProcess, isForcing, refetchAll]);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -616,6 +624,7 @@ export function ChatGenerator() {
                 size="sm"
                 onClick={handleTriggerWorker}
                 disabled={isForcing}
+                disabled={isForcing || queueData.counts.queued === 0}
               >
                 {isForcing ? (
                   <>
@@ -807,14 +816,21 @@ export function ChatGenerator() {
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
                   {stuckJobs.length} job{stuckJobs.length > 1 ? 's' : ''} bloqué{stuckJobs.length > 1 ? 's' : ''} détecté{stuckJobs.length > 1 ? 's' : ''} (&gt;10 min en attente).
-                  <Button 
-                    variant="link" 
+                  <Button
+                    variant="link"
                     size="sm"
                     className="ml-2 h-auto p-0 text-destructive underline"
                     onClick={handleTriggerWorker}
                     disabled={isForcing}
                   >
-                    Forcer le traitement
+                    {isForcing ? (
+                      <span className="inline-flex items-center gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Traitement…
+                      </span>
+                    ) : (
+                      "Forcer le traitement"
+                    )}
                   </Button>
                 </AlertDescription>
               </Alert>
