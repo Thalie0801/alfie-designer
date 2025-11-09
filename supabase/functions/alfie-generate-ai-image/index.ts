@@ -211,6 +211,7 @@ serve(async (req) => {
 
     const authHeader = req.headers.get("Authorization");
     const bearer = authHeader?.replace(/^Bearer\s+/i, "").trim() || null;
+    const bearer = authHeader?.replace(/^Bearer\s+/i, "").trim();
 
     const isInternal =
       !!INTERNAL_FN_SECRET &&
@@ -230,6 +231,7 @@ serve(async (req) => {
 
     const userId =
       typeof body.userId === "string" ? body.userId : userIdFromJwt;
+      typeof body.userId === "string" ? body.userId : userIdFromJwt ?? null;
     const brandId = typeof body.brandId === "string" ? body.brandId : null;
     const orderId = typeof body.orderId === "string" ? body.orderId : null;
     const orderItemId = typeof body.orderItemId === "string" ? body.orderItemId : null;

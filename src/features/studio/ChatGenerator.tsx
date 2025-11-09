@@ -459,6 +459,7 @@ export function ChatGenerator() {
       const res = await createGeneration(activeBrandId, payload);
       const orderId = extractOrderId(res);
       toast.success(orderId ? `Commande créée #${orderId}` : "Commande créée !");
+      toast.success(`Commande créée #${res.order_id}`);
 
       await refetchAll();
     } catch (err: unknown) {
@@ -506,6 +507,7 @@ export function ChatGenerator() {
       const res = await createGeneration(activeBrandId, payload);
       const orderId = extractOrderId(res);
       toast.success(orderId ? `Commande créée #${orderId}` : "Commande créée !");
+      toast.success(`Commande créée #${res.order_id}`);
 
       await refetchAll();
     } catch (err: unknown) {
@@ -567,6 +569,18 @@ export function ChatGenerator() {
     try {
       const result = await forceProcess(); // invoke('process-job-worker')
       toast.success(`Traitement forcé: ${result?.processed ?? 0} job(s).`);
+    setIsTriggeringWorker(true);
+    try {
+      const result = await forceProcess();
+      toast.success("Traitement forcé OK");
+      console.log("forceProcess result:", result);
+
+      await refetchAll();
+    } catch (err) {
+      console.error("[Studio] trigger worker error:", err);
+      toast.error(`Forçage échoué: ${err instanceof Error ? err.message : "Erreur inconnue"}`);
+      toast.success(`Traitement forcé: ${result.processed} job(s).`);
+
       await refetchAll();
     } catch (err) {
       console.error('[Studio] trigger worker error:', err);
@@ -620,6 +634,7 @@ export function ChatGenerator() {
                 size="sm"
                 onClick={onForce}
                 disabled={!queueData || queueData.counts.queued === 0}
+                disabled={isTriggeringWorker || queueData.counts.queued === 0}
               >
                 Forcer le traitement
               </Button>
