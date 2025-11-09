@@ -561,6 +561,19 @@ export function ChatGenerator() {
       console.error("[Studio] trigger worker error:", err);
       const msg = err instanceof Error ? err.message : "Erreur inconnue";
       toast.error(`Forçage échoué: ${msg}`);
+      toast.success("Traitement forcé OK");
+      console.log("forceProcess result:", result);
+
+      await refetchAll();
+    } catch (err) {
+      console.error("[Studio] trigger worker error:", err);
+      toast.error(`Forçage échoué: ${err instanceof Error ? err.message : "Erreur inconnue"}`);
+      toast.success(`Traitement forcé: ${result.processed} job(s).`);
+
+      await refetchAll();
+    } catch (err) {
+      console.error('[Studio] trigger worker error:', err);
+      toast.error(`Forçage échoué: ${err instanceof Error ? err.message : 'Erreur inconnue'}`);
     } finally {
       setIsTriggeringWorker(false);
     }
