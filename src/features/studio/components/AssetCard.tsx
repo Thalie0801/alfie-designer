@@ -60,12 +60,15 @@ export function AssetCard({ asset, className, onEnqueueVideo }: AssetCardProps) 
   const downloadHref = hasDownloadUrl
     ? `${asset!.url!}${asset!.url!.includes("?") ? "&" : "?"}fl_attachment`
     : undefined;
+  /** Action pour transformer un carrousel en vidéo */
   onEnqueueVideo?: (asset: Asset) => void;
 };
 
 export function AssetCard({ asset, className, onEnqueueVideo }: AssetCardProps) {
   const hasUrl = Boolean(asset?.url);
   const openHref = hasUrl ? String(asset.url) : undefined;
+
+  // Lien de téléchargement Cloudinary (force le download)
   const downloadHref =
     hasUrl ? `${asset!.url!}${asset!.url!.includes("?") ? "&" : "?"}fl_attachment` : undefined;
 
@@ -80,6 +83,7 @@ export function AssetCard({ asset, className, onEnqueueVideo }: AssetCardProps) 
         className,
       )}
     >
+      {/* Aperçu */}
       <div className="aspect-video w-full overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-800">
         {previewUrl ? (
           <img
@@ -96,6 +100,7 @@ export function AssetCard({ asset, className, onEnqueueVideo }: AssetCardProps) 
       </div>
 
       <header className="flex items-center justify-between">
+      {/* Métadonnées */}
       <div className="flex items-center justify-between">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">
@@ -117,7 +122,9 @@ export function AssetCard({ asset, className, onEnqueueVideo }: AssetCardProps) 
         </div>
       </div>
 
+      {/* Actions */}
       <div className="flex items-center gap-2">
+        {/* Ouvrir */}
         <a
           href={openHref}
           target="_blank"
@@ -136,6 +143,7 @@ export function AssetCard({ asset, className, onEnqueueVideo }: AssetCardProps) 
           Ouvrir
         </a>
 
+        {/* Télécharger */}
         <a
           href={downloadHref}
           download
@@ -154,6 +162,7 @@ export function AssetCard({ asset, className, onEnqueueVideo }: AssetCardProps) 
         </a>
         {asset.type === "carousel" && typeof onEnqueueVideo === "function" && (
 
+        {/* Transformer en vidéo (carrousel uniquement) */}
         {isCarousel && typeof onEnqueueVideo === "function" && (
           <button
             type="button"
