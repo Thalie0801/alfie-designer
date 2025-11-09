@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { Upload, Wand2, Download, X, Sparkles, Loader2, AlertCircle, CheckCircle, Clock } from "lucide-react";
+import { Upload, Wand2, Download, X, Sparkles, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
@@ -14,6 +14,8 @@ import { toast } from "sonner";
 import { useQueueMonitor } from "@/hooks/useQueueMonitor";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { JobCard } from "./components/JobCard";
+import { AssetCard as StudioAssetCard } from "./components/AssetCard";
+import type { JobEntry, MediaEntry } from "./types";
 
 type GeneratedAsset = {
   url: string;
@@ -879,6 +881,20 @@ export function ChatGenerator() {
                 {jobs.map((job) => (
                   <JobCard key={job.id} job={job} onRequeue={handleRequeue} />
                 ))}
+                {jobs.map((job) => {
+                  const isJobStuck = stuckJobs.some((item) => item.id === job.id);
+                  return (
+                    <JobCard
+                      key={job.id}
+                      job={job}
+                      createdAt={formatDate(job.created_at)}
+                      isStuck={isJobStuck}
+                      onRetry={(target) => {
+                        void requeueJob(target);
+                      }}
+                    />
+                  );
+                })}
               </div>
             )}
           </Card>
@@ -920,65 +936,38 @@ export function ChatGenerator() {
             ) : (
               <div className="space-y-4">
                 {assets.map((item) => {
-                  const metadata =
-                    typeof item.metadata === "object" && item.metadata !== null
-                      ? (item.metadata as Record<string, any>)
-                      : null;
+                  const metadata = (item.metadata ?? {}) as Record<string, unknown>;
                   const previewUrl =
-                    (metadata && typeof metadata.thumbnail_url === "string" ? metadata.thumbnail_url : null) ??
-                    (metadata && typeof metadata.preview_url === "string" ? metadata.preview_url : null) ??
+                    (typeof metadata.thumbnail_url === "string" ? metadata.thumbnail_url : null) ??
+                    (typeof metadata.preview_url === "string" ? metadata.preview_url : null) ??
                     item.cloudinary_url ??
-                    "";
+                    undefined;
                   const assetStatus =
-                    (metadata && typeof metadata.status === "string" ? metadata.status : null) ??
-                    (item.status ?? "done");
-                  const woofs = metadata && "woofs" in metadata ? metadata.woofs : null;
-                  const assetHref =
-                    (metadata && typeof metadata.download_url === "string" ? metadata.download_url : null) ??
-                    item.cloudinary_url ??
-                    null;
+                    (typeof metadata.status === "string" ? metadata.status : null) ?? item.status ?? "done";
+                  const woofs = typeof metadata.woofs === "number" ? metadata.woofs : null;
+                  const downloadUrl = typeof metadata.download_url === "string" ? metadata.download_url : null;
+                  const videoUrl = typeof metadata.video_url === "string" ? metadata.video_url : null;
+                  const engine = typeof metadata.engine === "string" ? metadata.engine : null;
 
                   return (
-                    <div key={item.id} className="rounded-lg border p-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium capitalize">{item.type}</p>
-                          <p className="text-xs text-muted-foreground">{formatDate(item.created_at)}</p>
-                        </div>
-                        <Badge variant={mediaBadgeVariant(assetStatus)} className="uppercase">
-                          {assetStatus}
-                        </Badge>
-                      </div>
-                      {previewUrl && (
-                        <div className="mt-3 overflow-hidden rounded-md bg-muted">
-                          {item.type === "video" ? (
-                            <video
-                              src={
-                                (metadata && typeof metadata.video_url === "string" ? metadata.video_url : null) ??
-                                item.cloudinary_url ??
-                                undefined
-                              }
-                              controls
-                              className="w-full"
-                            />
-                          ) : (
-                            <img src={previewUrl} alt="Media généré" className="w-full" />
-                          )}
-                        </div>
-                      )}
-                      {woofs !== null && woofs !== undefined && (
-                        <p className="mt-2 text-xs text-muted-foreground">Woofs consommés : {woofs}</p>
-                      )}
-                      {assetHref && (
-                        <div className="mt-2">
-                          <Button asChild size="sm" variant="link" className="px-0">
-                            <a href={assetHref} target="_blank" rel="noopener noreferrer">
-                              Ouvrir l’asset →
-                            </a>
-                          </Button>
-                        </div>
-                      )}
-                    </div>
+                    <StudioAssetCard
+                      key={item.id}
+                      asset={{
+                        id: item.id,
+                        type: item.type,
+                        status: assetStatus,
+                        createdAt: formatDate(item.created_at),
+                        previewUrl,
+                        assetUrl: item.cloudinary_url ?? undefined,
+                        downloadUrl,
+                        videoUrl,
+                        woofs,
+                        engine,
+                      }}
+                      onMissingUrl={() => {
+                        toast.error("URL indisponible");
+                      }}
+                    />
                   );
                 })}
               </div>
