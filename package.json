@@ -8,7 +8,7 @@
     "build": "node ./scripts/run-build.js",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "verify:trycatch": "node scripts/verify-trycatch.js",
+    "verify:trycatch": "node scripts/verify-trycatch.mjs",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "maintain:old-prs": "node scripts/maintain-old-prs.mjs",
