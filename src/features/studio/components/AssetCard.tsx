@@ -1,6 +1,7 @@
 import React from "react";
 import { Download, ExternalLink, Film } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toDownloadUrl, toOriginalUrl, toThumbUrl } from "@/lib/cloudinary/url";
 
 type Asset = {
   id: string;
@@ -22,9 +23,13 @@ type AssetCardProps = {
 
 export function AssetCard({ asset, className, onEnqueueVideo }: AssetCardProps) {
   const hasUrl = Boolean(asset?.url);
-  const openHref = hasUrl ? String(asset.url) : undefined;
-  const downloadHref =
-    hasUrl ? `${asset!.url!}${asset!.url!.includes("?") ? "&" : "?"}fl_attachment` : undefined;
+  const openHref = hasUrl ? toOriginalUrl(asset.url!) : undefined;
+  const previewSrc = hasUrl
+    ? toThumbUrl(asset.url!)
+    : asset.coverUrl
+    ? toThumbUrl(asset.coverUrl)
+    : undefined;
+  const downloadHref = hasUrl ? toDownloadUrl(asset.url!) : undefined;
 
   const isCarousel = asset.type === "carousel";
   const isVideo = asset.type === "video";
@@ -39,16 +44,16 @@ export function AssetCard({ asset, className, onEnqueueVideo }: AssetCardProps) 
       )}
     >
       <div className="aspect-video w-full overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-800">
-        {isCarousel && asset.coverUrl ? (
+        {isCarousel && previewSrc ? (
           <img
-            src={asset.coverUrl}
+            src={previewSrc}
             alt={asset.title ?? `Carousel ${asset.id}`}
             className="h-full w-full object-cover"
             loading="lazy"
           />
         ) : hasUrl ? (
           <img
-            src={asset.url!}
+            src={previewSrc!}
             alt={asset.title ?? `Asset ${asset.id}`}
             className="h-full w-full object-cover"
             loading="lazy"

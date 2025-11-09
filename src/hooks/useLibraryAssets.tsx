@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseSafeClient';
 import { toast } from 'sonner';
+import { toDownloadUrl, toOriginalUrl } from '@/lib/cloudinary/url';
 
 const MEDIA_URL_KEYS = [
   'videoUrl',
@@ -380,10 +381,10 @@ export function useLibraryAssets(userId: string | undefined, type: 'images' | 'v
       }
       
       const outputUrl = fullAsset?.output_url;
-      
+
       console.log('[Download] Output URL:', outputUrl ? `${outputUrl.substring(0, 100)}...` : 'null');
       console.log('[Download] Output URL type:', outputUrl?.startsWith('data:') ? 'base64' : outputUrl?.startsWith('http') ? 'http' : 'unknown');
-      
+
       if (!outputUrl) {
         console.warn('[Download] No output_url found in DB');
         toast.info(asset.type === 'video' ? 'Vidéo encore en génération… réessayez dans quelques minutes.' : "Fichier indisponible");
@@ -408,8 +409,16 @@ export function useLibraryAssets(userId: string | undefined, type: 'images' | 'v
         }
       }
 
+      if (outputUrl.startsWith('http')) {
+        const originalUrl = toOriginalUrl(outputUrl);
+        const downloadUrl = toDownloadUrl(originalUrl);
+        window.open(downloadUrl, '_blank', 'noopener');
+        toast.success('Téléchargement prêt');
+        return;
+      }
+
       let blob: Blob;
-      
+
       // Si c'est une image base64, la convertir en blob
       if (outputUrl.startsWith('data:')) {
         const base64Data = outputUrl.split(',')[1];

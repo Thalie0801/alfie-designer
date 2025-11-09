@@ -7,6 +7,7 @@ import { Download, Trash2, PlayCircle, Image as ImageIcon, AlertCircle } from "l
 import { LibraryAsset } from "@/hooks/useLibraryAssets";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
+import { toDownloadUrl, toOriginalUrl, toThumbUrl } from "@/lib/cloudinary/url";
 
 interface AssetCardProps {
   asset: LibraryAsset;
@@ -39,6 +40,20 @@ function safeTimeAgo(dateISO?: string | null) {
 
 export function AssetCard({ asset, selected, onSelect, onDownload, onDelete, daysUntilExpiry }: AssetCardProps) {
   const [imageError, setImageError] = useState(false);
+
+  const hasOutputUrl = Boolean(asset.output_url);
+  const originalOutputUrl = hasOutputUrl ? toOriginalUrl(asset.output_url) : undefined;
+  const previewSrc = asset.thumbnail_url
+    ? toThumbUrl(asset.thumbnail_url)
+    : hasOutputUrl
+    ? toThumbUrl(asset.output_url)
+    : undefined;
+  const downloadHref = hasOutputUrl ? toDownloadUrl(asset.output_url) : undefined;
+  const videoPoster = asset.thumbnail_url ? toThumbUrl(asset.thumbnail_url) : undefined;
+
+  const handleDownload = () => {
+    onDownload();
+  };
 
   // Reset l'état d'erreur si l’URL change
   useEffect(() => {
@@ -108,19 +123,19 @@ export function AssetCard({ asset, selected, onSelect, onDownload, onDelete, day
         <div className="relative aspect-video bg-muted overflow-hidden rounded-t-lg">
           {asset.type === "video" ? (
             <>
-              {asset.output_url && !imageError ? (
+              {originalOutputUrl && !imageError ? (
                 <video
-                  src={asset.output_url}
+                  src={originalOutputUrl}
                   className="w-full h-full object-cover"
-                  poster={asset.thumbnail_url || undefined}
+                  poster={videoPoster}
                   preload="metadata"
                   controls
                   onError={() => setImageError(true)}
                   aria-label="Aperçu vidéo"
                 />
-              ) : asset.thumbnail_url && !imageError ? (
+              ) : previewSrc && !imageError ? (
                 <img
-                  src={asset.thumbnail_url}
+                  src={previewSrc}
                   alt="Miniature vidéo"
                   className="w-full h-full object-cover"
                   onError={() => setImageError(true)}
@@ -145,22 +160,14 @@ export function AssetCard({ asset, selected, onSelect, onDownload, onDelete, day
             </>
           ) : (
             <>
-              {asset.output_url && !imageError ? (
+              {previewSrc && !imageError ? (
                 <img
-                  src={asset.output_url}
+                  src={previewSrc}
                   alt="Création"
                   className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
                   onError={() => setImageError(true)}
                   loading="lazy"
-                />
-              ) : asset.thumbnail_url && !imageError ? (
-                <img
-                  src={asset.thumbnail_url}
-                  alt="Miniature"
-                  className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                  onError={() => setImageError(true)}
-                  loading="lazy"
-                />
+              />
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-primary/10 to-secondary/10">
                   {imageError ? (
@@ -194,10 +201,11 @@ export function AssetCard({ asset, selected, onSelect, onDownload, onDelete, day
           size="sm"
           variant="outline"
           className="flex-1"
-          onClick={onDownload}
+          onClick={handleDownload}
           disabled={asset.type === "video" && !asset.output_url}
           title={asset.type === "video" && !asset.output_url ? "Vidéo en cours de génération" : "Télécharger"}
           aria-disabled={(asset.type === "video" && !asset.output_url) || undefined}
+          data-download-href={downloadHref}
         >
           <Download className="h-4 w-4 mr-2" />
           {asset.type === "video" && !asset.output_url ? "En génération…" : "Télécharger"}
