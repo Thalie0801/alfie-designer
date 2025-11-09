@@ -65,44 +65,46 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Fail on control chars in source
+        shell: bash
+        run: |
+          bad=$(git ls-files | grep -E '\\.(ts|tsx|js|jsx|json|md|yaml|yml|sh)$' | xargs -I{} bash -lc "LC_ALL=C grep -nU $'[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]' '{}' || true")
+          if [ -n "$bad" ]; then
+            echo "::error title=Control chars detected::"
+            echo "$bad"
+            exit 1
+          fi
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      - name: Force public npm registry
-        run: npm config set registry https://registry.npmjs.org/
-
-      - name: Cache node_modules
-        id: cache-node-modules
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            node-modules-${{ runner.os }}-
-
-      - name: Install dependencies (robust)
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+      - name: Node info
         run: |
-          set -euxo pipefail
-          if [ -f package-lock.json ]; then
-            npm ci --prefer-offline --no-audit --no-fund \
-            || npm ci --prefer-offline --no-audit --no-fund --legacy-peer-deps \
-            || npm install --prefer-online --no-audit --no-fund --legacy-peer-deps
+          node -v
+          npm -v
+          npm config get registry
+
+      - name: Configure npm auth (optional)
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -n "${NPM_TOKEN}" ]; then
+            echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" >> ~/.npmrc
+            echo "npm auth OK"
           else
-            npm install --prefer-online --no-audit --no-fund --legacy-peer-deps
+            echo "No NPM_TOKEN (OK si toutes les deps sont publiques)"
           fi
 
-      - name: Cache Vite build
-        uses: actions/cache@v4
-        with:
-          path: |
-            dist
-            node_modules/.vite
-          key: vite-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
-          restore-keys: |
-            vite-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+      - name: Verify registry reachability
+        run: |
+          npm ping || (echo "::error::npm registry unreachable" && exit 1)
+
+      - name: Install deps (ci with fallback + debug)
+        run: |
+          set -euxo pipefail
+          npm ci --prefer-online || (echo "retry npm ci…" && sleep 3 && npm ci --prefer-online)
 
   typecheck:
     name: TypeScript
@@ -119,11 +121,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      - name: Restore node_modules cache
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - name: Install deps (ci with fallback + debug)
+        run: |
+          set -euxo pipefail
+          npm ci --prefer-online || (echo "retry npm ci…" && sleep 3 && npm ci --prefer-online)
 
       - name: Type check
         id: tsc
@@ -199,11 +200,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      - name: Restore node_modules cache
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - name: Install deps (ci with fallback + debug)
+        run: |
+          set -euxo pipefail
+          npm ci --prefer-online || (echo "retry npm ci…" && sleep 3 && npm ci --prefer-online)
 
       - name: Lint
         id: lint
@@ -268,19 +268,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      - name: Restore node_modules cache
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-
-      - name: Restore Vite cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            dist
-            node_modules/.vite
-          key: vite-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
+      - name: Install deps (ci with fallback + debug)
+        run: |
+          set -euxo pipefail
+          npm ci --prefer-online || (echo "retry npm ci…" && sleep 3 && npm ci --prefer-online)
 
       - name: Build
         id: build
