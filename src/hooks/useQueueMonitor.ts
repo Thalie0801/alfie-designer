@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabaseSafeClient';
 import { getAuthHeader } from '@/lib/auth';
 import { useAuth } from '@/hooks/useAuth';
@@ -20,7 +20,7 @@ export function useQueueMonitor(enabled: boolean) {
   const [error, setError] = useState<string | null>(null);
   const timerRef = useRef<number | null>(null);
 
-  const fetchOnce = useMemo(() => async () => {
+  const fetchOnce = useCallback(async () => {
     if (!enabled) return;
     setLoading(true);
     setError(null);
@@ -69,5 +69,5 @@ export function useQueueMonitor(enabled: boolean) {
     };
   }, [enabled, user?.id, fetchOnce]);
 
-  return { data, loading, error } as const;
+  return { data, loading, error, refresh: fetchOnce } as const;
 }

@@ -1,13 +1,13 @@
 import { supabase } from '@/lib/supabaseSafeClient';
 import { spliceVideoUrl, extractCloudNameFromUrl } from './videoSimple';
 
-type Aspect = '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '4:5';
+export type CarouselVideoAspect = '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '4:5';
 
 interface CarouselVideoParams {
   carouselId?: string;
   orderId?: string;
   jobSetId?: string;
-  aspect?: Aspect;
+  aspect?: CarouselVideoAspect;
   title?: string;
   subtitle?: string;
   cta?: string;

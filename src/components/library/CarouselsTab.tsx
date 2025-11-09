@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { slideUrl } from "@/lib/cloudinary/imageUrls";
 import { extractCloudNameFromUrl } from "@/lib/cloudinary/utils";
-import { generateCarouselVideoFromLibrary } from "@/lib/cloudinary/carouselToVideo";
+import { generateCarouselVideoFromLibrary, type CarouselVideoAspect } from "@/lib/cloudinary/carouselToVideo";
 import { cn } from "@/lib/utils";
 
 interface CarouselSlide {
@@ -229,7 +229,7 @@ export function CarouselsTab({ orderId }: CarouselsTabProps) {
     try {
       const carouselId = carouselSlides[0]?.carousel_id || undefined;
       const orderId = carouselSlides[0]?.order_id || undefined;
-      const format = (carouselSlides[0]?.format || "4:5") as Aspect;
+      const format = (carouselSlides[0]?.format || "4:5") as CarouselVideoAspect;
 
       const url = await generateCarouselVideoFromLibrary({
         carouselId,

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { Upload, Wand2, Download, X, Sparkles, Loader2, AlertCircle, Clock, CheckCircle2 } from "lucide-react";
+import { Upload, Wand2, Download, X, Sparkles, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
@@ -13,8 +13,14 @@ import { useBrandKit } from "@/hooks/useBrandKit";
 import { toast } from "sonner";
 import { useQueueMonitor } from "@/hooks/useQueueMonitor";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { QueueStatus } from "@/components/chat/QueueStatus";
+import {
+  generateCarouselVideoFromLibrary,
+  generateCarouselVideoFromJobSet,
+  type CarouselVideoAspect,
+} from "@/lib/cloudinary/carouselToVideo";
 import { JobCard } from "./components/JobCard";
-import { AssetCard as StudioAssetCard } from "./components/AssetCard";
+import { AssetCard as StudioAssetCard, type StudioAsset } from "./components/AssetCard";
 import type { JobEntry, MediaEntry } from "./types";
 
 type GeneratedAsset = {
@@ -52,6 +58,8 @@ const ASPECT_TO_TW: Record<AspectRatio, string> = {
   "9:16": "aspect-[9/16]",
   "16:9": "aspect-video",
 };
+
+const CAROUSEL_VIDEO_ASPECTS: CarouselVideoAspect[] = ["4:5", "1:1", "9:16", "16:9", "3:4", "4:3"];
 
 const UNKNOWN_REFRESH_ERROR = "Erreur inconnue pendant le rafraîchissement";
 
@@ -136,6 +144,7 @@ export function ChatGenerator() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isForcing, setIsForcing] = useState(false);
+  const [creatingVideoId, setCreatingVideoId] = useState<string | null>(null);
 
   const { toast: showToast } = useToast();
 
@@ -153,8 +162,56 @@ export function ChatGenerator() {
     toast.error(message || "Erreur de génération");
   }, []);
 
+  const handleCreateVideoFromAsset = useCallback(
+    async (asset: StudioAsset) => {
+      if (creatingVideoId && creatingVideoId !== asset.id) {
+        return;
+      }
+
+      if (!asset.carouselId && !asset.orderId && !asset.jobSetId) {
+        toast.error("Impossible de générer la vidéo : identifiants manquants.");
+        return;
+      }
+
+      setCreatingVideoId(asset.id);
+      try {
+        const normalized = (asset.aspectRatio ?? "").trim();
+        const aspect = (CAROUSEL_VIDEO_ASPECTS.includes(normalized as CarouselVideoAspect)
+          ? (normalized as CarouselVideoAspect)
+          : "4:5") as CarouselVideoAspect;
+
+        let url: string | null = null;
+        if (asset.jobSetId) {
+          url = await generateCarouselVideoFromJobSet({
+            jobSetId: asset.jobSetId,
+            aspect,
+            title: asset.title ?? undefined,
+          });
+        } else {
+          url = await generateCarouselVideoFromLibrary({
+            carouselId: asset.carouselId ?? undefined,
+            orderId: asset.orderId ?? undefined,
+            aspect,
+            title: asset.title ?? undefined,
+          });
+        }
+
+        if (!url) throw new Error("Aucune URL vidéo générée");
+        window.open(url, "_blank", "noopener,noreferrer");
+        toast.success("Vidéo générée 🎬");
+      } catch (err) {
+        console.error("[Studio] create video error:", err);
+        const message = err instanceof Error ? err.message : "Erreur lors de la génération de la vidéo";
+        toast.error(message);
+      } finally {
+        setCreatingVideoId(null);
+      }
+    },
+    [creatingVideoId],
+  );
+
   // ✅ Monitor queue status
-  const { data: queueData } = useQueueMonitor(true);
+  const { data: queueData, refresh: refreshQueue } = useQueueMonitor(true);
 
   // Calculate stuck jobs
   const stuckJobs = useMemo(() => {
@@ -542,6 +599,7 @@ export function ChatGenerator() {
           : 0;
 
       toast.success(`Traitement forcé: ${processed} job(s).`);
+      await refreshQueue();
       await fetchWithTimeoutPromise(refetchAll(), 15000);
     } catch (err) {
       console.error("[Studio] trigger worker error:", err);
@@ -558,7 +616,7 @@ export function ChatGenerator() {
     } finally {
       setIsForcing(false);
     }
-  }, [isForcing, refetchAll]);
+  }, [isForcing, refetchAll, refreshQueue]);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -576,29 +634,9 @@ export function ChatGenerator() {
 
         {/* ✅ Queue Monitor */}
         {queueData && (
-          <Alert className="mb-6">
-            <Clock className="h-4 w-4" />
-            <AlertDescription className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <span className="text-sm">
-                  <strong>{queueData.counts.queued}</strong> en attente
-                </span>
-                <span className="text-sm">
-                  <strong>{queueData.counts.running}</strong> en cours
-                </span>
-                {queueData.counts.failed > 0 && (
-                  <span className="text-sm text-destructive">
-                    <AlertCircle className="inline w-3 h-3 mr-1" />
-                    <strong>{queueData.counts.failed}</strong> échecs
-                  </span>
-                )}
-                {queueData.counts.completed_24h !== undefined && (
-                  <span className="text-sm text-muted-foreground">
-                    <CheckCircle2 className="inline w-3 h-3 mr-1" />
-                    {queueData.counts.completed_24h} générés (24h)
-                  </span>
-                )}
-              </div>
+          <div className="mb-6 space-y-2">
+            <QueueStatus data={queueData} />
+            <div className="flex justify-end px-4">
               <Button
                 variant="outline"
                 size="sm"
@@ -611,11 +649,11 @@ export function ChatGenerator() {
                     Traitement...
                   </>
                 ) : (
-                  'Forcer le traitement'
+                  "Forcer le traitement"
                 )}
               </Button>
-            </AlertDescription>
-          </Alert>
+            </div>
+          </div>
         )}
 
         {/* Controls */}
@@ -893,6 +931,31 @@ export function ChatGenerator() {
                   const downloadUrl = typeof metadata.download_url === "string" ? metadata.download_url : null;
                   const videoUrl = typeof metadata.video_url === "string" ? metadata.video_url : null;
                   const engine = typeof metadata.engine === "string" ? metadata.engine : null;
+                  const carouselId =
+                    (typeof metadata.carousel_id === "string" && metadata.carousel_id) ||
+                    (typeof metadata.carouselId === "string" && metadata.carouselId) ||
+                    (typeof metadata.carouselID === "string" && metadata.carouselID) ||
+                    null;
+                  const orderIdForAsset =
+                    (typeof item.order_id === "string" && item.order_id) ||
+                    (typeof metadata.order_id === "string" && metadata.order_id) ||
+                    (typeof metadata.orderId === "string" && metadata.orderId) ||
+                    null;
+                  const jobSetId =
+                    (typeof metadata.job_set_id === "string" && metadata.job_set_id) ||
+                    (typeof metadata.jobSetId === "string" && metadata.jobSetId) ||
+                    null;
+                  const aspectRatioMeta =
+                    (typeof metadata.aspect_ratio === "string" && metadata.aspect_ratio) ||
+                    (typeof metadata.aspectRatio === "string" && metadata.aspectRatio) ||
+                    (typeof metadata.format === "string" && metadata.format) ||
+                    (typeof metadata.ratio === "string" && metadata.ratio) ||
+                    null;
+                  const title =
+                    (typeof metadata.title === "string" && metadata.title) ||
+                    (typeof metadata.name === "string" && metadata.name) ||
+                    (typeof metadata.prompt === "string" && metadata.prompt) ||
+                    null;
 
                   return (
                     <StudioAssetCard
@@ -908,7 +971,14 @@ export function ChatGenerator() {
                         videoUrl,
                         woofs,
                         engine,
+                        carouselId,
+                        orderId: orderIdForAsset,
+                        jobSetId,
+                        aspectRatio: aspectRatioMeta,
+                        title,
                       }}
+                      onCreateVideo={handleCreateVideoFromAsset}
+                      isCreatingVideo={creatingVideoId === item.id}
                       onMissingUrl={() => {
                         toast.error("URL indisponible");
                       }}

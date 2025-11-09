@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Download, Trash2, PlayCircle, Image as ImageIcon, AlertCircle } from "lucide-react";
 import { LibraryAsset } from "@/hooks/useLibraryAssets";
+import { toDownloadUrl, toThumbUrl } from "@/lib/cloudinary/url";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -40,10 +41,45 @@ function safeTimeAgo(dateISO?: string | null) {
 export function AssetCard({ asset, selected, onSelect, onDownload, onDelete, daysUntilExpiry }: AssetCardProps) {
   const [imageError, setImageError] = useState(false);
 
+  const previewSrc = useMemo(() => {
+    const base = asset.thumbnail_url || asset.output_url || null;
+    if (!base) return undefined;
+    return (
+      toThumbUrl(base, {
+        type: asset.type === "video" ? "video" : "image",
+        width: 960,
+      }) ?? base
+    );
+  }, [asset.thumbnail_url, asset.output_url, asset.type]);
+
+  const hasDirectOutput = useMemo(() => {
+    if (!asset.output_url) return false;
+    if (asset.thumbnail_url && asset.thumbnail_url === asset.output_url) return false;
+    return asset.output_url.startsWith("http");
+  }, [asset.output_url, asset.thumbnail_url]);
+
+  const downloadHref = useMemo(() => {
+    if (!hasDirectOutput) return undefined;
+    return toDownloadUrl(asset.output_url);
+  }, [asset.output_url, hasDirectOutput]);
+
+  const handleDownloadClick = useCallback(() => {
+    if (downloadHref) {
+      const link = document.createElement("a");
+      link.href = downloadHref;
+      link.download = "";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+    onDownload();
+  }, [downloadHref, onDownload]);
+
   // Reset l'état d'erreur si l’URL change
   useEffect(() => {
     setImageError(false);
-  }, [asset.output_url, asset.thumbnail_url, asset.type]);
+  }, [asset.output_url, asset.thumbnail_url, asset.type, previewSrc]);
 
   const expiryBadge = useMemo(() => {
     if (daysUntilExpiry < 0) {
@@ -108,19 +144,19 @@ export function AssetCard({ asset, selected, onSelect, onDownload, onDelete, day
         <div className="relative aspect-video bg-muted overflow-hidden rounded-t-lg">
           {asset.type === "video" ? (
             <>
-              {asset.output_url && !imageError ? (
+              {asset.output_url && !imageError && hasDirectOutput ? (
                 <video
                   src={asset.output_url}
                   className="w-full h-full object-cover"
-                  poster={asset.thumbnail_url || undefined}
+                  poster={previewSrc || asset.thumbnail_url || undefined}
                   preload="metadata"
                   controls
                   onError={() => setImageError(true)}
                   aria-label="Aperçu vidéo"
                 />
-              ) : asset.thumbnail_url && !imageError ? (
+              ) : previewSrc && !imageError ? (
                 <img
-                  src={asset.thumbnail_url}
+                  src={previewSrc}
                   alt="Miniature vidéo"
                   className="w-full h-full object-cover"
                   onError={() => setImageError(true)}
@@ -145,18 +181,10 @@ export function AssetCard({ asset, selected, onSelect, onDownload, onDelete, day
             </>
           ) : (
             <>
-              {asset.output_url && !imageError ? (
+              {previewSrc && !imageError ? (
                 <img
-                  src={asset.output_url}
+                  src={previewSrc}
                   alt="Création"
-                  className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                  onError={() => setImageError(true)}
-                  loading="lazy"
-                />
-              ) : asset.thumbnail_url && !imageError ? (
-                <img
-                  src={asset.thumbnail_url}
-                  alt="Miniature"
                   className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
                   onError={() => setImageError(true)}
                   loading="lazy"
@@ -194,7 +222,7 @@ export function AssetCard({ asset, selected, onSelect, onDownload, onDelete, day
           size="sm"
           variant="outline"
           className="flex-1"
-          onClick={onDownload}
+          onClick={handleDownloadClick}
           disabled={asset.type === "video" && !asset.output_url}
           title={asset.type === "video" && !asset.output_url ? "Vidéo en cours de génération" : "Télécharger"}
           aria-disabled={(asset.type === "video" && !asset.output_url) || undefined}
