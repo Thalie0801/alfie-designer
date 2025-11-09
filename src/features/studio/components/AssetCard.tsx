@@ -1,135 +1,149 @@
-import React from "react";
 import { Download, ExternalLink, Film } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Asset = {
+export type StudioAsset = {
   id: string;
   type: "image" | "carousel" | "video" | string;
-  url?: string | null;               // secure_url Cloudinary
-  coverUrl?: string | null;          // pour carrousel
-  slideUrls?: string[] | null;       // pour carrousel
+  url?: string | null;
+  coverUrl?: string | null;
+  slideUrls?: string[] | null;
   ratio?: "1:1" | "9:16" | "16:9" | "3:4" | string;
   title?: string | null;
   created_at?: string | null;
-  meta?: Record<string, any> | null;
+  meta?: Record<string, unknown> | null;
 };
 
-type AssetCardProps = {
-  asset: Asset;
+export interface AssetCardProps {
+  asset: StudioAsset;
   className?: string;
-  onEnqueueVideo?: (asset: Asset) => void; // transformer carrousel → vidéo
+  onEnqueueVideo?: (asset: StudioAsset) => void;
+}
+
+const TYPE_LABEL: Record<string, string> = {
+  image: "Image",
+  carousel: "Carrousel",
+  video: "Vidéo",
 };
+
+function formatDate(value?: string | null) {
+  if (!value) return null;
+  const timestamp = Date.parse(value);
+  if (Number.isNaN(timestamp)) return null;
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(timestamp));
+  } catch (error) {
+    console.warn("[AssetCard] Invalid date", { value, error });
+    return null;
+  }
+}
+
+function getPreviewUrl(asset: StudioAsset) {
+  if (asset.type === "carousel" && asset.coverUrl) {
+    return asset.coverUrl;
+  }
+  if (asset.url) {
+    return asset.url;
+  }
+  if (asset.slideUrls?.length) {
+    return asset.slideUrls[0] ?? null;
+  }
+  return null;
+}
 
 export function AssetCard({ asset, className, onEnqueueVideo }: AssetCardProps) {
-  const hasUrl = Boolean(asset?.url);
-  const openHref = hasUrl ? String(asset.url) : undefined;
+  const previewUrl = getPreviewUrl(asset);
+  const hasDownloadUrl = Boolean(asset?.url);
+  const openHref = hasDownloadUrl ? String(asset.url) : undefined;
+  const downloadHref = hasDownloadUrl
+    ? `${asset!.url!}${asset!.url!.includes("?") ? "&" : "?"}fl_attachment`
+    : undefined;
 
-  // Download direct Cloudinary
-  // Si tu veux forcer un nom: fl_attachment:alfie_<id>
-  const downloadHref =
-    hasUrl ? `${asset!.url!}${asset!.url!.includes("?") ? "&" : "?"}fl_attachment` : undefined;
-
-  const isCarousel = asset.type === "carousel";
-  const isVideo = asset.type === "video";
-  const isImage = asset.type === "image";
+  const typeLabel = TYPE_LABEL[asset.type] ?? asset.type ?? "Asset";
+  const createdAt = formatDate(asset.created_at);
 
   return (
-    <div
+    <article
       className={cn(
-        "rounded-2xl border bg-white/70 shadow-sm p-4 flex flex-col gap-3",
-        "dark:bg-neutral-900/70 dark:border-neutral-800",
-        className
+        "flex flex-col gap-3 rounded-2xl border bg-white/70 p-4 shadow-sm",
+        "dark:border-neutral-800 dark:bg-neutral-900/70",
+        className,
       )}
     >
-      {/* Media preview */}
       <div className="aspect-video w-full overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-800">
-        {isCarousel && asset.coverUrl ? (
+        {previewUrl ? (
           <img
-            src={asset.coverUrl}
-            alt={asset.title ?? `Carousel ${asset.id}`}
-            className="h-full w-full object-cover"
-            loading="lazy"
-          />
-        ) : hasUrl ? (
-          <img
-            src={asset.url!}
-            alt={asset.title ?? `Asset ${asset.id}`}
+            src={previewUrl}
+            alt={asset.title ?? `${typeLabel} ${asset.id}`}
             className="h-full w-full object-cover"
             loading="lazy"
           />
         ) : (
-          <div className="h-full w-full grid place-items-center text-neutral-400">
-            Aucun aperçu
+          <div className="grid h-full w-full place-items-center text-neutral-400">
+            Aucun aperçu disponible
           </div>
         )}
       </div>
 
-      {/* Meta */}
-      <div className="flex items-center justify-between">
+      <header className="flex items-center justify-between">
         <div className="min-w-0">
-          <div className="text-sm font-medium truncate">
-            {asset.title ?? (isCarousel ? "Carrousel" : isVideo ? "Vidéo" : "Image")}
-          </div>
-          <div className="text-xs text-neutral-500 truncate">
+          <p className="truncate text-sm font-medium">
+            {asset.title ?? typeLabel}
+          </p>
+          <p className="truncate text-xs text-neutral-500">
             {asset.ratio ? `Format ${asset.ratio}` : "Format inconnu"}
-            {asset.created_at ? ` • ${new Date(asset.created_at).toLocaleString()}` : ""}
-          </div>
+            {createdAt ? ` • ${createdAt}` : ""}
+          </p>
         </div>
+        <span className="rounded-full bg-neutral-100 px-2 py-1 text-xs dark:bg-neutral-800">
+          {typeLabel}
+        </span>
+      </header>
 
-        {/* Badges simples */}
-        <div className="text-xs px-2 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800">
-          {asset.type}
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="flex items-center gap-2">
-        {/* Ouvrir */}
+      <footer className="flex flex-wrap items-center gap-2">
         <a
           href={openHref}
           target="_blank"
           rel="noopener"
           className={cn(
-            "inline-flex items-center gap-1 px-3 py-2 rounded-lg border text-sm",
-            hasUrl
+            "inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-sm transition-colors",
+            hasDownloadUrl
               ? "hover:bg-neutral-50 dark:hover:bg-neutral-800"
-              : "pointer-events-none opacity-50"
+              : "pointer-events-none opacity-50",
           )}
-          aria-disabled={!hasUrl}
+          aria-disabled={!hasDownloadUrl}
         >
           <ExternalLink size={16} />
-          Ouvrir l’asset
+          Ouvrir
         </a>
-
-        {/* Télécharger */}
         <a
           href={downloadHref}
           download
           className={cn(
-            "inline-flex items-center gap-1 px-3 py-2 rounded-lg border text-sm",
-            hasUrl
+            "inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-sm transition-colors",
+            hasDownloadUrl
               ? "hover:bg-neutral-50 dark:hover:bg-neutral-800"
-              : "pointer-events-none opacity-50"
+              : "pointer-events-none opacity-50",
           )}
-          aria-disabled={!hasUrl}
+          aria-disabled={!hasDownloadUrl}
         >
           <Download size={16} />
           Télécharger
         </a>
-
-        {/* Transformer en vidéo (pour carrousel) */}
-        {isCarousel && typeof onEnqueueVideo === "function" && (
+        {asset.type === "carousel" && typeof onEnqueueVideo === "function" && (
           <button
             type="button"
             onClick={() => onEnqueueVideo(asset)}
-            className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800"
+            className="inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800"
           >
             <Film size={16} />
             Transformer en vidéo
           </button>
         )}
-      </div>
-    </div>
+      </footer>
+    </article>
   );
 }
 
