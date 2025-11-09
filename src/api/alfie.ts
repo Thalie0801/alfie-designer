@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabaseSafeClient';
+import { supabase } from '@/lib/supabaseClient';
 
 type GenerationResponse = {
   ok: boolean;

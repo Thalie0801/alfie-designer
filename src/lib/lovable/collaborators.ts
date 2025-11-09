@@ -1,19 +1,23 @@
-const LOVABLE_API_ORIGIN = "https://api.lovable.dev";
+const LOVABLE_PROXY_BASE = "/api/lovable";
+const MAX_ERROR_DETAILS = 500;
 
-export function buildLovableProjectUrl(projectId: string, path: string) {
-  if (!projectId) {
+function buildLovableProjectUrl(projectId: string, path: string) {
+  const sanitizedProjectId = projectId?.trim();
+  if (!sanitizedProjectId) {
     throw new Error("Missing projectId before calling collaborators API");
   }
 
-  const normalizedPath = (path.startsWith("/") ? path : `/${path}`).replace(/\/{2,}/g, "/");
-  return `${LOVABLE_API_ORIGIN}/projects/${encodeURIComponent(projectId)}${normalizedPath}`;
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const encodedProjectId = encodeURIComponent(sanitizedProjectId);
+  return `${LOVABLE_PROXY_BASE}/projects/${encodedProjectId}${normalizedPath}`;
 }
 
 async function handleLovableResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const text = await response.text().catch(() => "");
+    const snippet = text.slice(0, MAX_ERROR_DETAILS);
     throw new Error(
-      `Collaborators API failed: ${response.status} ${response.statusText} — ${text}`,
+      `Collaborators API failed: ${response.status} ${response.statusText || ""} — ${snippet}`.trim(),
     );
   }
 
@@ -33,16 +37,11 @@ async function handleLovableResponse<T>(response: Response): Promise<T> {
   }
 }
 
-export async function listProjectCollaborators<T = unknown>(
-  projectId: string,
-  lovableToken: string,
-): Promise<T> {
+export async function listProjectCollaborators<T = unknown>(projectId: string): Promise<T> {
   const url = buildLovableProjectUrl(projectId, "/collaborators");
   const response = await fetch(url, {
     method: "GET",
-    headers: {
-      Authorization: `Bearer ${lovableToken}`,
-    },
+    credentials: "include",
   });
 
   return handleLovableResponse<T>(response);
@@ -50,7 +49,6 @@ export async function listProjectCollaborators<T = unknown>(
 
 export async function inviteProjectCollaborator<T = unknown>(
   projectId: string,
-  lovableToken: string,
   email: string,
 ): Promise<T> {
   if (!email) {
@@ -60,9 +58,9 @@ export async function inviteProjectCollaborator<T = unknown>(
   const url = buildLovableProjectUrl(projectId, "/collaborators");
   const response = await fetch(url, {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${lovableToken}`,
     },
     body: JSON.stringify({ email }),
   });

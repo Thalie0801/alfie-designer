@@ -75,6 +75,47 @@ const ASPECT_TO_TW: Record<AspectRatio, string> = {
 };
 
 const UNKNOWN_REFRESH_ERROR = "Erreur inconnue pendant le rafraîchissement";
+const JOB_QUEUE_COLUMNS =
+  "id, type, status, order_id, created_at, updated_at, error, payload, user_id, retry_count";
+const MAX_ERROR_SNIPPET_LENGTH = 500;
+
+function getStringField(source: unknown, key: string): string | undefined {
+  if (!source || typeof source !== "object") return undefined;
+  const value = (source as Record<string, unknown>)[key];
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function extractRequeueError(error: unknown) {
+  const status = typeof (error as { status?: number })?.status === "number"
+    ? (error as { status: number }).status
+    : undefined;
+  const statusText = getStringField(error, "statusText");
+  const code = (error as { code?: string | number })?.code;
+
+  let message = getStringField(error, "message") ?? getStringField(error, "error");
+  if (!message && error instanceof Error && error.message.trim()) {
+    message = error.message.trim();
+  }
+  if (!message) {
+    message = "Erreur lors du renvoi du job";
+  }
+
+  const bodyCandidates = [
+    getStringField(error, "body"),
+    getStringField(error, "details"),
+    getStringField(error, "hint"),
+  ].filter((value): value is string => Boolean(value));
+
+  const bodySnippet = bodyCandidates.join(" | ").slice(0, MAX_ERROR_SNIPPET_LENGTH);
+
+  const meta: Record<string, unknown> = {};
+  if (typeof status === "number") meta.status = status;
+  if (statusText) meta.statusText = statusText;
+  if (code !== undefined) meta.code = code;
+  if (bodySnippet) meta.body = bodySnippet;
+
+  return { message, meta };
+}
 
 function resolveRefreshErrorMessage(error: unknown): string {
   if (!error) return UNKNOWN_REFRESH_ERROR;
@@ -223,7 +264,7 @@ export function ChatGenerator() {
       // ✅ Simplifier les requêtes pour éviter les timeouts
       let jobsQuery = supabase
         .from("job_queue")
-        .select("id, type, status, order_id, created_at, updated_at, error, payload, user_id, retry_count")
+        .select(JOB_QUEUE_COLUMNS)
         .eq("user_id", currentUser.id)
         .order("created_at", { ascending: false })
         .limit(30);
@@ -351,10 +392,11 @@ export function ChatGenerator() {
 
         await refetchAll();
       } catch (err) {
-        console.error("[Studio] requeueJob error:", err);
+        const { message: errorMessage, meta } = extractRequeueError(err);
+        console.error("[Studio] requeueJob error:", meta, err);
+        const toastMessage = errorMessage.trim() || "Erreur inconnue";
         showToast({
-          title: "Échec du renvoi",
-          description: err instanceof Error ? err.message : "Erreur inconnue lors du renvoi du job",
+          title: `Ré-enqueue échoué: ${toastMessage}`,
           variant: "destructive",
         });
       }

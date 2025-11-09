@@ -1,6 +1,6 @@
 // Gestionnaire de quotas mensuels par marque (visuels, vidéos, Woofs)
 
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabaseClient';
 import { SYSTEM_CONFIG } from '@/config/systemConfig';
 
 export interface QuotaStatus {

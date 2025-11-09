@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabaseClient';
 
 export function useFeatureFlags() {
   const [flags, setFlags] = useState<Record<string, any>>({});

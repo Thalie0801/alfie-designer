@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { SYSTEM_CONFIG } from '@/config/systemConfig';
@@ -174,32 +174,21 @@ export function useBrandManagement() {
     return SYSTEM_CONFIG.UPGRADE_DIFF[key] || 0;
   };
 
-  const resolveLovableCredentials = (
-    projectId?: string,
-    token?: string,
-  ) => {
+  const resolveLovableProjectId = (projectId?: string) => {
     const resolvedProjectId = projectId ?? import.meta.env.VITE_LOVABLE_PROJECT_ID;
-    const resolvedToken = token ?? import.meta.env.VITE_LOVABLE_TOKEN;
 
     if (!resolvedProjectId) {
       throw new Error('Lovable projectId manquant');
     }
 
-    if (!resolvedToken) {
-      throw new Error('Lovable token manquant');
-    }
-
-    return { projectId: resolvedProjectId, token: resolvedToken };
+    return resolvedProjectId;
   };
 
-  const fetchCollaborators = async (
-    projectId?: string,
-    token?: string,
-  ) => {
+  const fetchCollaborators = async (projectId?: string) => {
     try {
       setCollaboratorsLoading(true);
-      const creds = resolveLovableCredentials(projectId, token);
-      return await listProjectCollaborators(creds.projectId, creds.token);
+      const resolvedProjectId = resolveLovableProjectId(projectId);
+      return await listProjectCollaborators(resolvedProjectId);
     } catch (error: any) {
       console.error('Error fetching collaborators:', error);
       toast.error(error?.message || 'Erreur lors du chargement des collaborateurs');
@@ -212,7 +201,6 @@ export function useBrandManagement() {
   const inviteCollaborator = async (
     email: string,
     projectId?: string,
-    token?: string,
   ) => {
     if (!email) {
       toast.error('Email du collaborateur requis');
@@ -221,8 +209,8 @@ export function useBrandManagement() {
 
     try {
       setCollaboratorsLoading(true);
-      const creds = resolveLovableCredentials(projectId, token);
-      const result = await inviteProjectCollaborator(creds.projectId, creds.token, email);
+      const resolvedProjectId = resolveLovableProjectId(projectId);
+      const result = await inviteProjectCollaborator(resolvedProjectId, email);
       toast.success(`Invitation envoyée à ${email}`);
       return result;
     } catch (error: any) {

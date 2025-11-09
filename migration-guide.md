@@ -38,7 +38,7 @@ import { toast } from 'sonner';
 import { Send, ImagePlus, Sparkles } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useBrandKit } from '@/hooks/useBrandKit';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabaseClient';
 import { getAuthHeader } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import TextareaAutosize from 'react-textarea-autosize';
