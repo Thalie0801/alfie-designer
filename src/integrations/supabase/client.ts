@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { IS_LOVABLE_PREVIEW } from "@/lib/env";
 import type {
   Database,
   SupabaseIntegration,
@@ -10,10 +11,12 @@ import type {
 // VITE_EDGE_BASE_URL=https://<YOUR-PROJECT-REF>.functions.supabase.co
 const EDGE_BASE = import.meta.env.VITE_EDGE_BASE_URL;
 
-function assertBase(): asserts EDGE_BASE is string {
-  if (!EDGE_BASE) {
-    throw new Error("VITE_EDGE_BASE_URL manquant (Edge Function base URL).");
-  }
+function ok<T>(data: T, status = 200): LovableResult<T> {
+  return { ok: true, status, data };
+}
+
+function fail<T = never>(error: string, status = 409): LovableResult<T> {
+  return { ok: false, status, error };
 }
 
 async function fetchJSON<T>(input: RequestInfo, init?: RequestInit): Promise<LovableResult<T>> {
@@ -36,9 +39,23 @@ async function fetchJSON<T>(input: RequestInfo, init?: RequestInit): Promise<Lov
   }
 }
 
-export async function getSupabaseIntegration(projectId: string) {
-  assertBase();
+export async function getSupabaseIntegration(
+  projectId: string,
+): Promise<LovableResult<SupabaseIntegration>> {
+  if (IS_LOVABLE_PREVIEW) {
+    return ok({
+      projectId,
+      url: "",
+      connected: false,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
   if (!projectId) throw new Error("projectId requis");
+
+  if (!EDGE_BASE) {
+    return fail("Not implemented outside Lovable preview", 501);
+  }
 
   const url = `${EDGE_BASE}/lovable-proxy/projects/${encodeURIComponent(
     projectId,
@@ -53,9 +70,16 @@ export async function getSupabaseIntegration(projectId: string) {
 export async function connectSupabaseIntegration(
   projectId: string,
   payload: ConnectSupabasePayload,
-) {
-  assertBase();
+): Promise<LovableResult<SupabaseIntegration>> {
+  if (IS_LOVABLE_PREVIEW) {
+    return fail("Connecte Supabase dans Lovable (Intégrations).", 409);
+  }
+
   if (!projectId) throw new Error("projectId requis");
+
+  if (!EDGE_BASE) {
+    return fail("Not implemented outside Lovable preview", 501);
+  }
 
   const url = `${EDGE_BASE}/lovable-proxy/projects/${encodeURIComponent(
     projectId,

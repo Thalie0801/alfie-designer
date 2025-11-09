@@ -21,6 +21,14 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    headers: {
+      "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    },
+  },
+  preview: {
+    headers: {
+      "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    },
   },
   build: {
     outDir: "dist",

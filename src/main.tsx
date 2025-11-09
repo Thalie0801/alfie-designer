@@ -25,6 +25,7 @@ function enforceIframeSandboxPolicy() {
     // Sécurité iframe : on retire allow-same-origin lorsqu'allow-scripts est présent
     // pour empêcher l'évasion du sandbox. Les scripts restent autorisés mais l'iframe
     // n'a plus un accès direct de type same-origin et doit utiliser postMessage.
+    // no allow-same-origin to avoid sandbox escape warning.
     const filteredTokens = tokens.filter(token => token !== 'allow-same-origin');
     iframe.setAttribute('sandbox', filteredTokens.join(' '));
   };
