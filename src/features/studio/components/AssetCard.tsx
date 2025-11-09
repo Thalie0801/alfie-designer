@@ -4,6 +4,7 @@ import { Download, ExternalLink, Film } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toDownloadUrl, toThumbUrl } from "@/lib/cloudinary/url";
+import { toThumbUrl, toDownloadUrl, toOriginalUrl } from "@/lib/cloudinary/url";
 import { cn } from "@/lib/utils";
 
 export type StudioAsset = {
@@ -43,6 +44,14 @@ function formatStatus(status?: string | null): string | null {
   if (!status) return null;
   return status.replace(/_/g, " ").toUpperCase();
 }
+export function AssetCard({ asset, className, onEnqueueVideo }: AssetCardProps) {
+  // ---- URLs (une seule fois) ----
+  const hasUrl = Boolean(asset?.url || asset?.coverUrl);
+  const srcForPreview = asset.coverUrl ?? asset.url ?? "";
+
+  const previewSrc = srcForPreview ? toThumbUrl(srcForPreview) : undefined;
+  const openHref = asset.url ? toOriginalUrl(asset.url) : undefined;
+  const downloadHref = asset.url ? toDownloadUrl(asset.url) : undefined;
 
 export function AssetCard({
   asset,
@@ -107,11 +116,22 @@ export function AssetCard({
             className="h-full w-full object-cover"
             controls
             preload="metadata"
+      {/* Aperçu */}
+      <div className="aspect-video w-full overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-800">
+        {previewSrc ? (
+          <img
+            src={previewSrc}
+            alt={asset.title ?? `Asset ${asset.id}`}
+            className="h-full w-full object-cover"
+            loading="lazy"
           />
         ) : previewSrc ? (
           <img src={previewSrc} alt={title} className="h-full w-full object-cover" loading="lazy" />
         ) : (
           <div className="grid h-full w-full place-items-center text-neutral-400">Aucun aperçu disponible</div>
+          <div className="h-full w-full grid place-items-center text-neutral-400">
+            {hasUrl ? "Aucun aperçu" : "Aucun média disponible"}
+          </div>
         )}
 
         <div className="absolute top-2 left-2 flex flex-wrap items-center gap-2">
@@ -141,6 +161,32 @@ export function AssetCard({
           size="sm"
           variant="outline"
           className={cn(!openHref && "pointer-events-none opacity-60")}
+      {/* Actions */}
+      <div className="flex items-center gap-2">
+        {/* Ouvrir */}
+        <a
+          href={openHref}
+          target="_blank"
+          rel="noopener"
+          className={cn(
+            "inline-flex items-center gap-1 px-3 py-2 rounded-lg border text-sm",
+            openHref ? "hover:bg-neutral-50 dark:hover:bg-neutral-800" : "pointer-events-none opacity-50"
+          )}
+          aria-disabled={!openHref}
+        >
+          <ExternalLink size={16} />
+          Ouvrir l’asset
+        </a>
+
+        {/* Télécharger */}
+        <a
+          href={downloadHref}
+          download
+          className={cn(
+            "inline-flex items-center gap-1 px-3 py-2 rounded-lg border text-sm",
+            downloadHref ? "hover:bg-neutral-50 dark:hover:bg-neutral-800" : "pointer-events-none opacity-50"
+          )}
+          aria-disabled={!downloadHref}
         >
           <a
             href={openHref ?? "#"}
