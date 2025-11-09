@@ -3,6 +3,15 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { z } from "npm:zod";
 import { cors, fail, ok } from "../_shared/http.ts";
 
+const CLOUDINARY_CLOUD_NAME = Deno.env.get("CLOUDINARY_CLOUD_NAME") ?? "";
+
+const RATIO_MAP = {
+  "1:1": { width: 1024, height: 1024, ar: "1:1" },
+  "9:16": { width: 1024, height: 1820, ar: "9:16" },
+  "16:9": { width: 1536, height: 864, ar: "16:9" },
+  "3:4": { width: 1024, height: 1365, ar: "3:4" },
+} as const;
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
@@ -51,6 +60,13 @@ Deno.serve(async (req) => {
     }
 
     const { prompt, brandId, mode, ratio, imageUrl, imageBase64 } = parsed.data;
+    const cfg = RATIO_MAP[ratio] ?? RATIO_MAP["1:1"];
+
+    const transformedImageUrl = imageUrl
+      ? CLOUDINARY_CLOUD_NAME
+        ? `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/fetch/ar_${cfg.ar},c_fill,q_auto,f_auto/${encodeURIComponent(imageUrl)}`
+        : imageUrl
+      : undefined;
 
     const auth = req.headers.get("Authorization") ?? "";
     const jwt = auth.replace(/^Bearer\s+/i, "").trim();
@@ -73,8 +89,11 @@ Deno.serve(async (req) => {
       brandId,
       mode,
       ratio,
-      imageUrl,
+      imageUrl: transformedImageUrl,
       imageBase64,
+      width: cfg.width,
+      height: cfg.height,
+      aspectRatio: cfg.ar,
     };
 
     const { data: order, error: orderError } = await supa
