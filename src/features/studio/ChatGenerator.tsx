@@ -555,13 +555,12 @@ export function ChatGenerator() {
     setIsTriggeringWorker(true);
     try {
       const result = await forceProcess();
-      toast.success("Traitement forcé OK");
-      console.log("forceProcess result:", result);
-
+      toast.success(`Traitement forcé: ${result?.processed ?? 0} job(s).`);
       await refetchAll();
     } catch (err) {
       console.error("[Studio] trigger worker error:", err);
-      toast.error(`Forçage échoué: ${err instanceof Error ? err.message : "Erreur inconnue"}`);
+      const msg = err instanceof Error ? err.message : "Erreur inconnue";
+      toast.error(`Forçage échoué: ${msg}`);
     } finally {
       setIsTriggeringWorker(false);
     }
