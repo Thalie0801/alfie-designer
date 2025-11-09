@@ -13,6 +13,7 @@ import { useBrandKit } from "@/hooks/useBrandKit";
 import { toast } from "sonner";
 import { useQueueMonitor } from "@/hooks/useQueueMonitor";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AssetCard, type StudioAsset } from "./components/AssetCard";
 
 type GeneratedAsset = {
   url: string;
@@ -40,17 +41,6 @@ type JobEntry = {
   payload?: unknown;
   user_id: string;
   retry_count: number;
-};
-
-type MediaEntry = {
-  id: string;
-  type: string;
-  cloudinary_url: string | null;
-  metadata?: Record<string, any> | null;
-  created_at: string;
-  brand_id?: string | null;
-  order_id?: string | null;
-  status?: string | null;
 };
 
 // Exemples de prompts suggérés (Phase 3)
@@ -154,7 +144,7 @@ export function ChatGenerator() {
   );
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("1:1");
   const [jobs, setJobs] = useState<JobEntry[]>([]);
-  const [assets, setAssets] = useState<MediaEntry[]>([]);
+  const [assets, setAssets] = useState<StudioAsset[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isForcing, setIsForcing] = useState(false);
@@ -175,6 +165,10 @@ export function ChatGenerator() {
     toast.error(message || "Erreur de génération");
   }, []);
 
+  const onEnqueueVideo = useCallback(async (_carousel: StudioAsset) => {
+    toast.success("Vidéo en préparation…");
+  }, []);
+
   // ✅ Monitor queue status
   const { data: queueData } = useQueueMonitor(true);
 
@@ -190,20 +184,6 @@ export function ChatGenerator() {
   }, [jobs]);
 
   const jobBadgeVariant = (status: string): "default" | "secondary" | "outline" | "destructive" => {
-    switch (status) {
-      case "queued":
-        return "secondary";
-      case "running":
-        return "default";
-      case "failed":
-        return "destructive";
-      case "completed":
-      default:
-        return "outline";
-    }
-  };
-
-  const mediaBadgeVariant = (status: string): "default" | "secondary" | "outline" | "destructive" => {
     switch (status) {
       case "queued":
         return "secondary";
@@ -261,7 +241,7 @@ export function ChatGenerator() {
       if (assetsResponse.error) throw assetsResponse.error;
 
       setJobs((jobsResponse.data as JobEntry[]) ?? []);
-      setAssets((assetsResponse.data as MediaEntry[]) ?? []);
+      setAssets((assetsResponse.data as StudioAsset[]) ?? []);
     } catch (err) {
       console.error("[Studio] refetchAll error:", err);
       const message = resolveRefreshErrorMessage(err);
@@ -953,68 +933,9 @@ export function ChatGenerator() {
               </p>
             ) : (
               <div className="space-y-4">
-                {assets.map((item) => {
-                  const metadata =
-                    typeof item.metadata === "object" && item.metadata !== null
-                      ? (item.metadata as Record<string, any>)
-                      : null;
-                  const previewUrl =
-                    (metadata && typeof metadata.thumbnail_url === "string" ? metadata.thumbnail_url : null) ??
-                    (metadata && typeof metadata.preview_url === "string" ? metadata.preview_url : null) ??
-                    item.cloudinary_url ??
-                    "";
-                  const assetStatus =
-                    (metadata && typeof metadata.status === "string" ? metadata.status : null) ??
-                    (item.status ?? "done");
-                  const woofs = metadata && "woofs" in metadata ? metadata.woofs : null;
-                  const assetHref =
-                    (metadata && typeof metadata.download_url === "string" ? metadata.download_url : null) ??
-                    item.cloudinary_url ??
-                    null;
-
-                  return (
-                    <div key={item.id} className="rounded-lg border p-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium capitalize">{item.type}</p>
-                          <p className="text-xs text-muted-foreground">{formatDate(item.created_at)}</p>
-                        </div>
-                        <Badge variant={mediaBadgeVariant(assetStatus)} className="uppercase">
-                          {assetStatus}
-                        </Badge>
-                      </div>
-                      {previewUrl && (
-                        <div className="mt-3 overflow-hidden rounded-md bg-muted">
-                          {item.type === "video" ? (
-                            <video
-                              src={
-                                (metadata && typeof metadata.video_url === "string" ? metadata.video_url : null) ??
-                                item.cloudinary_url ??
-                                undefined
-                              }
-                              controls
-                              className="w-full"
-                            />
-                          ) : (
-                            <img src={previewUrl} alt="Media généré" className="w-full" />
-                          )}
-                        </div>
-                      )}
-                      {woofs !== null && woofs !== undefined && (
-                        <p className="mt-2 text-xs text-muted-foreground">Woofs consommés : {woofs}</p>
-                      )}
-                      {assetHref && (
-                        <div className="mt-2">
-                          <Button asChild size="sm" variant="link" className="px-0">
-                            <a href={assetHref} target="_blank" rel="noopener noreferrer">
-                              Ouvrir l’asset →
-                            </a>
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                {assets.map((item) => (
+                  <AssetCard key={item.id} asset={item} onEnqueueVideo={onEnqueueVideo} />
+                ))}
               </div>
             )}
           </Card>
