@@ -175,6 +175,7 @@ export function useBrandManagement() {
   };
 
   const resolveLovableProjectId = (projectId?: string) => {
+  const resolveProjectId = (projectId?: string) => {
     const resolvedProjectId = projectId ?? import.meta.env.VITE_LOVABLE_PROJECT_ID;
 
     if (!resolvedProjectId) {
@@ -188,6 +189,12 @@ export function useBrandManagement() {
     try {
       setCollaboratorsLoading(true);
       const resolvedProjectId = resolveLovableProjectId(projectId);
+  const fetchCollaborators = async (
+    projectId?: string,
+  ) => {
+    try {
+      setCollaboratorsLoading(true);
+      const resolvedProjectId = resolveProjectId(projectId);
       return await listProjectCollaborators(resolvedProjectId);
     } catch (error: any) {
       console.error('Error fetching collaborators:', error);
@@ -210,6 +217,7 @@ export function useBrandManagement() {
     try {
       setCollaboratorsLoading(true);
       const resolvedProjectId = resolveLovableProjectId(projectId);
+      const resolvedProjectId = resolveProjectId(projectId);
       const result = await inviteProjectCollaborator(resolvedProjectId, email);
       toast.success(`Invitation envoyée à ${email}`);
       return result;
