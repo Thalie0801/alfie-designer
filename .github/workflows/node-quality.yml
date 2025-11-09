@@ -55,9 +55,8 @@ jobs:
         run: npm config set registry https://registry.npmjs.org/
 
       - name: Install dependencies
-        run: npm ci --prefer-offline
+        run: npm ci --prefer-offline || npm install --prefer-offline
 
-      # 👇 Lint non bloquant : on garde les annotations mais le job continue
       - name: Lint (non-blocking)
         id: lint
         continue-on-error: true
@@ -92,7 +91,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: node-modules-${{ runner.os }}-${{ hashFiles('**/package-lock.json','**/pnpm-lock.yaml','**/yarn.lock') }}
 
       - name: Install dependencies (cache miss)
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -130,7 +129,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Comment PR with typecheck results
-        if: github.event_name == 'pull_request' && always()
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
@@ -146,6 +145,7 @@ jobs:
               if (fs.existsSync('typecheck-summary.txt')) {
                 const content = fs.readFileSync('typecheck-summary.txt', 'utf8');
                 body += '<details><summary>First 20 lines</summary>\n\n````\n' + content + '\n````\n</details>\n';
+                body += '<details><summary>First 20 lines</summary>\n\n```\n' + content + '\n```\n</details>\n';
               }
               body += '📥 Full logs in the Actions run.\n';
             }
@@ -178,7 +178,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: node-modules-${{ runner.os }}-${{ hashFiles('**/package-lock.json','**/pnpm-lock.yaml','**/yarn.lock') }}
 
       - name: Install dependencies (cache miss)
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -214,7 +214,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Comment PR with lint results
-        if: github.event_name == 'pull_request' && always()
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
@@ -252,7 +252,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: node-modules-${{ runner.os }}-${{ hashFiles('**/package-lock.json','**/pnpm-lock.yaml','**/yarn.lock') }}
 
       - name: Install dependencies (cache miss)
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -264,7 +264,7 @@ jobs:
           path: |
             dist
             node_modules/.vite
-          key: vite-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
+          key: vite-${{ runner.os }}-${{ hashFiles('**/package-lock.json','**/pnpm-lock.yaml','**/yarn.lock','**/*.[jt]s','**/*.[jt]sx') }}
 
       - name: Build
         id: build
@@ -283,7 +283,7 @@ jobs:
           fi
 
       - name: Comment PR with build results
-        if: github.event_name == 'pull_request' && always()
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
