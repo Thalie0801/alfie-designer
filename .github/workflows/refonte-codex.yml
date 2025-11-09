@@ -1,29 +1,36 @@
 name: Refonte Codex (push→pull, disable autopublish)
+
 on:
   workflow_dispatch: {}
   push:
     branches: [ main, refonte-alfie-2025 ]
   pull_request:
     branches: [ main, refonte-alfie-2025 ]
+
 permissions:
   contents: write
   pull-requests: write
+
 concurrency:
   group: codex-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
 jobs:
   codex:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
+
       - name: Configure npm auth (optional)
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -34,23 +41,46 @@ jobs:
           else
             echo "No NPM_TOKEN secret; skipping npm auth."
           fi
+
       - name: Force public npm registry
         run: npm config set registry https://registry.npmjs.org/
-      - name: Skip dependency installation
-        run: echo "Skipping npm ci (codex runner operates without local install)."
-      - name: Install dependencies
-        run: |
-          npm ci --prefer-online || (echo "retry npm ci…" && sleep 3 && npm ci --prefer-online)
-      - name: Run Codex script
+
+      # Si Codex n'a pas besoin d'installer, laisse comme ça. Sinon dé-commente l'étape suivante.
+      # - name: Install dependencies
+      #   run: |
+      #     npm ci --prefer-online || (echo "retry npm ci…" && sleep 3 && npm ci --prefer-online)
+
+      - name: Prepare Codex script (chmod + LF)
         shell: bash
-        run: bash scripts/codex/run.sh
+        run: |
+          set -euo pipefail
+          if [ ! -f scripts/codex/run.sh ]; then
+            echo "::warning title=Codex::scripts/codex/run.sh introuvable. Étapes suivantes continueront sans Codex."
+            exit 0
+          fi
+          # Convertit CRLF -> LF si besoin
+          sed -i 's/\r$//' scripts/codex/run.sh || true
+          chmod +x scripts/codex/run.sh
+          head -n 1 scripts/codex/run.sh || true
+
+      - name: Run Codex script
+        id: codex
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -euxo pipefail
+          if [ -f scripts/codex/run.sh ]; then
+            bash scripts/codex/run.sh
+          else
+            echo "Codex absent, rien à exécuter."
+          fi
+
       # ---- Diff + Guard ----
       - name: Compute diff
         id: diff
         shell: bash
         run: |
           set -euo pipefail
-          # liste des fichiers modifiés (porcelain propre)
           CHANGED="$(git -c core.quotepath=false status --porcelain)"
           if [ -z "${CHANGED}" ]; then
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
@@ -64,7 +94,8 @@ jobs:
           echo "${FILES}" >> "$GITHUB_OUTPUT"
           echo "__EOF__" >> "$GITHUB_OUTPUT"
           echo "has_changes=true" >> "$GITHUB_OUTPUT"
-      - name: "Guard — No landing changes"
+
+      - name: Guard — No landing changes
         if: steps.diff.outputs.has_changes == 'true'
         shell: bash
         run: |
@@ -78,6 +109,13 @@ jobs:
             exit 1
           fi
           echo "OK: aucune modification dans apps/landing, www ou site."
+
+      - name: Fail if Codex failed
+        if: steps.codex.outcome == 'failure'
+        run: |
+          echo "::error title=Codex a échoué::Voir les logs de l'étape 'Run Codex script'."
+          exit 1
+
       # ---- PR seulement si changements + pas depuis un event PR ----
       - name: Create Pull Request
         if: steps.diff.outputs.has_changes == 'true' && github.event_name != 'pull_request'
@@ -98,3 +136,4 @@ jobs:
             automated
             codex
           draft: false
+
