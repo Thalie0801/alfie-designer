@@ -13,6 +13,7 @@ import { useBrandKit } from "@/hooks/useBrandKit";
 import { toast } from "sonner";
 import { useQueueMonitor } from "@/hooks/useQueueMonitor";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { JobCard } from "./components/JobCard";
 
 type GeneratedAsset = {
   url: string;
@@ -37,6 +38,7 @@ type JobEntry = {
   updated_at: string;
   error?: string | null;
   error_message?: string | null;
+  output_url?: string | null;
   payload?: unknown;
   user_id: string;
   retry_count: number;
@@ -189,20 +191,6 @@ export function ChatGenerator() {
     });
   }, [jobs]);
 
-  const jobBadgeVariant = (status: string): "default" | "secondary" | "outline" | "destructive" => {
-    switch (status) {
-      case "queued":
-        return "secondary";
-      case "running":
-        return "default";
-      case "failed":
-        return "destructive";
-      case "completed":
-      default:
-        return "outline";
-    }
-  };
-
   const mediaBadgeVariant = (status: string): "default" | "secondary" | "outline" | "destructive" => {
     switch (status) {
       case "queued":
@@ -238,7 +226,9 @@ export function ChatGenerator() {
 
       let jobsQuery = supabase
         .from("job_queue")
-        .select("id, type, status, order_id, created_at, updated_at, error, payload, user_id, retry_count")
+        .select(
+          "id, type, status, order_id, created_at, updated_at, error, error_message, output_url, payload, user_id, retry_count",
+        )
         .eq("user_id", currentUser.id)
         .order("created_at", { ascending: false })
         .limit(50);
@@ -369,6 +359,16 @@ export function ChatGenerator() {
       }
     },
     [refetchAll, showToast],
+  );
+
+  const handleRequeue = useCallback(
+    (jobId: string) => {
+      const nextJob = jobs.find((item) => item.id === jobId);
+      if (nextJob) {
+        void requeueJob(nextJob);
+      }
+    },
+    [jobs, requeueJob],
   );
 
   const handleSourceUpload = useCallback(
@@ -876,43 +876,9 @@ export function ChatGenerator() {
               </p>
             ) : (
               <div className="space-y-3">
-                {jobs.map((job) => {
-                  const jobError = job.error_message || job.error;
-
-                  return (
-                    <div key={job.id} className="rounded-lg border p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-medium capitalize">
-                            {job.type.replace(/_/g, " ")}
-                          </p>
-                          <p className="text-xs text-muted-foreground">{formatDate(job.created_at)}</p>
-                        </div>
-                        <Badge variant={jobBadgeVariant(job.status)} className="uppercase">
-                          {job.status}
-                        </Badge>
-                      </div>
-                      {job.order_id && (
-                        <p className="mt-1 text-xs text-muted-foreground">Order #{job.order_id}</p>
-                      )}
-                      {jobError && (
-                        <div className="mt-2 text-xs text-red-600 flex flex-wrap items-center gap-2">
-                          <span className="break-words flex-1">{jobError}</span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            title="Retenter"
-                            onClick={() => {
-                              void requeueJob(job);
-                            }}
-                          >
-                            Retenter
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                {jobs.map((job) => (
+                  <JobCard key={job.id} job={job} onRequeue={handleRequeue} />
+                ))}
               </div>
             )}
           </Card>
