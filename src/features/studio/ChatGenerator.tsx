@@ -114,6 +114,26 @@ function resolveRefreshErrorMessage(error: unknown): string {
   return UNKNOWN_REFRESH_ERROR;
 }
 
+function extractHttpStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== "object") {
+    return undefined;
+  }
+
+  const candidate = error as { status?: unknown; context?: unknown };
+  if (typeof candidate.status === "number") {
+    return candidate.status;
+  }
+
+  if (candidate.context && typeof candidate.context === "object") {
+    const context = candidate.context as { status?: unknown };
+    if (typeof context.status === "number") {
+      return context.status;
+    }
+  }
+
+  return undefined;
+}
+
 export function ChatGenerator() {
   const { activeBrandId } = useBrandKit();
   const location = useLocation();
@@ -141,7 +161,7 @@ export function ChatGenerator() {
   const [assets, setAssets] = useState<MediaEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isTriggeringWorker, setIsTriggeringWorker] = useState(false);
+  const [isForcing, setIsForcing] = useState(false);
 
   const { toast: showToast } = useToast();
 
@@ -551,24 +571,35 @@ export function ChatGenerator() {
   };
 
   // ✅ Trigger manual worker
-  const onForce = useCallback(async () => {
-    setIsTriggeringWorker(true);
+  const handleTriggerWorker = useCallback(async () => {
+    if (isForcing) return;
+
+    setIsForcing(true);
     try {
       const result = await forceProcess();
       const processed =
         typeof result?.processed === "number" ? result.processed : 0;
       toast.success(`Traitement forcé: ${processed} job(s).`);
 
-      await refetchAll();
+      if (typeof refetchAll === "function") {
+        await refetchAll();
+      }
     } catch (err) {
       console.error("[Studio] trigger worker error:", err);
+      const status = extractHttpStatus(err);
       const message =
         err instanceof Error ? err.message : "Erreur inconnue";
+
+      if (status === 409) {
+        toast.info("Un traitement est déjà en cours. Réessayez dans quelques secondes.");
+        return;
+      }
+
       toast.error(`Forçage échoué: ${message}`);
     } finally {
-      setIsTriggeringWorker(false);
+      setIsForcing(false);
     }
-  }, [forceProcess, refetchAll]);
+  }, [forceProcess, isForcing, refetchAll]);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -612,10 +643,10 @@ export function ChatGenerator() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={onForce}
-                disabled={isTriggeringWorker || queueData.counts.queued === 0}
+                onClick={handleTriggerWorker}
+                disabled={isForcing || queueData.counts.queued === 0}
               >
-                {isTriggeringWorker ? (
+                {isForcing ? (
                   <>
                     <Loader2 className="w-3 h-3 mr-2 animate-spin" />
                     Traitement...
@@ -810,7 +841,7 @@ export function ChatGenerator() {
                     size="sm"
                     className="ml-2 h-auto p-0 text-destructive underline"
                     onClick={handleTriggerWorker}
-                    disabled={isTriggeringWorker}
+                    disabled={isForcing}
                   >
                     Forcer le traitement
                   </Button>
