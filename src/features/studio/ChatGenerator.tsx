@@ -141,7 +141,7 @@ export function ChatGenerator() {
   const [assets, setAssets] = useState<MediaEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isTriggeringWorker, setIsTriggeringWorker] = useState(false);
+  const [isForcing, setIsForcing] = useState(false);
 
   const { toast: showToast } = useToast();
 
@@ -551,24 +551,27 @@ export function ChatGenerator() {
   };
 
   // ✅ Trigger manual worker
-  const onForce = useCallback(async () => {
-    setIsTriggeringWorker(true);
+  const handleTriggerWorker = useCallback(async () => {
+    if (isForcing) return; // anti double-clic
+    setIsForcing(true);
     try {
       const result = await forceProcess();
-      const processed =
-        typeof result?.processed === "number" ? result.processed : 0;
-      toast.success(`Traitement forcé: ${processed} job(s).`);
 
+      const processed =
+        typeof result?.processed === "number" && Number.isFinite(result.processed)
+          ? result.processed
+          : 0;
+
+      toast.success(`Traitement forcé: ${processed} job(s).`);
       await refetchAll();
     } catch (err) {
       console.error("[Studio] trigger worker error:", err);
-      const message =
-        err instanceof Error ? err.message : "Erreur inconnue";
-      toast.error(`Forçage échoué: ${message}`);
+      const errMsg = err instanceof Error ? err.message : "Erreur inconnue";
+      toast.error(`Forçage échoué: ${errMsg}`);
     } finally {
-      setIsTriggeringWorker(false);
+      setIsForcing(false);
     }
-  }, [forceProcess, refetchAll]);
+  }, [isForcing, forceProcess, refetchAll]);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -612,10 +615,10 @@ export function ChatGenerator() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={onForce}
-                disabled={isTriggeringWorker || queueData.counts.queued === 0}
+                onClick={handleTriggerWorker}
+                disabled={isForcing || queueData.counts.queued === 0}
               >
-                {isTriggeringWorker ? (
+                {isForcing ? (
                   <>
                     <Loader2 className="w-3 h-3 mr-2 animate-spin" />
                     Traitement...
@@ -810,7 +813,7 @@ export function ChatGenerator() {
                     size="sm"
                     className="ml-2 h-auto p-0 text-destructive underline"
                     onClick={handleTriggerWorker}
-                    disabled={isTriggeringWorker}
+                    disabled={isForcing}
                   >
                     Forcer le traitement
                   </Button>
