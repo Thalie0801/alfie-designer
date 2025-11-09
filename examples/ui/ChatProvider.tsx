@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { ChatContext } from "./chat-context";
+import { getLovableAuthHeader } from "../../src/lib/lovableToken";
 
 export { useChat } from "./chat-context";
 
@@ -21,7 +22,10 @@ export function ChatProvider({
       if (!stored) {
         const r = await fetch("/api/alfie/session", {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: {
+            "content-type": "application/json",
+            ...getLovableAuthHeader(),
+          },
           body: JSON.stringify({ brandId, userId }),
         });
         const j = await r.json();
@@ -39,7 +43,10 @@ export function ChatProvider({
     if (!chatId) throw new Error("chat_not_ready");
     const r = await fetch("/api/alfie/message", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        ...getLovableAuthHeader(),
+      },
       body: JSON.stringify({ chatId, text }),
     });
     const j = await r.json();
