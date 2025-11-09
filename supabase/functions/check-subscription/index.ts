@@ -12,28 +12,28 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const supabaseClient = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-    { auth: { persistSession: false } }
-  );
-
   try {
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
     if (!stripeKey) throw new Error('STRIPE_SECRET_KEY is not set');
 
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) throw new Error('No authorization header provided');
-    const token = authHeader.replace('Bearer ', '');
 
-    const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
-    if (userError) throw new Error(`Authentication error: ${userError.message}`);
-    const user = userData.user;
-    if (!user?.email) throw new Error('User not authenticated or email not available');
+    // ✅ Décoder le JWT (la fonction est déjà protégée par verify_jwt)
+    const token = authHeader.replace('Bearer ', '');
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(base64.length + (4 - (base64.length % 4)) % 4, '=');
+    const payload = JSON.parse(atob(padded));
+
+    const userEmail: string | undefined = payload.email || payload.user_metadata?.email;
+    const userId: string | undefined = payload.sub;
+
+    if (!userEmail) throw new Error('User not authenticated or email not available');
 
     const stripe = new Stripe(stripeKey, { apiVersion: '2025-08-27.basil' });
 
-    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
+    const customers = await stripe.customers.list({ email: userEmail, limit: 1 });
     if (customers.data.length === 0) {
       return new Response(
         JSON.stringify({ subscribed: false, status: 'none', current_period_end: null }),
@@ -53,9 +53,17 @@ serve(async (req) => {
 
     const sub = subscriptions.data[0];
     const end = new Date(sub.current_period_end * 1000).toISOString();
+    const planName = sub.items.data[0]?.price?.product as string;
 
+    // ✅ Retourner aussi le plan pour UI
     return new Response(
-      JSON.stringify({ subscribed: true, status: 'active', current_period_end: end }),
+      JSON.stringify({ 
+        subscribed: true, 
+        status: 'active', 
+        current_period_end: end,
+        plan_id: planName,
+        subscription_id: sub.id
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     );
   } catch (error) {

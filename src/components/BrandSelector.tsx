@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { useBrandKit } from '@/hooks/useBrandKit';
 import { BrandDialog } from '@/components/BrandDialog';
 import { toast } from 'sonner';
+import { safeNumber } from '@/lib/safeRender';
 
 export function BrandSelector() {
   const { 
@@ -52,9 +53,16 @@ export function BrandSelector() {
         <DropdownMenuContent align="start" className="w-[250px] bg-background border-2 z-50">
           <DropdownMenuLabel className="flex items-center justify-between">
             <span>Mes marques</span>
-            <Badge variant="outline" className="font-mono text-xs">
-              {totalBrands}/{quotaBrands}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="font-mono text-xs">
+                {safeNumber(totalBrands, 0)}/{safeNumber(quotaBrands, 1)}
+              </Badge>
+              {totalBrands >= quotaBrands && (
+                <Badge variant="destructive" className="text-xs">
+                  Quota atteint
+                </Badge>
+              )}
+            </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           
@@ -93,13 +101,15 @@ export function BrandSelector() {
                 className="cursor-pointer text-primary"
               >
                 <Plus className="h-4 w-4 mr-2" />
-                Créer une marque
+                Créer une marque gratuite ({safeNumber(quotaBrands, 1) - safeNumber(totalBrands, 0)} restante)
               </DropdownMenuItem>
             </BrandDialog>
           ) : (
-            <DropdownMenuItem disabled className="text-muted-foreground">
-              <Plus className="h-4 w-4 mr-2" />
-              Quota atteint
+            <DropdownMenuItem disabled className="text-muted-foreground text-xs italic px-3 py-2">
+              <div className="space-y-1">
+                <div className="font-medium">✋ Limite atteinte ({totalBrands}/{quotaBrands})</div>
+                <div className="text-xs">Utilisez "Ajouter une marque + 39€" ci-dessous pour une marque payante</div>
+              </div>
             </DropdownMenuItem>
           )}
         </DropdownMenuContent>

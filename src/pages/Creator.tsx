@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useBrandKit } from "@/hooks/useBrandKit";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabaseSafeClient";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -60,6 +60,20 @@ export default function Creator() {
   const handleGenerate = async () => {
     if (!user || !prompt.trim()) return toast.error("Veuillez saisir un prompt");
     
+    // ✅ Vérifier active_brand_id AVANT de commencer
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('active_brand_id')
+      .eq('id', user.id)
+      .single();
+    
+    const activeBrandId = profile?.active_brand_id;
+    
+    if (!activeBrandId) {
+      toast.error("Aucune marque active. Veuillez d'abord créer ou sélectionner une marque.");
+      return;
+    }
+    
     setIsGenerating(true);
     setDecision(null);
 
@@ -77,12 +91,33 @@ export default function Creator() {
         });
         
         if (planError) throw planError;
-        carouselPlan = planRes;
-        toast.success("Plan du carrousel généré !");
+        
+        // ✅ Normaliser la structure de la réponse pour supporter plusieurs formats
+        const normalizedPlan = planRes?.plan ?? planRes;
+        
+        if (!normalizedPlan?.slides || !Array.isArray(normalizedPlan.slides) || normalizedPlan.slides.length === 0) {
+          throw new Error('Plan de carrousel vide ou invalide');
+        }
+        
+        carouselPlan = normalizedPlan;
+        toast.success(`Plan du carrousel généré (${carouselPlan.slides.length} slides) !`);
+        console.log('[Carousel Plan] Generated:', carouselPlan.slides.length, 'slides');
+        
       } catch (err: any) {
-        toast.error(`Erreur lors de la planification : ${err.message}`);
-        setIsGenerating(false);
-        return;
+        console.error('[Carousel Plan] Error:', err);
+        toast.message('Planification indisponible, utilisation d\'un plan de secours.');
+        
+        // ✅ Fallback local : créer un plan minimal pour continuer
+        const fallbackSlides = Array.from({ length: quantity }).map((_, i) => ({
+          type: i === 0 ? 'hero' : i === quantity - 1 ? 'cta' : 'solution',
+          title: `Slide ${i + 1}`,
+          subtitle: 'Contenu à affiner',
+          bullets: [],
+          note: `High quality background, brand colors ${brandKit?.palette?.slice(0, 2)?.join(', ') || 'default'}, no text`
+        }));
+        
+        carouselPlan = { slides: fallbackSlides };
+        console.log('[Carousel Plan] Using fallback plan');
       }
     }
 
@@ -131,18 +166,18 @@ export default function Creator() {
           
           let enhancedPrompt = buildBrandAwarePrompt(slidePrompt, brandKit);
           
-          // Enrichir avec contexte carrousel
-          if (isCarousel && slide) {
-            enhancedPrompt = `Single-slide visual for an Instagram/LinkedIn carousel (slide ${i + 1}/${quantity}).
-Goal: ${prompt}
-Aspect ratio: 4:5 (1080x1350). One independent slide (no grid, no collage).
-Maintain brand look & feel and consistency across slides.
-Design guardrails:
-- Strong hierarchy, ample margins, high contrast (≥ WCAG AA).
-- Iconography minimal, focus on typographic rhythm and shapes.
-- Keep focal area clear around title.
-Brand colors: ${brandKit?.palette?.join(', ') || 'default'}
-Brand voice: ${brandKit?.voice || 'professional'}`;
+          // Utiliser le prompt visuel du plan généré par l'IA pour carrousel
+          if (isCarousel && slide?.note) {
+            enhancedPrompt = slide.note;
+            // Ajouter contexte technique
+            enhancedPrompt += `\nAspect ratio: ${format}. Professional photography quality, editorial style.`;
+            enhancedPrompt += `\nNO TEXT, NO TYPOGRAPHY, NO LETTERS on the image - text will be added separately.`;
+          } else if (!isCarousel) {
+            // Pour une image unique (non-carrousel), enrichir avec le brand kit
+            enhancedPrompt = `${enhancedPrompt}
+Aspect ratio: ${format}.
+Professional photography quality, editorial style.
+Colors: ${brandKit?.palette?.join(', ') || 'default'}`;
           }
           
           // Construire overlayText à partir du plan
@@ -187,41 +222,49 @@ Brand voice: ${brandKit?.voice || 'professional'}`;
         // Ajouter à l'affichage local
         setArtifacts(prev => [...prev, { id: `${Date.now()}-${i}`, kind: mode, uri: renderUrl, meta: { resolution: format, brand_score: scoreRes.score, cost_woofs: finalCost } }]);
 
-        // Sauvegarder dans la base de données
-        if (!activeBrandId) {
-          toast.error("No active brand. Please select a brand first.");
-          break;
+        // ✅ Valider que l'image a bien été générée avant de sauvegarder
+        if (!renderUrl || renderUrl.trim() === '') {
+          console.error("❌ Génération échouée : renderUrl vide");
+          toast.error(`Création ${i + 1}/${quantity} échouée : image non générée`);
+          continue; // Passer à la suivante au lieu de break
         }
         
+        // Sauvegarder dans la base de données
         const { error: insertError } = await supabase
           .from("media_generations")
           .insert({
             user_id: user.id,
             brand_id: activeBrandId,
             type: mode,
-            prompt,
+            prompt: slidePrompt, // ✅ Utiliser le prompt du slide
             output_url: renderUrl,
             thumbnail_url: mode === "image" ? renderUrl : null,
             status: "completed",
             modality: mode,
             provider_id: providerRes.provider,
+            engine: providerRes.provider, // ✅ Ajouter engine pour Library
             brand_score: scoreRes.score,
             cost_woofs: finalCost,
             metadata: { 
               resolution: format, 
               quality, 
               use_case,
-              provider: providerRes.provider 
+              provider: providerRes.provider,
+              isCarousel: quantity > 1, // ✅ Identifier les carrousels
+              slideIndex: quantity > 1 ? i : null,
+              totalSlides: quantity > 1 ? quantity : null
             },
             woofs: finalCost,
             expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
           } as any);
 
         if (insertError) {
-          console.error("Erreur insertion media_generations:", insertError);
-          toast.warning(`Création ${i + 1}/${quantity} réussie mais non sauvegardée`);
+          console.error("❌ Erreur insertion media_generations:", insertError);
+          // ✅ Afficher l'erreur détaillée
+          toast.error(`Sauvegarde échouée : ${insertError.message}`);
         } else {
-          toast.success(`Création ${i + 1}/${quantity} terminée ✅`);
+          console.log("✅ Image sauvegardée dans media_generations");
+          toast.success(`Création ${i + 1}/${quantity} sauvegardée dans votre bibliothèque ✅`);
         }
 
         // Petit délai entre chaque génération
@@ -231,7 +274,13 @@ Brand voice: ${brandKit?.voice || 'professional'}`;
 
         loadQuotaInfo();
       } catch (err: any) {
-        toast.error(`Erreur création ${i + 1}/${quantity}: ${err.message}`);
+        console.error(`Erreur création ${i + 1}/${quantity}:`, err);
+        if (err instanceof Error && err.name === "AbortError") {
+          toast.error("Timeout: la génération a pris trop de temps.");
+        } else {
+          const message = err instanceof Error ? err.message : String(err ?? "");
+          toast.error(message || "Erreur de génération");
+        }
         break;
       }
     }
@@ -259,7 +308,7 @@ Brand voice: ${brandKit?.voice || 'professional'}`;
 </SelectContent></Select></div>
                 {mode === "video" && <div><Label>Durée (s)</Label><Input type="number" value={duration} onChange={(e) => setDuration(parseInt(e.target.value))} min={5} max={30} /></div>}
                 <div><Label>Qualité</Label><Select value={quality} onValueChange={(v: any) => setQuality(v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="draft">Draft</SelectItem><SelectItem value="standard">Standard</SelectItem><SelectItem value="premium">Premium</SelectItem></SelectContent></Select></div>
-                <div><Label>Quantité (carrousel)</Label><Select value={quantity.toString()} onValueChange={(v) => setQuantity(parseInt(v))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="1">1 visuel</SelectItem><SelectItem value="2">2 visuels</SelectItem><SelectItem value="3">3 visuels</SelectItem><SelectItem value="4">4 visuels</SelectItem><SelectItem value="5">5 visuels</SelectItem></SelectContent></Select></div>
+                <div><Label>Quantité (carrousel)</Label><Select value={quantity.toString()} onValueChange={(v) => setQuantity(parseInt(v))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="1">1 visuel</SelectItem><SelectItem value="2">2 visuels</SelectItem><SelectItem value="3">3 visuels</SelectItem><SelectItem value="4">4 visuels</SelectItem><SelectItem value="5">5 visuels</SelectItem><SelectItem value="6">6 visuels</SelectItem><SelectItem value="7">7 visuels</SelectItem><SelectItem value="8">8 visuels</SelectItem><SelectItem value="9">9 visuels</SelectItem><SelectItem value="10">10 visuels</SelectItem></SelectContent></Select></div>
                 <Toggle pressed={batchNight} onPressedChange={setBatchNight}>Batch nuit</Toggle>
                 <Button onClick={handleGenerate} disabled={isGenerating || !prompt.trim()} className="w-full" size="lg">{isGenerating ? <><Clock className="w-4 h-4 mr-2 animate-spin" />Génération...</> : <><Sparkles className="w-4 h-4 mr-2" />Générer</>}</Button>
               </div>
