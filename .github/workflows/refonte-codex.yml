@@ -38,6 +38,9 @@ jobs:
         run: npm config set registry https://registry.npmjs.org/
       - name: Skip dependency installation
         run: echo "Skipping npm ci (codex runner operates without local install)."
+      - name: Install dependencies
+        run: |
+          npm ci --prefer-online || (echo "retry npm ci…" && sleep 3 && npm ci --prefer-online)
       - name: Run Codex script
         shell: bash
         run: bash scripts/codex/run.sh
