@@ -1,19 +1,16 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
-import { Button } from './ui/button';
 import { useBrandKit } from '@/hooks/useBrandKit';
 import { BrandSelector } from './BrandSelector';
 import { BrandDialog } from './BrandDialog';
-import { AddBrandDialog } from './AddBrandDialog';
-import { Palette, ExternalLink, AlertCircle } from 'lucide-react';
+import { Palette, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 
 export function BrandManager() {
   const { 
     activeBrand, 
     totalBrands, 
-    quotaBrands, 
-    canAddBrand,
+    quotaBrands,
     loadBrands,
     loading 
   } = useBrandKit();
@@ -53,7 +50,7 @@ export function BrandManager() {
         </div>
 
         {/* Active Brand Details */}
-        {activeBrand ? (
+        {activeBrand && (
           <div className="space-y-4 p-4 rounded-lg border-2 bg-muted/30">
             <div className="flex items-start justify-between">
               <div className="space-y-1">
@@ -89,14 +86,18 @@ export function BrandManager() {
               <div className="space-y-2">
                 <label className="text-sm font-medium">Palette de couleurs</label>
                 <div className="flex gap-2 flex-wrap">
-                  {activeBrand.palette.map((color, index) => (
-                    <div
-                      key={index}
-                      className="w-12 h-12 rounded-lg border-2 border-border shadow-sm"
-                      style={{ backgroundColor: color }}
-                      title={color}
-                    />
-                  ))}
+                  {activeBrand.palette.map((color: any, index: number) => {
+                    const rawColor = typeof color === 'string' ? color : (color?.color || '#000000');
+                    const hexColor = rawColor.replace(/["'\\]/g, "");
+                    return (
+                      <div
+                        key={index}
+                        className="w-12 h-12 rounded-lg border-2 border-border shadow-sm"
+                        style={{ backgroundColor: hexColor }}
+                        title={hexColor}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -109,7 +110,9 @@ export function BrandManager() {
               </div>
             )}
           </div>
-        ) : (
+        )}
+
+        {!activeBrand && (
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
@@ -118,8 +121,18 @@ export function BrandManager() {
           </Alert>
         )}
 
-        {/* Add Brand CTA */}
-        <AddBrandDialog onSuccess={loadBrands} />
+        {/* Add Brand Section - Hidden since only 1 brand allowed */}
+        {totalBrands === 0 && (
+          <div className="space-y-4 pt-4 border-t">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold">Créer votre marque</label>
+              <p className="text-xs text-muted-foreground">
+                Vous avez droit à 1 marque incluse dans votre compte
+              </p>
+              <BrandDialog onSuccess={loadBrands} />
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

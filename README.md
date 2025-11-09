@@ -60,6 +60,35 @@ Si GitHub Packages : créer un PAT avec `read:packages`, le stocker en secret (e
 Le script [`scripts/check-npm-token.js`](scripts/check-npm-token.js) est exécuté en `preinstall` pour empêcher toute installation locale sans `NPM_TOKEN`.
 
 > ℹ️ Le fichier [`./.npmrc`](.npmrc) force `always-auth=true` et lit `NPM_TOKEN` afin d'exiger un jeton pour toute résolution de paquet depuis le registre public npm.
+### Troubleshooting dependency installs
+
+If the npm registry returns `403` errors or the install stops with `ENOTEMPTY`/`EBUSY` issues, make sure the root `.npmrc` is
+present and points to the public registry. The file in this repository already contains sane defaults:
+
+```ini
+registry=https://registry.npmjs.org/
+always-auth=true
+fund=false
+audit=false
+# proxy=http://user:pass@proxy.company:8080
+# https-proxy=http://user:pass@proxy.company:8080
+```
+
+When the cache is corrupted locally, clean up the workspace and reinstall using exact versions locked in `package-lock.json`:
+
+```sh
+git clean -xfd -e .env -e .env.local
+npm cache verify || true
+npm cache clean --force || true
+npm ci --prefer-online
+```
+
+If your organisation requires an npm auth token in CI, expose it as `NPM_TOKEN` and append it to `~/.npmrc` before running
+`npm ci`:
+
+```sh
+echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" >> ~/.npmrc
+```
 
 **Edit a file directly in GitHub**
 
@@ -108,6 +137,24 @@ Si vous déployez manuellement le projet sur Vercel, pensez à renseigner les va
 - `VITE_SUPABASE_PUBLISHABLE_KEY`
 
 Ces valeurs sont utilisées pour initialiser le client Supabase côté front-end. Sans elles, l'application plante au chargement et Vercel affiche une erreur lors de l'ouverture du déploiement.
+
+- `VITE_SUPABASE_ANON_KEY`
+
+Ces valeurs sont utilisées pour initialiser le client Supabase côté front-end. Sans elles, l'application plante au chargement et Vercel affiche une erreur lors de l'ouverture du déploiement.
+
+## Variables d'environnement (accès VIP/Admin)
+
+- `VIP_EMAILS` : liste d'adresses e-mail (séparées par des virgules, insensibles à la casse) autorisées à accéder au dashboard même sans abonnement actif.
+- `ADMIN_EMAILS` : mêmes règles, mais octroie l'accès administrateur complet.
+
+> ⚠️ Ne stockez pas d'e-mails réels dans le dépôt Git. Renseignez ces valeurs uniquement dans vos fichiers `.env.local` ou via la configuration de votre hébergeur.
+
+## Flux d'authentification & facturation
+
+1. **Inscription** : la page `/auth` vérifie qu'une session Stripe (`verify-payment`) a été validée avant d'autoriser la création de compte.
+2. **Connexion** : `useAuth.signIn` autorise immédiatement les e-mails listés dans `VIP_EMAILS` ou `ADMIN_EMAILS`. Les autres utilisateurs doivent disposer d'un plan actif (`starter`, `pro`, `studio`, `enterprise`) ou d'un accès `granted_by_admin`.
+3. **Blocage des comptes gratuits** : si aucun abonnement actif n'est détecté, la connexion est refusée et l'utilisateur est redirigé vers `/pricing?reason=no-sub`.
+4. **Protection UI** : `AccessGuard` n'affiche « Connexion requise » que pour les visiteurs non authentifiés, éliminant les faux positifs sur `/dashboard`.
 
 ## Can I connect a custom domain to my Lovable project?
 

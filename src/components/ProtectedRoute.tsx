@@ -1,29 +1,45 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect, useState } from 'react';
+import { hasRole } from '@/lib/access';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requireAdmin?: boolean;
-  requirePlan?: boolean;
+  allowPending?: boolean;
 }
 
-export function ProtectedRoute({ children, requireAdmin = false, requirePlan = false }: ProtectedRouteProps) {
-  const { user, isAdmin, hasActivePlan, loading, refreshProfile } = useAuth();
+export function ProtectedRoute({
+  children,
+  requireAdmin = false,
+  allowPending = false,
+}: ProtectedRouteProps) {
+  const { user, isAdmin, isAuthorized, roles, loading, refreshProfile } = useAuth();
   const [checkingAdmin, setCheckingAdmin] = useState(false);
 
+  // ============================================================================
+  // LOGIQUE WHITELIST: Accès dashboard forcé pour comptes exceptionnels
+  // ============================================================================
+  const isWhitelisted = hasRole(roles, 'vip') || hasRole(roles, 'admin');
+
+  // Flags effectifs pour la navigation (whitelist ou autorisé normalement)
+  const effectiveIsAuthorized = isAuthorized || isWhitelisted;
+  const effectiveIsAdmin = isAdmin; // Admin déjà calculé dans useAuth
+  const hasAccess = effectiveIsAuthorized || allowPending;
+
   useEffect(() => {
-    if (requireAdmin && user && !isAdmin && !checkingAdmin) {
+    if (requireAdmin && user && !effectiveIsAdmin && !checkingAdmin) {
       setCheckingAdmin(true);
       refreshProfile().finally(() => setCheckingAdmin(false));
     }
-  }, [requireAdmin, user, isAdmin, checkingAdmin, refreshProfile]);
+  }, [requireAdmin, user, effectiveIsAdmin, checkingAdmin, refreshProfile]);
 
   if (loading || checkingAdmin) {
     return (
       <div className="min-h-screen gradient-subtle flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-pulse text-2xl font-bold">Chargement...</div>
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <div className="text-lg font-medium text-muted-foreground">Chargement...</div>
         </div>
       </div>
     );
@@ -33,13 +49,31 @@ export function ProtectedRoute({ children, requireAdmin = false, requirePlan = f
     return <Navigate to="/auth" replace />;
   }
 
-  if (requirePlan && !hasActivePlan && !isAdmin) {
-    return <Navigate to="/billing" replace />;
+  // Priorité 1: Route admin requise
+  if (requireAdmin && !effectiveIsAdmin) {
+    console.debug('[ProtectedRoute] Admin required but user is not admin, redirecting to /dashboard');
+    return <Navigate to="/dashboard" replace />;
   }
 
-  if (requireAdmin && !isAdmin) {
-    return <Navigate to="/app" replace />;
+  // Vérifier les accès généraux (abonnement/autorisation)
+  if (!hasAccess) {
+    console.debug('[ProtectedRoute] Access denied, redirecting to /onboarding/activate', {
+      email: user?.email,
+      effectiveIsAuthorized,
+      allowPending,
+      isWhitelisted,
+    });
+    return <Navigate to="/onboarding/activate" replace />;
   }
+
+  // Note: On ne redirige JAMAIS vers /onboarding/activate ici pour les admins whitelistes
+  console.debug('[ProtectedRoute] Access granted', {
+    email: user?.email,
+    effectiveIsAdmin,
+    effectiveIsAuthorized,
+    allowPending,
+    isWhitelisted,
+  });
 
   return <>{children}</>;
 }

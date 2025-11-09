@@ -15,7 +15,7 @@ export function VideoDiagnostic() {
     
     try {
       const { data, error } = await supabase.functions.invoke('generate-video', {
-        body: { diagnose: true }
+        body: { diagnose: true },
       });
 
       if (error) throw error;

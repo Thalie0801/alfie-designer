@@ -1,7 +1,7 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { 
-  Sparkles, 
+import { cn } from '@/lib/utils';
+import {
   LayoutDashboard, 
   CreditCard,
   TrendingUp,
@@ -9,7 +9,9 @@ import {
   LogOut,
   UserCircle,
   Layers,
-  FolderOpen
+  FolderOpen,
+  MessageCircle,
+  Sparkles
 } from 'lucide-react';
 import {
   Sidebar,
@@ -29,31 +31,38 @@ import { Separator } from '@/components/ui/separator';
 import alfieMain from '@/assets/alfie-main.png';
 
 export function AppSidebar() {
-  const { open } = useSidebar();
+  const { open, isMobile } = useSidebar();
   const location = useLocation();
   const { user, profile, isAdmin, signOut } = useAuth();
-  const canSeeAdminToggle = user?.email === 'nathaliestaelens@gmail.com';
+  const canSeeAdminToggle = user?.email ? ['nathaliestaelens@gmail.com','staelensnathalie@gmail.com'].includes(user.email) : false;
 
-  const navItems: Array<{
+  // Removed automatic sidebar toggle on route changes to prevent menu disappearing bug
+
+  // Construire la liste des items de navigation selon les droits
+  const baseNavItems: Array<{
     path: string;
     label: string;
     icon: any;
     badge?: string;
+    tourId?: string;
   }> = [
-    { path: '/app', label: 'Créer', icon: Sparkles },
+    { path: '/chat', label: 'Chat Alfie', icon: MessageCircle, tourId: 'chat' },
+    { path: '/studio', label: 'Studio', icon: Sparkles, tourId: 'studio' },
     { path: '/templates', label: 'Catalogue', icon: Layers, badge: 'Bientôt' },
-    { path: '/library', label: 'Bibliothèque', icon: FolderOpen },
+    { path: '/library', label: 'Bibliothèque', icon: FolderOpen, tourId: 'library' },
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/profile', label: 'Profil', icon: UserCircle },
     { path: '/billing', label: 'Abonnement', icon: CreditCard },
-    { path: '/affiliate', label: 'Affiliation', icon: TrendingUp },
+    { path: '/affiliate', label: 'Affiliation', icon: TrendingUp, tourId: 'affiliate' },
   ];
+
+  // Navigation principale (sans "Créer")
+  const navItems = baseNavItems;
 
   if (isAdmin || canSeeAdminToggle) {
     navItems.push({ path: '/admin', label: 'Admin', icon: Settings });
   }
 
-  const isActive = (path: string) => location.pathname === path;
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
     isActive ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground";
 
@@ -63,11 +72,11 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar>
+    <Sidebar className="z-30">
       <SidebarContent>
         {/* Logo */}
         <div className="p-4 flex items-center gap-3">
-          <img src={alfieMain} alt="Alfie" className="w-10 h-10 object-contain" />
+          <img src={`${alfieMain}?v=2`} alt="Alfie" className="w-10 h-10 object-contain" />
           {open && (
             <div>
               <p className="font-bold text-lg">Alfie</p>
@@ -85,10 +94,15 @@ export function AppSidebar() {
             <SidebarMenu>
               {navItems.map((item) => (
                 <SidebarMenuItem key={item.path}>
-                  <SidebarMenuButton asChild isActive={location.pathname === item.path}>
-                    <NavLink to={item.path} end className={getNavCls}>
-                      <item.icon className={open ? "mr-2" : "mx-auto"} size={20} />
-                      {open && (
+                  <SidebarMenuButton asChild isActive={location.pathname === item.path} className="min-h-[44px] touch-target">
+                    <NavLink 
+                      to={item.path} 
+                      end 
+                      className={getNavCls}
+                      data-sidebar-id={item.tourId}
+                    >
+                      <item.icon className={cn(open && !isMobile ? "mr-2" : "mx-auto")} size={isMobile ? 22 : 20} />
+                      {(open || isMobile) && (
                         <div className="flex items-center gap-2 flex-1">
                           <span>{item.label}</span>
                           {item.badge && (
@@ -128,10 +142,10 @@ export function AppSidebar() {
             variant="ghost" 
             size="sm" 
             onClick={handleSignOut}
-            className="w-full justify-start"
+            className="w-full justify-start min-h-[44px] touch-target"
           >
-            <LogOut className={open ? "mr-2" : "mx-auto"} size={16} />
-            {open && <span>Déconnexion</span>}
+            <LogOut className={cn(open && !isMobile ? "mr-2" : "mx-auto")} size={isMobile ? 22 : 16} />
+            {(open || isMobile) && <span>Déconnexion</span>}
           </Button>
         </div>
       </SidebarFooter>

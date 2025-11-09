@@ -9,7 +9,7 @@ export function useCustomerPortal() {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('customer-portal', {
-        body: {}
+        body: {},
       });
 
       if (error) throw error;

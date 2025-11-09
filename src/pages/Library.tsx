@@ -1,20 +1,30 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, Download, Trash2, Eye } from 'lucide-react';
+import { Search, Download, Trash2, Eye, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useLibraryAssets } from '@/hooks/useLibraryAssets';
 import { AssetCard } from '@/components/library/AssetCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { VideoDiagnostic } from '@/components/VideoDiagnostic';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { AccessGuard } from '@/components/AccessGuard';
+import { CarouselsTab } from '@/components/library/CarouselsTab';
 
 export default function Library() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'images' | 'videos'>('images');
+  const location = useLocation();
+  
+  // Lire le paramètre ?order= pour filtrer par commande
+  const orderIdFromQuery = new URLSearchParams(location.search).get('order');
+  
+  // Si ?order= est présent, afficher l'onglet carrousels par défaut
+  const [activeTab, setActiveTab] = useState<'images' | 'videos' | 'carousels'>(
+    orderIdFromQuery ? 'carousels' : 'images'
+  );
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAssets, setSelectedAssets] = useState<string[]>([]);
 
@@ -24,8 +34,9 @@ export default function Library() {
     deleteAsset, 
     downloadAsset,
     downloadMultiple,
-    cleanupProcessingVideos
-  } = useLibraryAssets(user?.id, activeTab);
+    cleanupProcessingVideos,
+    refetch
+  } = useLibraryAssets(user?.id, activeTab === 'carousels' ? 'images' : activeTab);
 
   // Auto cleanup when switching to videos tab
   useEffect(() => {
@@ -34,11 +45,19 @@ export default function Library() {
     }
   }, [activeTab]);
 
-  const filteredAssets = assets.filter(asset =>
-    !searchQuery || 
-    asset.prompt?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    asset.engine?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredAssets = assets
+    .filter(asset => {
+      // Filtre par order_id si présent dans l'URL
+      if (orderIdFromQuery && activeTab !== 'carousels') {
+        const assetOrderId = asset.metadata?.orderId;
+        if (assetOrderId !== orderIdFromQuery) return false;
+      }
+      // Filtre par recherche
+      if (searchQuery && !asset.engine?.toLowerCase().includes(searchQuery.toLowerCase())) {
+        return false;
+      }
+      return true;
+    });
 
   const handleSelectAsset = (assetId: string) => {
     setSelectedAssets(prev => 
@@ -80,10 +99,23 @@ export default function Library() {
       toast.error('Vous devez être connecté.');
       return;
     }
+    
+    // Get active brand
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('active_brand_id')
+      .eq('id', user.id)
+      .single();
+    
+    if (!profile?.active_brand_id) {
+      toast.error('No active brand. Please select a brand first.');
+      return;
+    }
+    
     const prompt = 'Golden retriever in a playful Halloween scene, cinematic';
     try {
       const { data, error } = await supabase.functions.invoke('generate-video', {
-        body: { prompt, aspectRatio: '9:16' }
+        body: { prompt, aspectRatio: '9:16' },
       });
       if (error || data?.error) {
         const msg = (error as any)?.message || data?.error || 'Erreur inconnue';
@@ -103,15 +135,16 @@ export default function Library() {
         .from('media_generations')
         .insert({
           user_id: user.id,
+          brand_id: profile.active_brand_id,
           type: 'video',
           engine: provider,
           status: 'processing',
           prompt,
           woofs: 1,
           output_url: '',
-          job_id: null, // HOTFIX: éviter tout cast UUID pendant la migration
+          job_id: null,
           metadata: { predictionId, provider, jobId, jobShortId }
-        });
+        } as any);
       toast.success(`Génération vidéo lancée (${provider})`);
     } catch (e: any) {
       console.error('Debug generate error:', e);
@@ -120,40 +153,51 @@ export default function Library() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <AccessGuard>
+      <div className="container mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+        <h1 className="text-2xl sm:text-3xl font-bold mb-2 bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
           📚 Bibliothèque
         </h1>
-        <p className="text-muted-foreground">
+        <p className="text-sm sm:text-base text-muted-foreground">
           Toutes vos créations en un seul endroit. Stockage 30 jours.
         </p>
       </div>
 
-      {/* Video Diagnostic */}
-      <VideoDiagnostic />
-
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'images' | 'videos')}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'images' | 'videos' | 'carousels')}>
         <TabsList>
           <TabsTrigger value="images">🖼️ Images</TabsTrigger>
           <TabsTrigger value="videos">🎬 Vidéos</TabsTrigger>
+          <TabsTrigger value="carousels">📱 Carrousels</TabsTrigger>
         </TabsList>
 
         {/* Toolbar */}
-        <div className="flex items-center gap-3 mt-4 flex-wrap">
-          <div className="flex-1 min-w-[200px]">
+        <div className="flex items-center gap-2 sm:gap-3 mt-4 flex-wrap">
+          <div className="flex-1 min-w-[150px] sm:min-w-[200px]">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input 
                 placeholder="Rechercher..." 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+                className="pl-8 sm:pl-10 text-sm"
               />
             </div>
           </div>
+
+          <Button 
+            size="sm" 
+            variant="outline"
+            onClick={() => {
+              setSelectedAssets([]);
+              refetch();
+            }}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Actualiser
+          </Button>
 
           {activeTab === 'videos' && (
             <>
@@ -269,7 +313,13 @@ export default function Library() {
             </div>
           )}
         </TabsContent>
+
+        {/* Carousels Tab */}
+        <TabsContent value="carousels" className="mt-6">
+          <CarouselsTab orderId={orderIdFromQuery} />
+        </TabsContent>
       </Tabs>
     </div>
+    </AccessGuard>
   );
 }

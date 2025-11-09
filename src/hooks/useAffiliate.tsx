@@ -80,13 +80,12 @@ export function useAffiliate() {
       const name = (data as any).name as string;
       setAffiliateName(name);
 
-      // Show toast only once per ref
+      // Show simple toast only once per ref
       const toastShown = localStorage.getItem(AFFILIATE_TOAST_SHOWN);
       if (toastShown !== ref) {
         toast({
-          title: `🎉 ${name} vous invite !`,
-          description: "Profitez d'Alfie Designer recommandé par quelqu'un de confiance.",
-          duration: 10000,
+          description: `Vous êtes invité·e par ${name}`,
+          duration: 5000,
         });
         localStorage.setItem(AFFILIATE_TOAST_SHOWN, ref);
       }

@@ -1,14 +1,14 @@
-import { useRef } from 'react';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Toolbar, GeneratorMode, RatioOption } from './Toolbar';
-import { MediaCard } from './MediaCard';
-import { Wand2, ImagePlus, Send, Loader2, Sparkles } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { useRef, useMemo } from "react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Toolbar, GeneratorMode, RatioOption } from "./Toolbar";
+import { MediaCard } from "./MediaCard";
+import { Wand2, ImagePlus, Send, Loader2, Sparkles, AlertTriangle } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface GeneratorCardProps {
   preview?: {
-    type: 'image' | 'video';
+    type: "image" | "video";
     url: string;
     alt: string;
     caption?: string;
@@ -31,8 +31,8 @@ interface GeneratorCardProps {
   uploadedImage?: string | null;
   onRemoveUpload?: () => void;
   showVideoDurationChips: boolean;
-  selectedDuration: 'short' | 'medium' | 'long';
-  onDurationChange: (duration: 'short' | 'medium' | 'long') => void;
+  selectedDuration: "short" | "medium" | "long";
+  onDurationChange: (duration: "short" | "medium" | "long") => void;
   onForceVideo: () => void;
   inputRef?: React.RefObject<HTMLTextAreaElement>;
 }
@@ -61,7 +61,15 @@ export function GeneratorCard({
   onForceVideo,
   inputRef,
 }: GeneratorCardProps) {
-  const textareaRef = inputRef || useRef<HTMLTextAreaElement>(null);
+  const internalRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRef = inputRef || internalRef;
+
+  const isVideoBackendAvailable = Boolean((import.meta as any)?.env?.VITE_FFMPEG_BACKEND_URL);
+
+  const showCloudinaryOnlyBanner = useMemo(
+    () => !isVideoBackendAvailable && mode === "video",
+    [isVideoBackendAvailable, mode],
+  );
 
   const handleMagicFocus = () => {
     textareaRef.current?.focus();
@@ -70,50 +78,70 @@ export function GeneratorCard({
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
       <div className="flex flex-col gap-6">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-xl">🐾</div>
-          <div>
-            <p className="text-sm font-medium text-slate-500">Alfie Studio</p>
-            <p className="text-lg font-semibold text-slate-900">Générateur créatif</p>
+        {/* Header */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-xl" aria-hidden>
+              🐾
+            </div>
+            <div>
+              <p className="text-sm font-medium text-slate-500">Alfie Studio</p>
+              <p className="text-lg font-semibold text-slate-900">Générateur créatif</p>
+            </div>
           </div>
+
+          {showCloudinaryOnlyBanner && (
+            <div className="hidden md:flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800">
+              <AlertTriangle className="h-4 w-4" />
+              Mode <span className="mx-1 font-semibold">Cloudinary-only</span> (montage vidéo simple)
+            </div>
+          )}
         </div>
 
         <div className="space-y-4">
+          {/* Preview */}
           {preview ? (
             <MediaCard
               type={preview.type}
               url={preview.url}
-              alt={preview.alt}
+              alt={preview.alt || (preview.type === "video" ? "Vidéo générée" : "Image générée")}
               caption={preview.caption}
               onDownload={preview.onDownload}
             />
           ) : (
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
               <div className="flex h-64 flex-col items-center justify-center gap-3 bg-gradient-to-br from-slate-50 via-white to-slate-100">
-                <Sparkles className="h-6 w-6 text-blue-500" />
+                <Sparkles className="h-6 w-6 text-blue-500" aria-hidden />
                 <p className="text-sm text-slate-500">Partage ton idée pour voir un aperçu ici.</p>
               </div>
             </div>
           )}
 
+          {/* Status strip */}
           {generationStatus && (
-            <div className="rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 text-sm font-medium text-blue-700 shadow-sm animate-fade-in flex items-center gap-2">
+            <div
+              className="flex items-center gap-2 rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 text-sm font-medium text-blue-700 shadow-sm animate-fade-in"
+              role="status"
+              aria-live="polite"
+            >
               <Sparkles className="h-4 w-4 animate-pulse" />
               {generationStatus.message}
             </div>
           )}
 
+          {/* Toolbar (mode + ratio) */}
           <Toolbar mode={mode} onModeChange={onModeChange} ratio={ratio} onRatioChange={onRatioChange} />
 
-          {showVideoDurationChips && (
+          {/* Durée vidéo (chips) — on masque si pas de backend IA */}
+          {showVideoDurationChips && isVideoBackendAvailable && (
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
                 <span className="font-medium text-slate-700">Durée souhaitée :</span>
                 {(
                   [
-                    { value: 'short', label: '10-12s loop (1 Woof)' },
-                    { value: 'medium', label: '~20s (2 Woofs)' },
-                    { value: 'long', label: '~30s (3 Woofs)' },
+                    { value: "short", label: "10-12s loop (1 Woof)" },
+                    { value: "medium", label: "~20s (2 Woofs)" },
+                    { value: "long", label: "~30s (3 Woofs)" },
                   ] as const
                 ).map((option) => (
                   <button
@@ -121,11 +149,12 @@ export function GeneratorCard({
                     type="button"
                     onClick={() => onDurationChange(option.value)}
                     className={cn(
-                      'rounded-full border px-3 py-1 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2',
+                      "rounded-full border px-3 py-1 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
                       selectedDuration === option.value
-                        ? 'border-blue-600 bg-blue-600 text-white'
-                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
+                        ? "border-blue-600 bg-blue-600 text-white"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100",
                     )}
+                    aria-pressed={selectedDuration === option.value}
                   >
                     {option.label}
                   </button>
@@ -146,24 +175,37 @@ export function GeneratorCard({
             </div>
           )}
 
+          {/* Bandeau info Cloudinary-only (mobile / si chips masqués) */}
+          {showCloudinaryOnlyBanner && (
+            <div className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 md:hidden">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>
+                <strong>Mode Cloudinary-only :</strong> pas de backend vidéo IA. Les montages vidéo simples (images →
+                vidéo, concat, overlays) restent disponibles.
+              </p>
+            </div>
+          )}
+
+          {/* Image upload tag */}
           {uploadedImage && (
             <div className="group relative flex items-center gap-3 rounded-2xl border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-3 shadow-sm transition-all hover:shadow-md animate-fade-in">
               <div className="relative overflow-hidden rounded-xl">
-                <img src={uploadedImage} alt="Image ajoutée" className="h-20 w-20 object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 transition-opacity group-hover:opacity-100"></div>
+                <img src={uploadedImage} alt="Image uploadée" className="h-20 w-20 object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
               </div>
               <div className="flex-1">
-                <p className="font-semibold text-slate-800 flex items-center gap-2">
+                <p className="flex items-center gap-2 font-semibold text-slate-800">
                   <Sparkles className="h-4 w-4 text-blue-600" />
                   Image source prête
                 </p>
-                <p className="text-xs text-slate-600 mt-1">Utilisée pour la prochaine génération</p>
+                <p className="mt-1 text-xs text-slate-600">Utilisée pour la prochaine génération</p>
               </div>
               <Button
                 variant="ghost"
                 size="sm"
                 className="rounded-full text-slate-600 hover:bg-white/80 hover:text-red-600 transition-colors"
                 onClick={onRemoveUpload}
+                aria-label="Retirer l’image"
               >
                 ✕ Retirer
               </Button>
@@ -171,6 +213,7 @@ export function GeneratorCard({
           )}
         </div>
 
+        {/* Composer */}
         <div className="md:static md:bg-transparent md:p-0">
           <div className="sticky bottom-4 z-10 rounded-2xl border-2 border-slate-200 bg-white p-4 shadow-xl md:static md:shadow-sm md:border">
             <div className="flex items-end gap-3">
@@ -179,9 +222,10 @@ export function GeneratorCard({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-11 w-11 rounded-full text-slate-600 hover:bg-gradient-to-br hover:from-blue-50 hover:to-indigo-50 hover:text-blue-600 transition-all hover:scale-105"
+                  className="h-11 w-11 rounded-full text-slate-600 transition-all hover:scale-105 hover:bg-gradient-to-br hover:from-blue-50 hover:to-indigo-50 hover:text-blue-600"
                   onClick={handleMagicFocus}
                   aria-label="Suggestions créatives"
+                  title="Suggestions créatives"
                 >
                   <Wand2 className="h-5 w-5" />
                 </Button>
@@ -189,28 +233,35 @@ export function GeneratorCard({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-11 w-11 rounded-full text-slate-600 hover:bg-gradient-to-br hover:from-blue-50 hover:to-indigo-50 hover:text-blue-600 transition-all hover:scale-105"
+                  className="h-11 w-11 rounded-full text-slate-600 transition-all hover:scale-105 hover:bg-gradient-to-br hover:from-blue-50 hover:to-indigo-50 hover:text-blue-600"
                   onClick={onUploadClick}
                   disabled={uploadingImage}
                   aria-label="Téléverser une image"
+                  title="Téléverser une image"
                 >
                   {uploadingImage ? <Loader2 className="h-5 w-5 animate-spin" /> : <ImagePlus className="h-5 w-5" />}
                 </Button>
               </div>
+
               <Textarea
                 ref={textareaRef}
-                placeholder="Décris ton idée à Alfie... (Shift + Enter pour nouvelle ligne)"
+                placeholder="Décris ton idée à Alfie... (Shift + Entrée = nouvelle ligne)"
                 value={inputValue}
                 onChange={(event) => onInputChange(event.target.value)}
                 onKeyDown={onKeyDown}
                 disabled={isTextareaDisabled}
-                className="min-h-[120px] flex-1 resize-none rounded-2xl border-slate-200 bg-white px-4 py-3 text-base focus-visible:ring-2 focus-visible:ring-blue-500 transition-shadow"
+                className="min-h-[120px] flex-1 resize-none rounded-2xl border-slate-200 bg-white px-4 py-3 text-base text-gray-900 placeholder:text-gray-400 transition-shadow focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-60"
+                style={{ WebkitTextFillColor: "#111827", color: "#111827", zIndex: 2 }}
+                aria-label="Zone de saisie de prompt"
               />
+
               <Button
                 type="button"
                 onClick={onSend}
                 disabled={isSendDisabled}
-                className="h-12 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-6 text-white transition-all hover:shadow-lg hover:scale-105 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:hover:scale-100"
+                className="h-12 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-6 text-white transition-all hover:scale-105 hover:from-blue-700 hover:to-indigo-700 hover:shadow-lg disabled:opacity-50 disabled:hover:scale-100"
+                aria-label="Envoyer"
+                title="Envoyer"
               >
                 {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
               </Button>

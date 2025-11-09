@@ -7,7 +7,7 @@ interface CreditPack {
   name: string;
   credits: number;
   price_cents: number;
-  discount_percentage: number;
+  discount_percentage: number | null;
   stripe_price_id: string;
 }
 
@@ -37,13 +37,8 @@ export function useCreditPacks() {
   const purchasePack = async (packId: string) => {
     setLoading(true);
     try {
-      const { data: session } = await supabase.auth.getSession();
-      
       const { data, error } = await supabase.functions.invoke('purchase-credit-pack', {
         body: { pack_id: packId },
-        headers: session?.session ? {
-          Authorization: `Bearer ${session.session.access_token}`,
-        } : {},
       });
 
       if (error) throw error;

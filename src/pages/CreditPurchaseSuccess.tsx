@@ -25,13 +25,8 @@ export default function CreditPurchaseSuccess() {
 
   const verifyPurchase = async (sessionId: string) => {
     try {
-      const { data: session } = await supabase.auth.getSession();
-      
       const { data, error } = await supabase.functions.invoke('verify-credit-purchase', {
         body: { session_id: sessionId },
-        headers: session?.session ? {
-          Authorization: `Bearer ${session.session.access_token}`,
-        } : {},
       });
 
       if (error) throw error;
@@ -98,7 +93,7 @@ export default function CreditPurchaseSuccess() {
 
           <div className="flex gap-3">
             <Button
-              onClick={() => navigate('/app')}
+              onClick={() => navigate('/dashboard')}
               className="flex-1"
               size="lg"
             >

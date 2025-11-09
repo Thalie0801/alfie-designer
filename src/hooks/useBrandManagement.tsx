@@ -27,6 +27,8 @@ export function useBrandManagement() {
 
     setLoading(true);
     try {
+      // Note: Brand limit check should be done in the UI component before calling this function
+
       const quotas = SYSTEM_CONFIG.QUOTAS.starter;
       const nextReset = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1);
       

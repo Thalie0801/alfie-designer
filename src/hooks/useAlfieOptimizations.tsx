@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
-import { toast } from 'sonner';
 
 // Quotas mensuels par plan
 const MONTHLY_QUOTAS = {
@@ -10,13 +9,6 @@ const MONTHLY_QUOTAS = {
   pro: 250,      // Plan Pro
   studio: 500,   // Plan Studio
 };
-
-interface CacheEntry {
-  prompt_hash: string;
-  prompt_type: string;
-  response: any;
-  usage_count: number;
-}
 
 export function useAlfieOptimizations() {
   const { profile } = useAuth();
@@ -34,15 +26,6 @@ export function useAlfieOptimizations() {
   // Génère un hash simple du prompt pour le cache
   const hashPrompt = (prompt: string, type: string): string => {
     return `${type}:${prompt.toLowerCase().trim().replace(/\s+/g, ' ')}`;
-  };
-
-  // Vérifie si le quota est atteint
-  const checkQuota = (): boolean => {
-    if (requestsThisMonth >= quota) {
-      toast.error(`Quota Alfie atteint (${quota} requêtes/mois). Passe à un plan supérieur ! 🐾`);
-      return false;
-    }
-    return true;
   };
 
   // Recherche dans le cache
@@ -64,10 +47,10 @@ export function useAlfieOptimizations() {
         // Incrémenter le compteur d'usage
         await supabase
           .from('alfie_cache')
-          .update({ usage_count: data.usage_count + 1 })
+          .update({ usage_count: (data.usage_count || 0) + 1 })
           .eq('id', data.id);
 
-        console.log('✅ Cache HIT:', type, '(usage:', data.usage_count + 1, ')');
+        console.log('✅ Cache HIT:', type, '(usage:', (data.usage_count || 0) + 1, ')');
         return data.response;
       }
 
@@ -117,7 +100,6 @@ export function useAlfieOptimizations() {
   };
 
   return {
-    checkQuota,
     getCachedResponse,
     setCachedResponse,
     incrementRequests,
