@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { IS_LOVABLE_PREVIEW } from "@/lib/env";
+import { IS_LOVABLE_PREVIEW, CAN_USE_PROXY, EDGE_BASE } from "@/lib/env";
 import type {
   Database,
   SupabaseIntegration,
@@ -7,9 +8,9 @@ import type {
   LovableResult,
 } from "./types";
 
-// Renseigne cette var dans .env local et CI
-// VITE_EDGE_BASE_URL=https://<YOUR-PROJECT-REF>.functions.supabase.co
-const EDGE_BASE = import.meta.env.VITE_EDGE_BASE_URL;
+function ok<T>(data: T, status = 200): LovableResult<T> {
+  return { ok: true, status, data };
+}
 
 function ok<T>(data: T, status = 200): LovableResult<T> {
   return { ok: true, status, data };
@@ -17,6 +18,8 @@ function ok<T>(data: T, status = 200): LovableResult<T> {
 
 function fail<T = never>(error: string, status = 409): LovableResult<T> {
   return { ok: false, status, error };
+function fail<T = never>(msg: string, status = 409): LovableResult<T> {
+  return { ok: false, status, error: msg };
 }
 
 async function fetchJSON<T>(input: RequestInfo, init?: RequestInit): Promise<LovableResult<T>> {
@@ -26,16 +29,15 @@ async function fetchJSON<T>(input: RequestInfo, init?: RequestInit): Promise<Lov
     const payload = isJSON ? await res.json() : await res.text();
 
     if (!res.ok) {
-      return {
-        ok: false,
-        status: res.status,
-        error: typeof payload === "string" ? payload : payload?.error || res.statusText,
-      };
+      return fail(
+        typeof payload === "string" ? payload : payload?.error || res.statusText,
+        res.status,
+      );
     }
-    return { ok: true, status: res.status, data: payload as T };
+    return ok(payload as T, res.status);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    return { ok: false, status: 0, error: msg };
+    return fail(msg, 0);
   }
 }
 
@@ -60,11 +62,33 @@ export async function getSupabaseIntegration(
   const url = `${EDGE_BASE}/lovable-proxy/projects/${encodeURIComponent(
     projectId,
   )}/integrations/supabase`;
+export async function getSupabaseIntegration(projectId: string) {
+  if (!projectId) throw new Error("projectId requis");
 
-  return fetchJSON<SupabaseIntegration>(url, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-  });
+  if (IS_LOVABLE_PREVIEW) {
+    return ok({
+      projectId,
+      url: "",
+      connected: false,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  if (CAN_USE_PROXY) {
+    const url = `${EDGE_BASE}/lovable-proxy/projects/${encodeURIComponent(
+      projectId,
+    )}/integrations/supabase`;
+
+    return fetchJSON<SupabaseIntegration>(url, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  return fail(
+    "Proxy non configuré (VITE_EDGE_BASE_URL absent) — preview Lovable OK, activer proxy pour prod/staging",
+    501,
+  );
 }
 
 export async function connectSupabaseIntegration(
@@ -84,12 +108,32 @@ export async function connectSupabaseIntegration(
   const url = `${EDGE_BASE}/lovable-proxy/projects/${encodeURIComponent(
     projectId,
   )}/integrations/supabase`;
+) {
+  if (!projectId) throw new Error("projectId requis");
 
-  return fetchJSON<SupabaseIntegration>(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  if (IS_LOVABLE_PREVIEW) {
+    return fail(
+      "Connexion gérée automatiquement par Lovable en preview. Utilise l’onglet Intégrations Lovable.",
+      409,
+    );
+  }
+
+  if (CAN_USE_PROXY) {
+    const url = `${EDGE_BASE}/lovable-proxy/projects/${encodeURIComponent(
+      projectId,
+    )}/integrations/supabase`;
+
+    return fetchJSON<SupabaseIntegration>(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  }
+
+  return fail(
+    "Proxy non configuré (VITE_EDGE_BASE_URL absent) — preview Lovable OK, activer proxy pour prod/staging",
+    501,
+  );
 }
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
