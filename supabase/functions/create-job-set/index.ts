@@ -4,6 +4,7 @@ import { withIdempotency } from "../_shared/idempotency.ts";
 import { userHasAccess } from "../_shared/accessControl.ts";
 import { resolveBrandKit } from "../_shared/brandResolver.ts";
 import { generateMasterSeed } from "../_shared/seedGenerator.ts";
+import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from "../_shared/env.ts";
 
 function correctFrenchSpelling(text: string): string {
   const corrections: Record<string, string> = {
@@ -20,6 +21,41 @@ function correctFrenchSpelling(text: string): string {
     'connection': 'connexion',
     'addresse': 'adresse',
     'language': 'langage',
+    'reponse': 'réponse',
+    'systeme': 'système',
+    'probleme': 'problème',
+    'integrer': 'intégrer',
+    'optimiser': 'optimiser',
+    'ameliorer': 'améliorer',
+    'efficacite': 'efficacité',
+    'qualite': 'qualité',
+    'strategie': 'stratégie',
+    'marque': 'marque',
+    'publier': 'publier',
+    'creer': 'créer',
+    'generer': 'générer',
+    'personnaliser': 'personnaliser',
+    'analyser': 'analyser',
+    'objectif': 'objectif',
+    'opportunite': 'opportunité',
+    'fidelite': 'fidélité',
+    'notoriete': 'notoriété',
+    'croissance': 'croissance',
+    'innovant': 'innovant',
+    'authentique': 'authentique',
+    'performance': 'performance',
+    'coherence': 'cohérence',
+    'engagement': 'engagement',
+    'autonomie': 'autonomie',
+    'simplicite': 'simplicité',
+    'flexibilite': 'flexibilité',
+    'rentabilite': 'rentabilité',
+    'originalite': 'originalité',
+    'creativite': 'créativité',
+    'exclusivite': 'exclusivité',
+    'accessibilite': 'accessibilité',
+    'durabilite': 'durabilité',
+    'dynamique': 'dynamique',
   };
 
   let corrected = text;
@@ -50,8 +86,8 @@ serve(async (req) => {
     if (!idempotencyKey) throw new Error('Missing x-idempotency-key header');
 
     const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      SUPABASE_URL ?? "",
+      SUPABASE_SERVICE_ROLE_KEY ?? ""
     );
 
     const { data: { user }, error: userError } = await supabase.auth.getUser(

@@ -1,7 +1,7 @@
-import { detectHost, type HostId } from "./context";
+import { detectHost, type HostId, type RequestLike } from "./context";
 
 type ChatContext = {
-  req: any;
+  req: RequestLike;
   brandId: string;
   userId?: string;
   session: Record<string, boolean>;
@@ -25,7 +25,7 @@ function buildDesignerReply(text: string, ctx: ChatContext) {
     quick.push("Proposer un carrousel", "Créer une image de couverture");
     return {
       message:
-        "Salut ! Je suis Alfie Designer. Dis-moi quel visuel ou carrousel tu veux que je conçoive et je te prépare ça (export Canva + ZIP).",
+        "Hey ! 👋 Je suis Alfie, ton designer IA. Dis-moi ce que tu veux créer (image, carrousel, vidéo) et je m'occupe du reste !",
       quick,
     };
   }

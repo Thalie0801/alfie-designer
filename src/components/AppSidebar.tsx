@@ -10,8 +10,8 @@ import {
   UserCircle,
   Layers,
   FolderOpen,
-  Palette,
-  MessageCircle
+  MessageCircle,
+  Sparkles
 } from 'lucide-react';
 import {
   Sidebar,
@@ -47,9 +47,9 @@ export function AppSidebar() {
     tourId?: string;
   }> = [
     { path: '/chat', label: 'Chat Alfie', icon: MessageCircle, tourId: 'chat' },
+    { path: '/studio', label: 'Studio', icon: Sparkles, tourId: 'studio' },
     { path: '/templates', label: 'Catalogue', icon: Layers, badge: 'Bientôt' },
     { path: '/library', label: 'Bibliothèque', icon: FolderOpen, tourId: 'library' },
-    { path: '/brand-kit-questionnaire', label: 'Brand Kit', icon: Palette },
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/profile', label: 'Profil', icon: UserCircle },
     { path: '/billing', label: 'Abonnement', icon: CreditCard },

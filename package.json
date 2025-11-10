@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "node ./scripts/run-build.js",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
+    "verify:trycatch": "node scripts/verify-trycatch.js",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview"
   },
@@ -49,6 +50,7 @@
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
     "class-variance-authority": "^0.7.1",
+    "cloudinary": "^2.8.0",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^3.6.0",
