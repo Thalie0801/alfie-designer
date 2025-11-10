@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "src",
+    "actions",
+    "apps",
+    "packages",
+    "services",
+    "supabase/functions",
+    "scripts",
+    "config",
+    "vite.config.ts"
+  ]
+}
