@@ -7,6 +7,13 @@ type ChatMsg = { id: string; role: Role; content: string };
 function uid() {
   return "m_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
+// util léger pour éviter toute dépendance externe
+function clsx(...parts: Array<string | false | null | undefined>) {
+  return parts.filter(Boolean).join(" ");
+}
+function uid() {
+  return "m_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
 
 export default function AlfieChat() {
   const [messages, setMessages] = useState<ChatMsg[]>([
@@ -55,6 +62,7 @@ export default function AlfieChat() {
           <div
             key={m.id}
             className={cn(
+            className={clsx(
               "max-w-[75%] rounded-2xl px-4 py-3 shadow-sm",
               m.role === "user"
                 ? "ml-auto bg-primary text-primary-foreground"
@@ -83,6 +91,7 @@ export default function AlfieChat() {
             onClick={handleSend}
             disabled={!canSend}
             className={cn(
+            className={clsx(
               "rounded-xl px-4 py-2",
               canSend
                 ? "bg-black text-white hover:opacity-90"
