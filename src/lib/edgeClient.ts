@@ -3,7 +3,7 @@
  * Handles retries, error reporting, and consistent response handling
  */
 
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabaseSafeClient';
 import { toast } from 'sonner';
 
 export interface EdgeResponse<T = any> {
@@ -21,6 +21,16 @@ export async function callEdge<T = any>(
   const maxRetries = options?.retries ?? 2;
   const silent = options?.silent ?? false;
   let lastError: string = '';
+
+  // ✅ Vérifier qu'on a une session valide AVANT d'appeler l'edge function
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) {
+    const errorMsg = 'Session expirée. Veuillez vous reconnecter.';
+    if (!silent) {
+      toast.error(errorMsg);
+    }
+    return { ok: false, error: 'AUTH_REQUIRED' };
+  }
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
