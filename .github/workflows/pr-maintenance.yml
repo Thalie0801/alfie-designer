@@ -1,0 +1,131 @@
+name: PR Maintenance
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Action à effectuer (rerun = relancer les checks, close = fermer les PRs)"
+        type: choice
+        required: true
+        options:
+          - rerun
+          - close
+      query:
+        description: "Requête de recherche GitHub (ex: is:open label:codex)"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: write
+  checks: write
+
+jobs:
+  run:
+    name: PR Maintenance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Exécuter la maintenance
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const mode = core.getInput('mode');
+            const query = core.getInput('query').trim();
+            if (!query) {
+              core.setFailed('Input "query" requis');
+              return;
+            }
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const exempt = new Set([236, 237, 241, 244, 250, 226]);
+
+            core.info(`Recherche des PR avec la requête: ${query}`);
+            const search = await github.paginate(github.rest.search.issuesAndPullRequests, {
+              q: `${query} repo:${owner}/${repo} is:pr`,
+              per_page: 100,
+            });
+
+            const pulls = search.filter(item => item.pull_request && item.state === 'open');
+            if (!pulls.length) {
+              core.info('Aucune PR correspondante.');
+              return;
+            }
+
+            core.info(`PR ciblées: ${pulls.map(pr => pr.number).join(', ')}`);
+
+            if (mode === 'rerun') {
+              await Promise.all(pulls.map(async (issue) => {
+                const number = issue.number;
+                try {
+                  const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: number });
+                  const ref = pr.head.sha;
+                  core.info(`Relance des checks pour PR #${number} (${ref})`);
+
+                  const suites = await github.paginate(github.rest.checks.listSuitesForRef, {
+                    owner,
+                    repo,
+                    ref,
+                    per_page: 100,
+                  });
+
+                  for (const suite of suites) {
+                    await github.rest.checks.rerequestSuite({
+                      owner,
+                      repo,
+                      check_suite_id: suite.id,
+                    });
+                  }
+
+                  const runs = await github.paginate(github.rest.actions.listWorkflowRunsForRef, {
+                    owner,
+                    repo,
+                    ref,
+                    per_page: 50,
+                  });
+
+                  const seenRuns = new Set();
+                  for (const run of runs) {
+                    if (run.event !== 'pull_request') continue;
+                    if (seenRuns.has(run.id)) continue;
+                    seenRuns.add(run.id);
+                    await github.rest.actions.reRunWorkflow({ owner, repo, run_id: run.id });
+                  }
+                } catch (error) {
+                  core.warning(`Impossible de relancer les checks pour #${number}: ${error}`);
+                }
+              }));
+              return;
+            }
+
+            if (mode === 'close') {
+              for (const issue of pulls) {
+                const number = issue.number;
+                if (exempt.has(number)) {
+                  core.info(`PR #${number} exemptée, aucune action.`);
+                  continue;
+                }
+                try {
+                  await github.rest.issues.createComment({
+                    owner,
+                    repo,
+                    issue_number: number,
+                    body: 'Fermeture automatique des PR Codex inactives pour nettoyer la file. Relancez si nécessaire. ✅',
+                  });
+                  await github.rest.pulls.update({
+                    owner,
+                    repo,
+                    pull_number: number,
+                    state: 'closed',
+                  });
+                  core.info(`PR #${number} fermée.`);
+                } catch (error) {
+                  core.warning(`Impossible de fermer #${number}: ${error}`);
+                }
+              }
+              return;
+            }
+
+            core.setFailed(`Mode inconnu: ${mode}`);

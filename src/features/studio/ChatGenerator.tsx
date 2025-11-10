@@ -574,41 +574,59 @@ export function ChatGenerator() {
         data: { session }
       } = await supabase.auth.getSession();
 
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/force-process`,
-        {
-          method: "POST",
-          headers: session?.access_token
-            ? { Authorization: `Bearer ${session.access_token}` }
-            : {}
-        }
-      );
-
-      const text = await response.text();
-
-      if (!response.ok) {
-        const error = new Error(text || "Échec du forçage");
-        (error as Error & { status?: number }).status = response.status;
-        throw error;
-      }
-
-      let successMessage = text.trim();
-      if (!successMessage) {
-        successMessage = "Traitement relancé";
-      } else {
-        try {
-          const parsed = JSON.parse(text) as Record<string, unknown> | undefined;
-          if (parsed) {
-            if (typeof parsed.processed === "number") {
-              successMessage = `Traitement forcé: ${parsed.processed} job(s).`;
-            } else if (typeof parsed.message === "string" && parsed.message.trim()) {
-              successMessage = parsed.message;
-            }
+      const runEdgeFunction = async (functionName: string) => {
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${functionName}`,
+          {
+            method: "POST",
+            headers: session?.access_token
+              ? { Authorization: `Bearer ${session.access_token}` }
+              : {}
           }
-        } catch {
-          // ignore JSON parsing errors, keep text message
+        );
+
+        const text = await response.text();
+
+        if (!response.ok) {
+          const error = new Error(text || `Échec ${functionName}`);
+          (error as Error & { status?: number }).status = response.status;
+          throw error;
         }
+
+        let payload: Record<string, unknown> | null = null;
+        if (text.trim()) {
+          try {
+            const parsed = JSON.parse(text);
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+              payload = parsed as Record<string, unknown>;
+            }
+          } catch {
+            // texte brut, on ignore
+          }
+        }
+
+        return { text: text.trim(), payload };
+      };
+
+      const resetResult = await runEdgeFunction("admin-reset-stuck-jobs");
+      const processResult = await runEdgeFunction("alfie-process-queue");
+
+      const resetCount = Number(resetResult.payload?.reset_count ?? 0) || 0;
+      const requeuedCount = Number(resetResult.payload?.requeued_count ?? 0) || 0;
+      const processed = Number(processResult.payload?.processed ?? 0) || 0;
+
+      const parts: string[] = [];
+      if (resetCount || requeuedCount) {
+        parts.push(`Jobs débloqués: ${resetCount + requeuedCount}`);
       }
+      if (processed) {
+        parts.push(`Jobs traités: ${processed}`);
+      }
+
+      const successMessage =
+        parts.length > 0
+          ? parts.join(" · ")
+          : processResult.text || resetResult.text || "Traitement relancé";
 
       toast.success(successMessage);
       await fetchWithTimeoutPromise(refetchAll(), 15000);

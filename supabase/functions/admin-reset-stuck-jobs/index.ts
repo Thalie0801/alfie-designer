@@ -63,24 +63,29 @@ Deno.serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    const { data, error } = await supabaseAdmin.rpc('reset_stuck_jobs', { age_minutes: 5 });
+    const { data, error } = await supabaseAdmin.rpc('admin_reset_stuck_jobs', { age_minutes: 10 });
 
     if (error) {
       console.error('[ADMIN] Error resetting stuck jobs:', error);
       return new Response(
-        JSON.stringify({ error: error.message }), 
+        JSON.stringify({ error: error.message }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('[ADMIN] ✅ Reset stuck jobs:', data);
+    const resetPayload = (data && typeof data === 'object' && !Array.isArray(data)) ? data as Record<string, unknown> : {};
+    const resetCount = Number(resetPayload.reset_count ?? 0) || 0;
+    const requeuedCount = Number(resetPayload.requeued_count ?? 0) || 0;
+
+    console.log('[ADMIN] ✅ Reset stuck jobs:', { resetCount, requeuedCount });
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        reset_count: data || 0,
-        message: `${data || 0} job(s) débloqué(s)` 
-      }), 
+      JSON.stringify({
+        success: true,
+        reset_count: resetCount,
+        requeued_count: requeuedCount,
+        message: `${resetCount + requeuedCount} job(s) débloqué(s)`
+      }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 

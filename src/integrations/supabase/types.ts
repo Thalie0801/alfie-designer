@@ -2242,6 +2242,10 @@ export type Database = {
       }
     }
     Functions: {
+      admin_reset_stuck_jobs: {
+        Args: { age_minutes?: number }
+        Returns: Json
+      }
       calculate_mlm_commissions: {
         Args: {
           conversion_amount: number

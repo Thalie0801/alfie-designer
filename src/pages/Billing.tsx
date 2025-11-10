@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Check, Settings, Sparkles, Award } from 'lucide-react';
+import { Check, Settings, Sparkles, Award, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useStripeCheckout } from '@/hooks/useStripeCheckout';
 import { useCustomerPortal } from '@/hooks/useCustomerPortal';
@@ -161,6 +161,16 @@ export default function Billing() {
           <AlertTitle className="text-purple-800">🎖️ Accès Ambassadeur</AlertTitle>
           <AlertDescription className="text-purple-700">
             Vous disposez d'un accès {currentPlan?.toUpperCase()} Ambassadeur.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {!authLoading && !isAdmin && !isAmbassador && !hasActivePlan && (
+        <Alert variant="destructive" className="bg-red-50 border-red-200">
+          <AlertCircle className="h-4 w-4 text-red-600" />
+          <AlertTitle className="text-red-800">Abonnement inactif</AlertTitle>
+          <AlertDescription className="text-red-700">
+            Choisissez un plan pour débloquer toutes les fonctionnalités Alfie Designer.
           </AlertDescription>
         </Alert>
       )}
