@@ -1,3 +1,4 @@
+// src/components/AlfieChat.tsx
 import React, { useCallback, useEffect, useState } from "react";
 import { enqueue_job, libraryLink, search_assets, studioLink } from "@/ai/tools";
 import { normalizeIntent, type AlfieIntent } from "@/ai/intent";
@@ -43,6 +44,9 @@ type Message = {
   content: string;
   createdAt: string;
 };
+
+export default function AlfieChat() {
+  const activeBrandId = "default-brand"; // TODO: remplace par ton vrai contexte brand
   quickReplies?: string[];
 };
 
@@ -78,6 +82,7 @@ export function AlfieChat() {
 
 export default function AlfieChat() {
   const activeBrandId = "default-brand"; // TODO: brancher sur ton contexte réel
+  // === ÉTATS (déclare UNE SEULE fois) ===
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome",
@@ -88,6 +93,7 @@ export default function AlfieChat() {
   ]);
   const [lastIntent, setLastIntent] = useState<AlfieIntent | null>(null);
 
+  // === HELPERS (une seule version) ===
   const addMessage = useCallback((msg: Message) => {
     setMessages((prev) => [...prev, msg]);
   }, []);
@@ -113,6 +119,7 @@ export default function AlfieChat() {
       });
       setLastIntent(intent);
 
+      // Récap
       addMessage({
         id: crypto.randomUUID(),
         role: "assistant",
@@ -120,11 +127,17 @@ export default function AlfieChat() {
         createdAt: new Date().toISOString(),
       });
 
+      // Lancement direct (exemple)
       const { orderId } = await enqueue_job({ intent });
       addMessage({
         id: crypto.randomUUID(),
         role: "assistant",
         content: Templates.confirmAfterEnqueue(orderId, studioLink(orderId), libraryLink(intent.brandId)),
+        content: Templates.confirmAfterEnqueue(
+          orderId,
+          studioLink(orderId),
+          libraryLink(intent.brandId)
+        ),
         createdAt: new Date().toISOString(),
       });
     },
@@ -135,6 +148,44 @@ export default function AlfieChat() {
     if (!lastIntent) return;
     void search_assets({ brandId: lastIntent.brandId }).catch((error) => {
       console.error("search_assets failed", error);
+  // === Hook proprement fermé (pas de virgule orpheline) ===
+  useEffect(() => {
+    // Exemple: rafraîchir périodiquement (noop pour l’instant)
+    // Tu peux ajouter un interval ici si besoin.
+  }, [activeBrandId, addMessage, lastIntent]);
+
+  return (
+    <div className="p-4 space-y-4">
+      <div className="space-y-2">
+        {messages.map((m) => (
+          <div key={m.id} className={m.role === "user" ? "text-right" : "text-left"}>
+            <div className="inline-block rounded-xl px-3 py-2 border">
+              <pre className="whitespace-pre-wrap">{m.content}</pre>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          const input = e.currentTarget.elements.namedItem("chat") as HTMLInputElement | null;
+          if (!input || !input.value.trim()) return;
+          void handleSend(input.value.trim());
+          input.value = "";
+        }}
+        className="flex gap-2"
+      >
+        <input
+          name="chat"
+          className="flex-1 border rounded-lg px-3 py-2"
+          placeholder="Décris ce que tu veux créer…"
+        />
+        <button type="submit" className="border rounded-lg px-3 py-2">
+          Envoyer
+        </button>
+      </form>
+    </div>
       content: `👋 Hey ! Je suis Alfie, ton assistant créatif.\n\n${welcomeLines}\n\nQu'est-ce que tu veux créer aujourd'hui ?`,
       type: "text",
       timestamp: new Date(),
