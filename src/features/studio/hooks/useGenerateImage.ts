@@ -5,7 +5,7 @@ type SyncResp = { imageUrl: string };
 type AsyncResp = { jobId: string };
 
 export function useGenerateImage() {
-  const generate = useCallback(async (payload: {
+  const generateImage = useCallback(async (payload: {
     brandId: string;
     prompt: string;
     ratio: "1:1"|"9:16"|"16:9"|"3:4";
@@ -39,5 +39,5 @@ export function useGenerateImage() {
     throw new Error("Réponse inattendue (ni imageUrl ni jobId).");
   }, []);
 
-  return { generate };
+  return { generateImage };
 }
