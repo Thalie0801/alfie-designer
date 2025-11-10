@@ -77,4 +77,6 @@ function json(x: unknown, s = 200) {
     status: s,
     headers: { "Content-Type": "application/json", ...cors },
   });
+function json(x: unknown, s = 200) {
+  return new Response(JSON.stringify(x), { status: s, headers: { "Content-Type": "application/json", ...cors } });
 }
