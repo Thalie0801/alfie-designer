@@ -16,6 +16,8 @@ import { useLibraryAssetsSubscription } from "@/hooks/useLibraryAssetsSubscripti
 import { getAspectClass, type ConversationState, type OrchestratorResponse } from "@/types/chat";
 import { slideUrl } from "@/lib/cloudinary/imageUrls";
 import { extractCloudNameFromUrl } from "@/lib/cloudinary/utils";
+import { FLAGS } from "@/config/flags";
+import { setJobContext, captureException } from "@/observability/sentry";
 
 // =====================
 // Détection d'intention vidéo
@@ -122,14 +124,25 @@ interface Message {
 export function AlfieChat() {
   const { user } = useAuth();
   const { activeBrandId, brandKit } = useBrandKit();
+  const videoEnabled = FLAGS.VIDEO;
+  const carouselEnabled = FLAGS.CAROUSEL;
+
+  const capabilities = [
+    "Des **images** percutantes",
+    ...(videoEnabled ? ["Des **vidéos** engageantes"] : []),
+    ...(carouselEnabled ? ["Des **carrousels** complets"] : []),
+  ];
+
+  const welcomeLines = capabilities.length
+    ? `Je peux créer pour toi :\n• ${capabilities.join("\n• ")}`
+    : "Je peux t'aider à structurer tes idées créatives.";
 
   // États
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome",
       role: "assistant",
-      content:
-        "👋 Hey ! Je suis Alfie, ton assistant créatif.\n\nJe peux créer pour toi :\n• Des **images** percutantes\n• Des **vidéos** engageantes\n• Des **carrousels** complets\n\nQu'est-ce que tu veux créer aujourd'hui ?",
+      content: `👋 Hey ! Je suis Alfie, ton assistant créatif.\n\n${welcomeLines}\n\nQu'est-ce que tu veux créer aujourd'hui ?`,
       type: "text",
       timestamp: new Date(),
     },
@@ -198,6 +211,10 @@ export function AlfieChat() {
       setExpectedTotal(orderTotal);
     }
   }, [orderTotal]);
+
+  useEffect(() => {
+    setJobContext(orderId);
+  }, [orderId]);
 
   // Restauration d'état après refresh
   useEffect(() => {
@@ -451,6 +468,9 @@ export function AlfieChat() {
 
   const planCarouselSlides = useCallback(
     async (brief: any) => {
+      if (!carouselEnabled) {
+        throw new Error("La génération de carrousels est désactivée.");
+      }
       if (!brief) throw new Error("Brief carrousel manquant");
 
       const slideCount = (() => {
@@ -493,7 +513,7 @@ export function AlfieChat() {
         index: idx,
       }));
     },
-    [brandKit],
+    [brandKit, carouselEnabled],
   );
 
   // =====================
@@ -519,6 +539,16 @@ export function AlfieChat() {
     }
 
     const intent = options?.intentOverride ?? detectIntent(trimmed || rawMessage);
+
+    if (!videoEnabled && (options?.forceTool === "generate_video" || intent === "video")) {
+      toast.error("La génération vidéo est désactivée dans cet environnement.");
+      return;
+    }
+
+    if (!carouselEnabled && (options?.forceTool === "render_carousel" || options?.intentOverride === "carousel")) {
+      toast.error("La génération de carrousels est désactivée dans cet environnement.");
+      return;
+    }
 
     // lock UI
     setIsLoading(true);
@@ -672,8 +702,14 @@ export function AlfieChat() {
         }
 
         if (payload?.response) {
-          const quickReplies =
+          const quickRepliesRaw =
             Array.isArray(payload.quickReplies) && payload.quickReplies.length > 0 ? payload.quickReplies : undefined;
+          const quickReplies = quickRepliesRaw?.filter((reply: unknown) => {
+            if (typeof reply !== "string") return false;
+            if (!videoEnabled && /vid[ée]o/i.test(reply)) return false;
+            if (!carouselEnabled && /carrou?sel/i.test(reply)) return false;
+            return true;
+          });
 
           const links = payload?.orderId
             ? [
@@ -727,6 +763,9 @@ export function AlfieChat() {
         type: "text",
       });
       toast.error(`Échec après 3 tentatives : ${errorDetails}`);
+      if (lastError) {
+        void captureException(lastError, { brandId: activeBrandId, jobId: orderId });
+      }
       setIsLoading(false);
       inFlightRef.current = false;
     }
@@ -744,6 +783,10 @@ export function AlfieChat() {
       if (reply === "Oui, lance !" && lastContext) {
         try {
           if (Array.isArray(lastContext.carouselBriefs) && lastContext.carouselBriefs.length > 0) {
+            if (!carouselEnabled) {
+              toast.error("La génération de carrousels est désactivée dans cet environnement.");
+              return;
+            }
             const slides = await planCarouselSlides(lastContext.carouselBriefs[0]);
             await handleSend(reply, { forceTool: "render_carousel", slides, intentOverride: "carousel" });
             return;
@@ -765,6 +808,7 @@ export function AlfieChat() {
         } catch (err) {
           console.error("[Chat] Quick reply launch error:", err);
           toast.error(`Impossible de lancer : ${toErrorMessage(err)}`);
+          void captureException(err, { brandId: activeBrandId, jobId: orderId });
           return;
         }
       }
@@ -772,7 +816,7 @@ export function AlfieChat() {
       setInput(reply);
       await handleSend(reply);
     },
-    [handleSend, isLoading, lastContext, orderId, planCarouselSlides],
+    [handleSend, isLoading, lastContext, orderId, planCarouselSlides, carouselEnabled, activeBrandId],
   );
 
   // =====================
