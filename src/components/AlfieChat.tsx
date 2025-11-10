@@ -1,3 +1,9 @@
+// src/components/AlfieChat.tsx
+import React, { useCallback, useEffect, useState } from "react";
+import { enqueue_job, libraryLink, search_assets, studioLink } from "@/ai/tools";
+import { normalizeIntent, type AlfieIntent } from "@/ai/intent";
+import { Templates } from "@/ai/templates";
+
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import { toast } from "sonner";
@@ -39,6 +45,16 @@ type Message = {
   quickReplies?: string[];
 };
 
+  role: "user" | "assistant" | "system";
+  content: string;
+  createdAt: string;
+};
+
+export default function AlfieChat() {
+  const activeBrandId = "default-brand"; // TODO: remplace par ton vrai contexte brand
+  quickReplies?: string[];
+};
+
 function generateId() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? (crypto as Crypto).randomUUID()
@@ -50,6 +66,7 @@ const INITIAL_ASSISTANT: Message = {
   role: "assistant",
   content:
     "👋 Hey ! Je suis Alfie. Donne-moi un brief (format, objectif, CTA) et je te prépare un récap avant de lancer la génération.",
+  createdAt: new Date().toISOString(),
 };
 
 export function AlfieChat() {
@@ -68,11 +85,105 @@ export function AlfieChat() {
     ? `Je peux créer pour toi :\n• ${capabilities.join("\n• ")}`
     : "Je peux t'aider à structurer tes idées créatives.";
 
-  // États
+  // === ÉTATS (déclare UNE SEULE fois) ===
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome",
       role: "assistant",
+      content: "Salut, je suis Alfie. Dis-moi ce que tu veux créer.",
+      createdAt: new Date().toISOString(),
+    },
+  ]);
+  const [lastIntent, setLastIntent] = useState<AlfieIntent | null>(null);
+
+  // === HELPERS (une seule version) ===
+  const addMessage = useCallback((msg: Message) => {
+    setMessages((prev) => [...prev, msg]);
+  }, []);
+
+  const handleSend = useCallback(
+    async (userText: string) => {
+      const userMsg: Message = {
+        id: crypto.randomUUID(),
+        role: "user",
+        content: userText,
+        createdAt: new Date().toISOString(),
+      };
+      addMessage(userMsg);
+
+      const intent = normalizeIntent({
+        brandId: activeBrandId,
+        kind: /carrousel|carousel/i.test(userText)
+          ? "carousel"
+          : /vidéo|video/i.test(userText)
+          ? "video"
+          : "image",
+        copyBrief: userText,
+      });
+      setLastIntent(intent);
+
+      // Récap
+      addMessage({
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: Templates.recapBeforeLaunch(intent),
+        createdAt: new Date().toISOString(),
+      });
+
+      // Lancement direct (exemple)
+      const { orderId } = await enqueue_job({ intent });
+      addMessage({
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: Templates.confirmAfterEnqueue(
+          orderId,
+          studioLink(orderId),
+          libraryLink(intent.brandId)
+        ),
+        createdAt: new Date().toISOString(),
+      });
+    },
+    [activeBrandId, addMessage]
+  );
+
+  // === Hook proprement fermé (pas de virgule orpheline) ===
+  useEffect(() => {
+    // Exemple: rafraîchir périodiquement (noop pour l’instant)
+    // Tu peux ajouter un interval ici si besoin.
+  }, [activeBrandId, addMessage, lastIntent]);
+
+  return (
+    <div className="p-4 space-y-4">
+      <div className="space-y-2">
+        {messages.map((m) => (
+          <div key={m.id} className={m.role === "user" ? "text-right" : "text-left"}>
+            <div className="inline-block rounded-xl px-3 py-2 border">
+              <pre className="whitespace-pre-wrap">{m.content}</pre>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          const input = e.currentTarget.elements.namedItem("chat") as HTMLInputElement | null;
+          if (!input || !input.value.trim()) return;
+          void handleSend(input.value.trim());
+          input.value = "";
+        }}
+        className="flex gap-2"
+      >
+        <input
+          name="chat"
+          className="flex-1 border rounded-lg px-3 py-2"
+          placeholder="Décris ce que tu veux créer…"
+        />
+        <button type="submit" className="border rounded-lg px-3 py-2">
+          Envoyer
+        </button>
+      </form>
+    </div>
       content: `👋 Hey ! Je suis Alfie, ton assistant créatif.\n\n${welcomeLines}\n\nQu'est-ce que tu veux créer aujourd'hui ?`,
       type: "text",
       timestamp: new Date(),
@@ -91,6 +202,11 @@ export function AlfieChat() {
 
   const addMessage = useCallback((message: Message) => {
     setMessages((current) => [...current, message]);
+    const withTimestamp: Message = {
+      ...message,
+      createdAt: message.createdAt ?? new Date().toISOString(),
+    };
+    setMessages((current) => [...current, withTimestamp]);
   }, []);
 
   const handleUserMessage = useCallback(
@@ -102,6 +218,15 @@ export function AlfieChat() {
 
       const trimmed = text.trim();
       if (!trimmed) return;
+
+      addMessage({ id: generateId(), role: "user", content: trimmed, createdAt: new Date().toISOString() });
+      setInput("");
+      setIsSending(true);
+  useEffect(() => {
+    if (orderTotal > 0) {
+      setExpectedTotal(orderTotal);
+    }
+  }, [orderTotal]);
 
       addMessage({ id: generateId(), role: "user", content: trimmed });
       setInput("");
@@ -132,6 +257,30 @@ export function AlfieChat() {
         setPendingIntent(route.intent);
         setLastIntent(route.intent);
         addMessage({ id: generateId(), role: "assistant", content: route.text });
+        });
+
+        if (route.kind === "reply") {
+          addMessage({
+            id: generateId(),
+            role: "assistant",
+            content: route.text,
+            createdAt: new Date().toISOString(),
+            quickReplies: route.quickReplies,
+          });
+          setQuickReplies(route.quickReplies ?? []);
+          setPendingIntent(null);
+          return;
+        }
+
+        setQuickReplies([]);
+        setPendingIntent(route.intent);
+        setLastIntent(route.intent);
+        addMessage({
+          id: generateId(),
+          role: "assistant",
+          content: route.text,
+          createdAt: new Date().toISOString(),
+        });
       } catch (error) {
         console.error("[AlfieChat] routing failed", error);
         toast.error("Je n'ai pas compris ce brief, reformule-le en précisant le format et l'objectif.");
@@ -594,6 +743,7 @@ export function AlfieChat() {
         id: generateId(),
         role: "assistant",
         content: `C'est parti ! Tu peux suivre l'avancement depuis le Studio ou la Library.`,
+        createdAt: new Date().toISOString(),
       });
       await refreshStatuses(result.orderId);
     } catch (error) {
@@ -623,6 +773,11 @@ export function AlfieChat() {
   }, [pendingIntent]);
 
   const hasCompletedAsset = assets.some((asset) => asset.status === "ready" || asset.status === "done");
+      if (reply === "Voir la bibliothèque" && orderId) {
+        window.open(`/library?order=${orderId}`, "_blank");
+        return;
+      }
+
       if (reply === "Oui, lance !" && lastContext) {
         try {
           if (Array.isArray(lastContext.carouselBriefs) && lastContext.carouselBriefs.length > 0) {
@@ -752,6 +907,13 @@ interface StatusPanelProps {
   assets: LibraryAsset[];
   hasPreview: boolean;
 }
+
+function StatusPanel({ orderId, jobs, assets, hasPreview }: StatusPanelProps) {
+  const primaryStatus = jobs[0]?.status ?? "queued";
+  const statusLabel = statusToLabel(primaryStatus);
+  const studioHref = studioLink(orderId);
+  const libraryHref = libraryLink(orderId);
+
 
 function StatusPanel({ orderId, jobs, assets, hasPreview }: StatusPanelProps) {
   const primaryStatus = jobs[0]?.status ?? "queued";
