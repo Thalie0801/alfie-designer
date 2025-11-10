@@ -41,5 +41,26 @@ export default [
       globals: { ...globals.browser, ...globals.node }
     },
     rules: {}
+  },
+  {
+    files: ['supabase/functions/**/*.{ts,tsx}'],
+    languageOptions: {
+      globals: {
+        Deno: 'readonly',
+        Request: 'readonly',
+        Response: 'readonly',
+        Headers: 'readonly',
+        RequestInit: 'readonly',
+        ResponseInit: 'readonly',
+        RequestInfo: 'readonly',
+        fetch: 'readonly',
+        console: 'readonly'
+      }
+    },
+    rules: {
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      'no-empty': ['error', { allowEmptyCatch: true }],
+      'no-undef': 'off'
+    }
   }
 ];
