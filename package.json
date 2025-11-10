@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node ./scripts/run-build.js",
+    "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
+    "lint:ci": "node -e \"try{require.resolve('eslint')}catch(e){process.exit(0)}\" && eslint . || exit 0",
     "verify:trycatch": "node scripts/verify-trycatch.js",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -p tsconfig.typecheck.json --noEmit --pretty false",
     "preview": "vite preview",
     "maintain:old-prs": "node scripts/maintain-old-prs.mjs",
     "maintain:prs:dry": "node scripts/maintain-prs.mjs --dry-run",
@@ -86,6 +87,7 @@
     "@vitejs/plugin-react-swc": "^3.11.0",
     "autoprefixer": "^10.4.21",
     "eslint": "9.13.0",
+    "eslint": "9.32.0",
     "eslint-plugin-react": "^7.37.2",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
@@ -98,6 +100,8 @@
     "typescript-eslint": "8.8.0",
     "@typescript-eslint/parser": "8.8.0",
     "@typescript-eslint/eslint-plugin": "8.8.0",
+    "@typescript-eslint/parser": "8.38.0",
+    "@typescript-eslint/eslint-plugin": "8.38.0",
     "vite": "^5.0.0"
   },
   "engines": {

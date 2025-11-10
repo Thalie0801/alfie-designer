@@ -8,12 +8,6 @@ type GenerationResponse = {
   job_id: string;
 };
 
-type ForceProcessJobsResponse = {
-  processed: number;
-  queuedBefore: number;
-  queuedAfter: number;
-};
-
 export async function createGeneration(brandId: string, payload: unknown) {
   const edgeResponse = await callEdgeFunction<GenerationResponse & { ok: boolean }>(
     'alfie-generate',
