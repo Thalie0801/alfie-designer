@@ -10,6 +10,22 @@ import { routeUserMessage } from "@/features/chat/assistantRouter";
 import type { AlfieIntent } from "@/ai/intent";
 import { enqueueAlfieJob, searchAlfieAssets, type AlfieJobStatus, type LibraryAsset } from "@/api/alfie";
 import { libraryLink, studioLink } from "@/lib/links";
+import TextareaAutosize from "react-textarea-autosize";
+import { CreateHeader } from "@/components/create/CreateHeader";
+import { QuotaBar } from "@/components/create/QuotaBar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Progress } from "@/components/ui/progress";
+import { useLibraryAssetsSubscription } from "@/hooks/useLibraryAssetsSubscription";
+import { getAspectClass, type ConversationState, type OrchestratorResponse } from "@/types/chat";
+import { slideUrl } from "@/lib/cloudinary/imageUrls";
+import { extractCloudNameFromUrl } from "@/lib/cloudinary/utils";
+import { FLAGS } from "@/config/flags";
+import { setJobContext, captureException } from "@/observability/sentry";
+
+// =====================
+// Détection d'intention vidéo
+// =====================
+const VIDEO_KEYWORDS = /\b(vid[ée]o|reel|r[ée]el|tiktok|shorts?|clip)\b/i;
 
 interface ChatMessage {
   id: string;
@@ -34,6 +50,29 @@ const INITIAL_ASSISTANT: ChatMessage = {
 export function AlfieChat() {
   const { activeBrandId, brandKit } = useBrandKit();
   const [messages, setMessages] = useState<ChatMessage[]>([INITIAL_ASSISTANT]);
+  const videoEnabled = FLAGS.VIDEO;
+  const carouselEnabled = FLAGS.CAROUSEL;
+
+  const capabilities = [
+    "Des **images** percutantes",
+    ...(videoEnabled ? ["Des **vidéos** engageantes"] : []),
+    ...(carouselEnabled ? ["Des **carrousels** complets"] : []),
+  ];
+
+  const welcomeLines = capabilities.length
+    ? `Je peux créer pour toi :\n• ${capabilities.join("\n• ")}`
+    : "Je peux t'aider à structurer tes idées créatives.";
+
+  // États
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: "welcome",
+      role: "assistant",
+      content: `👋 Hey ! Je suis Alfie, ton assistant créatif.\n\n${welcomeLines}\n\nQu'est-ce que tu veux créer aujourd'hui ?`,
+      type: "text",
+      timestamp: new Date(),
+    },
+  ]);
   const [input, setInput] = useState("");
   const [pendingIntent, setPendingIntent] = useState<AlfieIntent | null>(null);
   const [lastIntent, setLastIntent] = useState<AlfieIntent | null>(null);
@@ -62,6 +101,14 @@ export function AlfieChat() {
       addMessage({ id: generateId(), role: "user", content: trimmed });
       setInput("");
       setIsSending(true);
+  useEffect(() => {
+    setJobContext(orderId);
+  }, [orderId]);
+
+  // Restauration d'état après refresh
+  useEffect(() => {
+    const restoreSessionState = async () => {
+      if (orderId || !user?.id) return;
 
       try {
         const route = routeUserMessage(trimmed, {
@@ -119,6 +166,178 @@ export function AlfieChat() {
       void handleUserMessage(input);
     },
     [handleUserMessage, input]
+    let currentOrder = orderId;
+
+    const channel = supabase
+      .channel("job_queue_changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "job_queue",
+          filter: `order_id=eq.${orderId}`,
+        },
+        (payload) => {
+          if (currentOrder !== orderId) return; // ignorer si l'order a changé
+          const job = payload.new as any;
+
+          if (job.status === "completed") {
+            const assetUrl =
+              job.result?.assetUrl || job.result?.images?.[0] || job.result?.carousels?.[0]?.slides?.[0]?.url;
+
+            if (assetUrl) {
+              let type: "image" | "carousel" | "video" = "image";
+              let content = "✅ Génération terminée !";
+
+              if (job.type === "render_images") {
+                type = "image";
+                content = "✅ Image générée !";
+              } else if (job.type === "render_carousels") {
+                type = "carousel";
+                content = "✅ Slide de carrousel générée !";
+              } else if (job.type === "generate_video") {
+                type = "video";
+                content = "✅ Vidéo générée !";
+              }
+
+              addMessage({
+                role: "assistant",
+                content,
+                type,
+                assetUrl,
+                assetId: job.id,
+              });
+
+              toast.success(content);
+            }
+          } else if (job.status === "failed") {
+            const errorContent = `❌ Erreur : ${job.error || "Génération échouée"}`;
+            addMessage({ role: "assistant", content: errorContent, type: "text" });
+            toast.error("Échec de la génération");
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [orderId]);
+
+  // =====================
+  // Upload d'image validé
+  // =====================
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const isImage = file.type.startsWith("image/");
+    const isVideo = file.type.startsWith("video/");
+
+    if (isImage && !ALLOWED_IMG.includes(file.type)) {
+      toast.error("Format image non supporté (PNG/JPEG/WebP).");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+    if (!isImage && !isVideo) {
+      toast.error("Format non supporté. Choisis une image ou une vidéo.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    if (isImage && file.size > MAX_IMG_BYTES) {
+      toast.error("Image trop lourde (max 10 Mo).");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+    if (isVideo && file.size > MAX_VIDEO_BYTES) {
+      toast.error("Vidéo trop volumineuse (max 200 Mo).");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    setUploadingSource(true);
+
+    try {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError) throw authError;
+      if (!user) throw new Error("Authentification requise");
+
+      const { signedUrl } = await uploadToChatBucket(file, supabase, user.id);
+
+      const previewUrl = URL.createObjectURL(file);
+      clearUploadedSource();
+      setUploadedSource({
+        url: signedUrl,
+        previewUrl,
+        type: isVideo ? "video" : "image",
+        name: file.name,
+      });
+
+      toast.success(isVideo ? "Vidéo importée ! Décris ce que tu veux en faire." : "Image importée ! Décris ce que tu veux en faire.");
+    } catch (error: unknown) {
+      console.error("[Upload] Error:", error);
+      toast.error(
+        `Erreur lors de l’upload${error ? ` : ${toErrorMessage(error)}` : ""}`,
+      );
+    } finally {
+      setUploadingSource(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const planCarouselSlides = useCallback(
+    async (brief: any) => {
+      if (!carouselEnabled) {
+        throw new Error("La génération de carrousels est désactivée.");
+      }
+      if (!brief) throw new Error("Brief carrousel manquant");
+
+      const slideCount = (() => {
+        const value =
+          typeof brief?.numSlides === "number" ? brief.numSlides : parseInt(String(brief?.numSlides ?? ""), 10);
+        return Number.isFinite(value) && value > 0 ? value : 5;
+      })();
+
+      const { data, error } = await supabase.functions.invoke("alfie-plan-carousel", {
+        body: {
+          prompt: brief?.topic || "Carousel",
+          slideCount,
+          brandKit: brandKit
+            ? {
+                name: brandKit.name,
+                palette: brandKit.palette,
+                voice: brandKit.voice,
+                niche: brandKit.niche,
+              }
+            : undefined,
+        },
+      });
+      if (error) throw error;
+
+      const payload = (data as any)?.data ?? data;
+      if (payload?.error) throw new Error(String(payload.error));
+
+      const prompts: string[] = Array.isArray(payload?.prompts) ? payload.prompts : [];
+      const slides: any[] = Array.isArray(payload?.slides) ? payload.slides : [];
+
+      return slides.map((slide, idx) => ({
+        title: slide?.title ?? `Slide ${idx + 1}`,
+        subtitle: slide?.subtitle ?? slide?.punchline ?? "",
+        bullets: Array.isArray(slide?.bullets) ? slide.bullets : [],
+        cta: slide?.cta ?? slide?.cta_primary ?? "",
+        prompt: prompts[idx] ?? prompts[0] ?? "",
+        type: slide?.type ?? null,
+        topic: brief?.topic ?? null,
+        angle: brief?.angle ?? null,
+        index: idx,
+      }));
+    },
+    [brandKit, carouselEnabled],
   );
 
   const handleQuickReply = useCallback(
@@ -145,6 +364,227 @@ export function AlfieChat() {
       setOrderId(result.orderId);
       toast.success("Génération lancée ! Suis le statut ci-dessous.");
       setPendingIntent(null);
+    const intent = options?.intentOverride ?? detectIntent(trimmed || rawMessage);
+
+    if (!videoEnabled && (options?.forceTool === "generate_video" || intent === "video")) {
+      toast.error("La génération vidéo est désactivée dans cet environnement.");
+      return;
+    }
+
+    if (!carouselEnabled && (options?.forceTool === "render_carousel" || options?.intentOverride === "carousel")) {
+      toast.error("La génération de carrousels est désactivée dans cet environnement.");
+      return;
+    }
+
+    // lock UI
+    setIsLoading(true);
+    inFlightRef.current = true;
+
+    // push message user
+    setInput("");
+    addMessage({
+      role: "user",
+      content: trimmed || (uploadedSource ? "(média uniquement)" : "(message vide)"),
+      type: (uploadedSource?.type as Message["type"]) || "text",
+      assetUrl: uploadedSource ? uploadedSource.previewUrl || uploadedSource.url : undefined,
+      metadata: uploadedSource ? { name: uploadedSource.name, signedUrl: uploadedSource.url } : undefined,
+    });
+
+    // Commande /queue (monitoring)
+    if (rawMessage.startsWith("/queue")) {
+      try {
+        const headers = await getAuthHeader();
+        const { data, error } = await supabase.functions.invoke("queue-monitor", { headers });
+        if (error) throw error;
+
+        interface QueueMonitorResponse {
+          counts?: {
+            done_24h?: number;
+            processing?: number;
+            retrying?: number;
+            queued?: number;
+            error?: number;
+            done?: number;
+          };
+          backlogSeconds?: number;
+          stuck?: { runningStuckCount?: number };
+        }
+        const response = data as QueueMonitorResponse;
+        const c = response?.counts || {};
+        const oldest = response?.backlogSeconds ?? null;
+        const stuck = response?.stuck?.runningStuckCount ?? 0;
+        const done24h = c.done_24h ?? 0;
+        const minutes = oldest ? Math.max(0, Math.round((oldest as number) / 60)) : null;
+
+        addMessage({
+          role: "assistant",
+          content: [
+            "📊 État de la file de jobs:",
+            `• queued: ${c.queued ?? 0}`,
+            `• processing: ${c.processing ?? 0}`,
+            `• retrying: ${c.retrying ?? 0}`,
+            `• errors: ${c.error ?? 0}`,
+            `• done (24h): ${done24h}`,
+            `• plus ancien en attente: ${minutes !== null ? minutes + " min" : "n/a"}`,
+            `• jobs bloqués (>5min): ${stuck}`,
+          ].join("\n"),
+          type: "text",
+        });
+      } catch (error: unknown) {
+        addMessage({
+          role: "assistant",
+          content: `❌ Monitoring indisponible: ${toErrorMessage(error)}`,
+          type: "text",
+        });
+      } finally {
+        setIsLoading(false);
+        inFlightRef.current = false;
+      }
+      return;
+    }
+
+    // Retry orchestrator (3 tentatives)
+    const maxRetries = 3;
+
+    let lastError: unknown = null;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const headers = await getAuthHeader();
+
+        const requestPayload: {
+          message: string;
+          user_message?: string;
+          conversationId?: string;
+          brandId: string;
+          forceTool?: "generate_video" | "generate_image" | "render_carousel";
+          uploadedSourceUrl?: string;
+          uploadedSourceType?: UploadedSource["type"];
+          prompt?: string;
+          slides?: any[];
+        } = {
+          message: trimmed || rawMessage || "",
+          user_message: promptOverride.length > 0 ? promptOverride : trimmed || rawMessage || "",
+          brandId: activeBrandId,
+        };
+
+        if (conversationId) {
+          requestPayload.conversationId = conversationId;
+        }
+
+        // intention vidéo
+        if (options?.forceTool) {
+          requestPayload.forceTool = options.forceTool;
+        } else if (intent === "video") {
+          requestPayload.forceTool = "generate_video";
+        }
+
+        if (promptOverride.length > 0) {
+          requestPayload.prompt = promptOverride;
+        }
+
+        if (options?.slides && options.slides.length > 0) {
+          requestPayload.slides = options.slides;
+        }
+
+        if (uploadedSource) {
+          requestPayload.uploadedSourceUrl = uploadedSource.url;
+          requestPayload.uploadedSourceType = uploadedSource.type;
+        }
+
+        const { data, error } = await supabase.functions.invoke("alfie-orchestrator", {
+          body: requestPayload,
+          headers,
+        });
+        if (error) throw error;
+
+        const payload = (data ?? null) as OrchestratorResponse | null;
+
+        if (!mountedRef.current) return;
+
+        if (payload?.conversationId) setConversationId(payload.conversationId);
+
+        if (payload?.context) setLastContext(payload.context);
+
+        if (payload?.orderId) {
+          setOrderId(payload.orderId);
+          setConversationState("generating");
+
+          addMessage({
+            role: "assistant",
+            content: "🚀 Génération lancée !",
+            type: "text",
+            links: [
+              { label: "Voir dans Studio", href: `/studio?order=${payload.orderId}` },
+              { label: "Voir la Bibliothèque", href: `/library?order=${payload.orderId}` },
+            ],
+          });
+        }
+
+        if (typeof payload?.totalSlides === "number") {
+          setExpectedTotal(payload.totalSlides);
+        }
+
+        if (payload?.state) {
+          setConversationState(normalizeConversationState(payload.state));
+        }
+
+        if (payload?.response) {
+          const quickRepliesRaw =
+            Array.isArray(payload.quickReplies) && payload.quickReplies.length > 0 ? payload.quickReplies : undefined;
+          const quickReplies = quickRepliesRaw?.filter((reply: unknown) => {
+            if (typeof reply !== "string") return false;
+            if (!videoEnabled && /vid[ée]o/i.test(reply)) return false;
+            if (!carouselEnabled && /carrou?sel/i.test(reply)) return false;
+            return true;
+          });
+
+          const links = payload?.orderId
+            ? [
+                { label: "Voir dans Studio", href: `/studio?order=${payload.orderId}` },
+                { label: "Voir la Bibliothèque", href: `/library?order=${payload.orderId}` },
+              ]
+            : undefined;
+
+          addMessage({
+            role: "assistant",
+            content: payload.response,
+            type: "text",
+            quickReplies,
+            reasoning: payload.reasoning,
+            brandAlignment: payload.brandAlignment,
+            orderId: payload.orderId ?? null,
+            links,
+          });
+        }
+
+        if (payload?.bulkCarouselData) {
+          addMessage({
+            role: "assistant",
+            content: "📦 Génération en masse terminée !",
+            type: "bulk-carousel",
+            bulkCarouselData: payload.bulkCarouselData,
+          });
+        }
+
+        // succès → reset image si envoyée
+        if (uploadedSource) clearUploadedSource();
+
+        setIsLoading(false);
+        inFlightRef.current = false;
+        return;
+      } catch (error: unknown) {
+        lastError = error;
+        console.error(`[Chat] Error (attempt ${attempt}/${maxRetries}):`, error);
+        if (attempt < maxRetries) {
+          await sleep(backoffMs(attempt));
+        }
+      }
+    }
+
+    // Échec toutes tentatives
+    if (mountedRef.current) {
+      const errorDetails = lastError ? toErrorMessage(lastError) : "Erreur inconnue";
       addMessage({
         id: generateId(),
         role: "assistant",
@@ -157,6 +597,12 @@ export function AlfieChat() {
       toast.error(message);
     } finally {
       setIsSending(false);
+      toast.error(`Échec après 3 tentatives : ${errorDetails}`);
+      if (lastError) {
+        void captureException(lastError, { brandId: activeBrandId, jobId: orderId });
+      }
+      setIsLoading(false);
+      inFlightRef.current = false;
     }
   }, [activeBrandId, addMessage, pendingIntent, refreshStatuses]);
 
@@ -172,6 +618,44 @@ export function AlfieChat() {
   }, [pendingIntent]);
 
   const hasCompletedAsset = assets.some((asset) => asset.status === "ready" || asset.status === "done");
+      if (reply === "Oui, lance !" && lastContext) {
+        try {
+          if (Array.isArray(lastContext.carouselBriefs) && lastContext.carouselBriefs.length > 0) {
+            if (!carouselEnabled) {
+              toast.error("La génération de carrousels est désactivée dans cet environnement.");
+              return;
+            }
+            const slides = await planCarouselSlides(lastContext.carouselBriefs[0]);
+            await handleSend(reply, { forceTool: "render_carousel", slides, intentOverride: "carousel" });
+            return;
+          }
+
+          if (Array.isArray(lastContext.imageBriefs) && lastContext.imageBriefs.length > 0) {
+            const brief = lastContext.imageBriefs[0] || {};
+            const parts = [brief.objective, brief.content, brief.style]
+              .map((part: unknown) => (typeof part === "string" ? part.trim() : ""))
+              .filter((part: string) => part.length > 0);
+            const prompt = parts.join(" • ");
+            await handleSend(prompt || reply, {
+              forceTool: "generate_image",
+              promptOverride: prompt || reply,
+              intentOverride: "image",
+            });
+            return;
+          }
+        } catch (err) {
+          console.error("[Chat] Quick reply launch error:", err);
+          toast.error(`Impossible de lancer : ${toErrorMessage(err)}`);
+          void captureException(err, { brandId: activeBrandId, jobId: orderId });
+          return;
+        }
+      }
+
+      setInput(reply);
+      await handleSend(reply);
+    },
+    [handleSend, isLoading, lastContext, orderId, planCarouselSlides, carouselEnabled, activeBrandId],
+  );
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
