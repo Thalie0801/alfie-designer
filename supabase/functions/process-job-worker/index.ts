@@ -46,20 +46,77 @@ function correctFrenchSpelling(text: string): string {
 }
 
 serve(async (req) => {
+  // 1. Vérification JWT
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader) {
+    return new Response(JSON.stringify({ error: 'Missing authorization' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const requestBody = await req.json().catch(() => ({}));
+  const requestSource =
+    typeof requestBody?.source === 'string' ? requestBody.source : 'manual';
+  const lockOwner = `${requestSource}:${crypto.randomUUID()}`;
+
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
+
   let jobIdForCleanup: string | undefined;
   const jobStartTime = Date.now();
   const MAX_JOB_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+  const LOCK_TTL_SECONDS = Math.ceil(MAX_JOB_DURATION_MS / 1000);
+  let lockAcquired = false;
 
   try {
     console.log('🚀 [Worker] Starting job processing...');
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+
+    const { data: lockData, error: lockErr } = await supabase.rpc(
+      'acquire_process_job_worker_mutex',
+      {
+        p_owner: lockOwner,
+        p_ttl_seconds: LOCK_TTL_SECONDS,
+      },
     );
+
+    if (lockErr) {
+      console.error('❌ [Worker] Failed to acquire mutex:', lockErr);
+      return new Response(
+        JSON.stringify({ error: 'Failed to acquire worker lock' }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        },
+      );
+    }
+
+    if (!lockData) {
+      console.warn('⚠️ [Worker] Another run is already in progress');
+      return new Response(
+        JSON.stringify({ error: 'Worker already running' }),
+        {
+          status: 409,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        },
+      );
+    }
+
+    lockAcquired = true;
+
+    // SANITY CHECK: Compter les jobs en attente
+    const { count: queuedCount } = await supabase
+      .from('job_queue')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'queued');
+    
+    console.log(`[WORKER] Boot: ${queuedCount ?? 0} jobs queued in job_queue`);
 
     // 1. Récupérer 1 job en attente (FIFO) et le verrouiller atomiquement
     const { data: job, error: jobErr } = await supabase
@@ -316,7 +373,7 @@ serve(async (req) => {
               {
                 role: 'user',
                 content: [
-                  { type: 'text', text: `${enrichedPrompt}\n\nIMPORTANT: Create a clean marketing visual background at ${resolution} (${aspectRatio}). NO TEXT, NO LETTERS, NO TYPOGRAPHY, NO WORDS. Pure visual design only. Keep brand style consistent.\n\nNEGATIVE PROMPT: no text, no letters, no words, no typography, no captions, no labels` }
+                  { type: 'text', text: `${enrichedPrompt}\n\nIMPORTANT: Create a professional marketing visual at ${resolution} (${aspectRatio}) that represents this content. The image should visually communicate the message and leave strategic space for text overlay. Use brand colors and style. Focus on visual storytelling that complements the text content.\n\nLANGUAGE: All visual elements, if any text appears, MUST be in FRENCH. The content is in French, so any labels, captions, or text elements should be in French.\n\nContext: This image will have text overlaid, so ensure the composition allows for readable text placement. Avoid cluttered designs.` }
                 ]
               }
             ],
@@ -524,18 +581,79 @@ serve(async (req) => {
     
     console.log('✅ [Worker] SVG layer generated:', svgTextLayer.length, 'chars');
 
-    // 8. Composite background + SVG text via Cloudinary (returns URL)
+    // 8. Composite background + SVG text via Cloudinary with retry
+    // Implement retry with fallback to background-only if SVG fails
     checkTimeout();
     console.log('🎨 [Worker] Step 5: Compositing background + text via Cloudinary...');
-    const composed = await compositeSlide(backgroundUrl, svgTextLayer, job.job_set_id, job.job_sets.brand_id);
-    console.log('✅ [Worker] Composition complete, URL:', composed.url);
+    
+    // Extract primary and secondary colors from brand for tint
+    const primaryColor = brandSnapshot?.primary_color || brandSnapshot?.palette?.[0];
+    const secondaryColor = brandSnapshot?.secondary_color || brandSnapshot?.palette?.[1];
+    
+    let finalUrl = backgroundUrl; // Default to background if everything fails
+    let compositionFailed = false;
+    let compositionAttempts = 0;
+    const maxCompositionAttempts = 2;
+    let composedResult: { url: string; bgPublicId: string; svgPublicId: string } | null = null;
+    
+    while (compositionAttempts < maxCompositionAttempts) {
+      try {
+        compositionAttempts++;
+        console.log(`🎨 [Worker] Composition attempt ${compositionAttempts}/${maxCompositionAttempts}`);
+        
+        composedResult = await compositeSlide(
+          backgroundUrl, 
+          svgTextLayer, 
+          job.job_set_id, 
+          job.job_sets.brand_id,
+          primaryColor && secondaryColor ? {
+            primaryColor,
+            secondaryColor,
+            tintStrength: 60
+          } : undefined
+        );
+        
+        finalUrl = composedResult.url;
+        console.log('✅ [Worker] Composition complete, URL:', finalUrl);
+        break; // Success
+        
+      } catch (compositionError: unknown) {
+        const errorMessage = compositionError instanceof Error ? compositionError.message : String(compositionError);
+        console.error(`❌ [Worker] Composition attempt ${compositionAttempts} failed:`, errorMessage);
+        
+        if (compositionAttempts >= maxCompositionAttempts) {
+          // Fallback: use background-only (without text overlay)
+          console.warn('⚠️ [Worker] Using background-only fallback (no text overlay)');
+          finalUrl = backgroundUrl;
+          compositionFailed = true;
+          
+          // Update job metadata to warn about missing text
+          await supabase
+            .from('jobs')
+            .update({
+              metadata: {
+                ...job.metadata,
+                composition_warning: 'Text overlay failed, using background only',
+                composition_error: errorMessage
+              }
+            })
+            .eq('id', job.id);
+          
+          break;
+        }
+        
+        // Wait before retry
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
 
-    // 9. Download composed image from Cloudinary
+    // 9. Download composed/background image
     checkTimeout();
-    console.log('⬇️ [Worker] Downloading composed image from Cloudinary...');
-    const imageResponse = await fetch(composed.url);
+    const imageSource = compositionFailed ? 'background (fallback)' : 'composed image';
+    console.log(`⬇️ [Worker] Downloading ${imageSource}...`);
+    const imageResponse = await fetch(finalUrl);
     if (!imageResponse.ok) {
-      throw new Error(`Failed to download composed image: ${imageResponse.status}`);
+      throw new Error(`Failed to download ${imageSource}: ${imageResponse.status}`);
     }
     const finalImageBytes = new Uint8Array(await imageResponse.arrayBuffer());
     console.log('✅ [Worker] Image downloaded:', finalImageBytes.length, 'bytes');
@@ -579,8 +697,13 @@ serve(async (req) => {
 
     console.log('✅ [Worker] Upload success:', uploadData);
 
-    // Cleanup Cloudinary temporary assets now that we have our copy
-    await cleanupCloudinaryResources({ bgPublicId: composed.bgPublicId, svgPublicId: composed.svgPublicId });
+    // Cleanup Cloudinary temporary assets if composition succeeded
+    if (composedResult) {
+      await cleanupCloudinaryResources({ 
+        bgPublicId: composedResult.bgPublicId, 
+        svgPublicId: composedResult.svgPublicId 
+      });
+    }
 
     const { data: publicUrlData } = supabase.storage
       .from('media-generations')
@@ -622,25 +745,80 @@ serve(async (req) => {
     const coherenceScore = await checkCoherence(publicUrl, {
       palette: job.job_sets.constraints?.palette || [],
       referenceImageUrl
-    });
+    }, composedResult?.bgPublicId || '');
 
     console.log(`[Worker] Coherence score: ${coherenceScore.total}/100`, coherenceScore.breakdown);
 
-    // 9. HOTFIX: Seuil de cohérence ajusté pour éviter boucles retry (texte inclus dans l'image)
-    const coherenceThresholdEffective = 50; // HOTFIX: seuil plus bas pour génération directe
+    // 9. If coherence is low and composition succeeded, retry with stronger tint
+    const coherenceThresholdEffective = 60;
     const retryCount = job.retry_count || 0;
+    let updatedPublicUrl = publicUrl; // Track potentially updated URL
     
-    console.log(`[Worker] Using effective coherence threshold: ${coherenceThresholdEffective} (direct generation mode)`);
+    console.log(`[Worker] Using effective coherence threshold: ${coherenceThresholdEffective} (with brand tint)`);
     
-    if (coherenceScore.total < coherenceThresholdEffective && retryCount < 3) {
-      await supabase.from('jobs').update({
-        status: 'queued',
-        retry_count: retryCount + 1,
-        error: `Low coherence: ${coherenceScore.total}/100 (threshold: ${coherenceThresholdEffective})`
-      }).eq('id', job.id);
+    if (coherenceScore.total < coherenceThresholdEffective && retryCount === 0 && composedResult) {
+      // ONE TIME retry with stronger tint (only if composition succeeded initially)
+      console.log(`[Worker] Low coherence (${coherenceScore.total}), retrying with stronger tint...`);
       
-      console.log(`[Worker] Job ${job.id} requeued for retry (attempt ${retryCount + 1})`);
-      return new Response(JSON.stringify({ retry: true, coherenceScore }), { headers: corsHeaders });
+      // Re-composite with stronger tint
+      const strongerTint = await compositeSlide(
+        backgroundUrl,
+        svgTextLayer,
+        job.job_set_id,
+        job.job_sets.brand_id,
+        primaryColor && secondaryColor ? {
+          primaryColor,
+          secondaryColor,
+          tintStrength: 80 // Stronger tint
+        } : undefined
+      );
+      
+      // Re-download and upload
+      const retryImageResponse = await fetch(strongerTint.url);
+      if (retryImageResponse.ok) {
+        const retryImageBytes = new Uint8Array(await retryImageResponse.arrayBuffer());
+        const retryFileName = `carousel/${brandId}/${job.job_set_id}/slide_${job.index_in_set}_retry_${Date.now()}.png`;
+        
+        const { data: retryUploadData, error: retryUploadError } = await supabase.storage
+          .from('media-generations')
+          .upload(retryFileName, retryImageBytes, { 
+            contentType: 'image/png', 
+            upsert: true, 
+            cacheControl: '3600' 
+          });
+        
+        if (!retryUploadError && retryUploadData) {
+          const { data: retryPublicUrlData } = supabase.storage
+            .from('media-generations')
+            .getPublicUrl(retryFileName);
+          
+          const retryPublicUrl = retryPublicUrlData.publicUrl;
+          
+          // Re-check coherence
+          const retryCoherenceScore = await checkCoherence(retryPublicUrl, {
+            palette: job.job_sets.constraints?.palette || [],
+            referenceImageUrl
+          }, strongerTint.bgPublicId);
+          
+          console.log(`[Worker] Retry coherence score: ${retryCoherenceScore.total}/100`);
+          
+          // Use retry image if better
+          if (retryCoherenceScore.total > coherenceScore.total) {
+            console.log(`[Worker] Using retry image (better score: ${retryCoherenceScore.total} > ${coherenceScore.total})`);
+            // Cleanup old upload
+            await supabase.storage.from('media-generations').remove([fileName]);
+            // Update to use retry
+            composedResult.url = strongerTint.url;
+            composedResult.bgPublicId = strongerTint.bgPublicId;
+            composedResult.svgPublicId = strongerTint.svgPublicId;
+            updatedPublicUrl = retryPublicUrl;
+            coherenceScore.total = retryCoherenceScore.total;
+            coherenceScore.breakdown = retryCoherenceScore.breakdown;
+          }
+        }
+        
+        await cleanupCloudinaryResources({ bgPublicId: strongerTint.bgPublicId, svgPublicId: strongerTint.svgPublicId });
+      }
     }
 
     // 10. D'ABORD créer l'asset dans assets (nouvelle table Realtime)
@@ -664,7 +842,7 @@ serve(async (req) => {
         coherence_score: coherenceScore,
         coherence_mode: 'direct',
         retry_count: retryCount,
-        public_url: publicUrl
+        public_url: updatedPublicUrl
       }
     };
     
@@ -763,14 +941,9 @@ serve(async (req) => {
       try {
         console.log(`🔄 [Worker] Attempting to mark job ${jobIdForCleanup} as failed...`);
         
-        const supabase = createClient(
-          Deno.env.get('SUPABASE_URL')!,
-          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-        );
-        
         const errorMessage = error.message || 'Unknown error';
         const isTimeout = errorMessage.includes('timeout') || errorMessage.includes('exceeded');
-        
+
         await supabase
           .from('jobs')
           .update({
@@ -818,5 +991,15 @@ serve(async (req) => {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
+  } finally {
+    if (lockAcquired) {
+      try {
+        await supabase.rpc('release_process_job_worker_mutex', {
+          p_owner: lockOwner,
+        });
+      } catch (releaseErr) {
+        console.error('❌ [Worker] Failed to release mutex:', releaseErr);
+      }
+    }
   }
 });
