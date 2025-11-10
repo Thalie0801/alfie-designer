@@ -4,11 +4,15 @@ on:
   push:
     branches:
       - codex/**
+permissions:
+  contents: write
+  pull-requests: write
 concurrency:
   group: codex-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   codex:
+    # 🔒 Ne s'exécute que si c'est un push sur une branche codex/*
     if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'codex/') }}
     permissions:
       contents: write
