@@ -10,12 +10,14 @@ export type JobEntry = {
   payload?: unknown;
   user_id: string;
   retry_count: number;
+  max_retries?: number;
 };
 
 export type MediaEntry = {
   id: string;
   type: string;
   cloudinary_url: string | null;
+  preview_url?: string | null;
   metadata?: Record<string, any> | null;
   created_at: string;
   brand_id?: string | null;
