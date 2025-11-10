@@ -91,6 +91,7 @@ export const CheckoutSchema = z.object({
     .min(1, 'Nom de marque requis')
     .max(100, 'Nom de marque trop long (max 100 caractères)')
     .regex(BRAND_NAME_PATTERN, 'Nom de marque contient des caractères non autorisés')
+    .regex(/^[a-zA-Z0-9\s._'-]+$/, 'Nom de marque contient des caractères non autorisés')
     .optional()
     .or(z.literal('')),
 });
