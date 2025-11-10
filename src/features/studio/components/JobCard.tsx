@@ -1,6 +1,6 @@
-import type { ComponentType } from "react";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, CheckCircle2, Clock, Loader2, ExternalLink } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { JobEntry } from "../types";
 
@@ -11,7 +11,7 @@ const STATUS_MAP: Record<
   {
     label: string;
     badgeClass: string;
-    icon?: ComponentType<{ className?: string; size?: number }>;
+    icon?: LucideIcon;
     iconClassName?: string;
   }
 > = {
