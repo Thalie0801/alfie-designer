@@ -887,31 +887,25 @@ export function ChatGenerator() {
                     (typeof metadata.preview_url === "string" ? metadata.preview_url : null) ??
                     item.cloudinary_url ??
                     undefined;
-                  const assetStatus =
-                    (typeof metadata.status === "string" ? metadata.status : null) ?? item.status ?? "done";
-                  const woofs = typeof metadata.woofs === "number" ? metadata.woofs : null;
-                  const downloadUrl = typeof metadata.download_url === "string" ? metadata.download_url : null;
-                  const videoUrl = typeof metadata.video_url === "string" ? metadata.video_url : null;
-                  const engine = typeof metadata.engine === "string" ? metadata.engine : null;
-
                   return (
                     <StudioAssetCard
                       key={item.id}
                       asset={{
                         id: item.id,
                         type: item.type,
-                        status: assetStatus,
-                        createdAt: formatDate(item.created_at),
-                        previewUrl,
-                        assetUrl: item.cloudinary_url ?? undefined,
-                        downloadUrl,
-                        videoUrl,
-                        woofs,
-                        engine,
+                        url: previewUrl,
+                        coverUrl: previewUrl,
+                        created_at: item.created_at,
+                        meta: metadata,
+                        title: typeof metadata.title === "string" ? metadata.title : undefined,
                       }}
-                      onMissingUrl={() => {
-                        toast.error("URL indisponible");
-                      }}
+                      onEnqueueVideo={
+                        item.type === "carousel"
+                          ? () => {
+                              toast.error("Transformation vidéo non disponible sur cette page.");
+                            }
+                          : undefined
+                      }
                     />
                   );
                 })}

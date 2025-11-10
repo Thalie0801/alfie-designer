@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { uploadToChatBucket } from "@/lib/chatUploads";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { VIDEO_ENGINE_CONFIG } from "@/config/videoEngine";
-import { generateImage } from "@/features/studio/hooks/useGenerateImage";
+import { useGenerateImage } from "@/features/studio/hooks/useGenerateImage";
 
 type GeneratedAsset = {
   type: "image" | "video";
@@ -237,6 +237,8 @@ export function ChatGenerator() {
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("1:1");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  const { generate: generateImage } = useGenerateImage();
 
   const showGenerationError = (err: unknown) => {
     if (err instanceof Error && err.name === "AbortError") {
