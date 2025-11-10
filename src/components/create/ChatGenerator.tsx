@@ -237,7 +237,7 @@ export function ChatGenerator() {
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("1:1");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const { generateImage } = useGenerateImage();
+  const { generate: generateImage } = useGenerateImage();
 
   const showGenerationError = (err: unknown) => {
     if (err instanceof Error && err.name === "AbortError") {
