@@ -29,12 +29,18 @@ interface TextOverlayInput {
  * IMPORTANT: n'inclure que les paramètres Cloudinary supportés pour la signature,
  * triés alphabétiquement, et surtout NE PAS inclure "file", "api_key", "signature".
  */
-function buildCloudinarySignature(params: Record<string, string | number | undefined>, apiSecret: string) {
+function buildCloudinarySignature(
+  params: Record<string, string | number | undefined>,
+  apiSecret: string,
+) {
   const filtered = Object.entries(params)
     .filter(([_, v]) => v !== undefined && v !== null && v !== "")
     .sort(([a], [b]) => a.localeCompare(b));
   const toSign = filtered.map(([k, v]) => `${k}=${v}`).join("&");
-  return crypto.subtle.digest("SHA-1", new TextEncoder().encode(toSign + apiSecret));
+  return crypto.subtle.digest(
+    "SHA-1",
+    new TextEncoder().encode(toSign + apiSecret),
+  );
 }
 
 function hexFromBuffer(buf: ArrayBuffer) {
@@ -97,11 +103,16 @@ async function resolveAutoContrast(
   apiSecret: string,
   publicId: string,
 ): Promise<"light" | "dark"> {
-  const endpoint = `https://api.cloudinary.com/v1_1/${cloud}/resources/image/upload?colors=true&public_ids[]=${encodeURIComponent(
-    publicId,
-  )}`;
+  const endpoint =
+    `https://api.cloudinary.com/v1_1/${cloud}/resources/image/upload?colors=true&public_ids[]=${
+      encodeURIComponent(
+        publicId,
+      )
+    }`;
   const auth = "Basic " + btoa(`${apiKey}:${apiSecret}`);
-  const res = await fetchWithRetry(endpoint, { headers: { Authorization: auth } }, 1);
+  const res = await fetchWithRetry(endpoint, {
+    headers: { Authorization: auth },
+  }, 1);
   const json = await res.json();
 
   const hex = json?.resources?.[0]?.colors?.[0]?.[0] as string | undefined;
@@ -142,9 +153,13 @@ export default {
       }
 
       // --- Auth utilisateur ---
-      const supabaseAuth = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
-        global: { headers: { Authorization: `Bearer ${jwt}` } },
-      });
+      const supabaseAuth = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        {
+          global: { headers: { Authorization: `Bearer ${jwt}` } },
+        },
+      );
       const {
         data: { user },
         error: userError,
@@ -155,7 +170,9 @@ export default {
       const CLOUDINARY_API_KEY = Deno.env.get("CLOUDINARY_API_KEY");
       const CLOUDINARY_API_SECRET = Deno.env.get("CLOUDINARY_API_SECRET");
 
-      if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
+      if (
+        !CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET
+      ) {
         throw new Error("CLOUDINARY_NOT_CONFIGURED");
       }
 
@@ -164,7 +181,9 @@ export default {
       const publicIdBase = [
         brand_id || "brand",
         user.id.slice(0, 8),
-        typeof slideIndex === "number" ? `s${String(slideIndex).padStart(2, "0")}` : "sxx",
+        typeof slideIndex === "number"
+          ? `s${String(slideIndex).padStart(2, "0")}`
+          : "sxx",
         Date.now(),
       ].join("_");
 
@@ -200,7 +219,10 @@ export default {
           context,
         };
 
-        const sigBuf = await buildCloudinarySignature(uploadParams, CLOUDINARY_API_SECRET);
+        const sigBuf = await buildCloudinarySignature(
+          uploadParams,
+          CLOUDINARY_API_SECRET,
+        );
         const signatureHex = hexFromBuffer(sigBuf);
 
         const uploadFormData = new FormData();
@@ -270,7 +292,10 @@ export default {
 
         // Tailles cohérentes
         const titleSize = Math.max(24, Math.min(120, Math.round(fontSize)));
-        const subtitleSize = Math.max(18, Math.min(90, Math.round(fontSize * 0.65)));
+        const subtitleSize = Math.max(
+          18,
+          Math.min(90, Math.round(fontSize * 0.65)),
+        );
         const family = (fontFamily || "Arial").replace(/[^-a-zA-Z0-9_]/g, "");
 
         // 3) Overlays

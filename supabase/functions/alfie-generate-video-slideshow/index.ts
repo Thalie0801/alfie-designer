@@ -3,7 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 type SlideInput = {
@@ -35,7 +36,10 @@ async function sha1(text: string) {
  * - Joindre "k=v" par "&"
  * - SHA1(string_to_sign + api_secret)
  */
-async function cloudinarySign(params: Record<string, string | number | undefined | null>, apiSecret: string) {
+async function cloudinarySign(
+  params: Record<string, string | number | undefined | null>,
+  apiSecret: string,
+) {
   const toSign = Object.entries(params)
     .filter(([, v]) => v !== undefined && v !== null && v !== "")
     .sort(([a], [b]) => a.localeCompare(b))
@@ -77,10 +81,13 @@ async function cloudinaryUploadImageFromUrl(opts: {
   if (opts.tags) fd.append("tags", opts.tags);
   if (opts.context) fd.append("context", opts.context);
 
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${opts.cloudName}/image/upload`, {
-    method: "POST",
-    body: fd,
-  });
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${opts.cloudName}/image/upload`,
+    {
+      method: "POST",
+      body: fd,
+    },
+  );
   if (!res.ok) {
     const msg = await res.text().catch(() => "");
     throw new Error(`Cloudinary upload failed: ${res.status} ${msg}`);
@@ -126,7 +133,9 @@ async function cloudinaryCreateSlideshow(opts: {
     public_ids: opts.publicIds.join(","),
     format: "mp4",
     timestamp,
-    transformation: `w_${opts.width},h_${opts.height},c_${opts.cropMode ?? "fit"}`,
+    transformation: `w_${opts.width},h_${opts.height},c_${
+      opts.cropMode ?? "fit"
+    }`,
     // "duration" total du slideshow (dépend du support multi MP4)
     duration: opts.totalDurationSec,
     // Stockage final :
@@ -147,10 +156,13 @@ async function cloudinaryCreateSlideshow(opts: {
   if (params.folder) fd.append("folder", params.folder);
   if (params.public_id) fd.append("public_id", params.public_id);
 
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${opts.cloudName}/image/multi`, {
-    method: "POST",
-    body: fd,
-  });
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${opts.cloudName}/image/multi`,
+    {
+      method: "POST",
+      body: fd,
+    },
+  );
   if (!res.ok) {
     const msg = await res.text().catch(() => "");
     throw new Error(`Cloudinary multi failed: ${res.status} ${msg}`);
@@ -165,7 +177,10 @@ serve(async (req) => {
   }
 
   try {
-    const supabase = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    );
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) throw new Error("Missing authorization header");
@@ -213,62 +228,82 @@ serve(async (req) => {
           negativePrompt: "low quality, watermark, text artifacts",
         },
         headers: { Authorization: `Bearer ${token}` },
-      }),
+      })
     );
 
     const imageResults = await Promise.all(imagePromises);
 
     // Extraire la première URL valide par slide
     const imageUrls: string[] = imageResults
-      .map((r, idx) => r.data?.data?.image_urls?.[0] || r.data?.imageUrl || r.data?.url)
+      .map((r, idx) =>
+        r.data?.data?.image_urls?.[0] || r.data?.imageUrl || r.data?.url
+      )
       .filter((u: any) => typeof u === "string" && u.startsWith("http"));
 
     if (imageUrls.length !== slides.length) {
-      throw new Error(`Only ${imageUrls.length}/${slides.length} images generated successfully`);
+      throw new Error(
+        `Only ${imageUrls.length}/${slides.length} images generated successfully`,
+      );
     }
     console.log(`✅ [Phase 1] ${imageUrls.length} images ready`);
 
     // === Phase 2: (Optionnel) TTS via Lovable (si dispo) ===
     let audioUrl: string | null = null;
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") || "";
-    if (LOVABLE_API_KEY && typeof narration === "string" && narration.trim().length > 0) {
+    if (
+      LOVABLE_API_KEY && typeof narration === "string" &&
+      narration.trim().length > 0
+    ) {
       try {
         console.log("🎤 [Phase 2] Attempt TTS via Lovable...");
-        const ttsResp = await fetch("https://ai.gateway.lovable.dev/v1/audio/speech", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "Content-Type": "application/json",
+        const ttsResp = await fetch(
+          "https://ai.gateway.lovable.dev/v1/audio/speech",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "google/gemini-2.5-tts", // si indisponible, l'API retournera 4xx → on tolère
+              input: narration,
+              voice: "female_warm",
+            }),
           },
-          body: JSON.stringify({
-            model: "google/gemini-2.5-tts", // si indisponible, l'API retournera 4xx → on tolère
-            input: narration,
-            voice: "female_warm",
-          }),
-        });
+        );
 
         if (ttsResp.ok) {
           // Dans un vrai flux, tu uploaderais le blob vers Cloud Storage (R2/Cloudinary raw/Supabase storage)
           // Ici on garde la logique optionnelle : placeholder si besoin
           audioUrl = null; // <-- implémentation d'upload à faire selon ton infra
-          console.log("✅ [Phase 2] TTS call OK (upload non implémenté) – on continue sans audio mux.");
+          console.log(
+            "✅ [Phase 2] TTS call OK (upload non implémenté) – on continue sans audio mux.",
+          );
         } else {
-          console.warn("⚠️ [Phase 2] TTS not available, continue without audio");
+          console.warn(
+            "⚠️ [Phase 2] TTS not available, continue without audio",
+          );
         }
       } catch (e) {
         console.warn("⚠️ [Phase 2] TTS error:", e);
       }
     } else {
-      console.log("ℹ️ [Phase 2] No narration or no LOVABLE_API_KEY → skipping TTS");
+      console.log(
+        "ℹ️ [Phase 2] No narration or no LOVABLE_API_KEY → skipping TTS",
+      );
     }
 
     // === Phase 3: Upload des images vers Cloudinary, puis assemblage vidéo (image/multi → MP4) ===
-    console.log("☁️ [Phase 3] Uploading images to Cloudinary & building slideshow...");
+    console.log(
+      "☁️ [Phase 3] Uploading images to Cloudinary & building slideshow...",
+    );
     const CLOUDINARY_CLOUD_NAME = Deno.env.get("CLOUDINARY_CLOUD_NAME");
     const CLOUDINARY_API_KEY = Deno.env.get("CLOUDINARY_API_KEY");
     const CLOUDINARY_API_SECRET = Deno.env.get("CLOUDINARY_API_SECRET");
 
-    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
+    if (
+      !CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET
+    ) {
       throw new Error("Cloudinary credentials not configured");
     }
 
@@ -276,26 +311,35 @@ serve(async (req) => {
     const uploadResults: Array<{ public_id: string; secure_url: string }> = [];
     for (let i = 0; i < imageUrls.length; i++) {
       const fileUrl = imageUrls[i];
-      const publicId = ["slide", String(i + 1).padStart(2, "0"), Date.now()].join("_");
+      const publicId = ["slide", String(i + 1).padStart(2, "0"), Date.now()]
+        .join("_");
 
       const up = await cloudinaryUploadImageFromUrl({
         fileUrl,
         folder,
         publicId,
         tags: `alfie,slideshow,user:${user.id}`,
-        context: `user_id=${user.id}|order_id=${orderId ?? ""}|brand_id=${brandId ?? ""}`,
+        context: `user_id=${user.id}|order_id=${orderId ?? ""}|brand_id=${
+          brandId ?? ""
+        }`,
         cloudName: CLOUDINARY_CLOUD_NAME,
         apiKey: CLOUDINARY_API_KEY,
         apiSecret: CLOUDINARY_API_SECRET,
       });
-      uploadResults.push({ public_id: up.public_id, secure_url: up.secure_url });
+      uploadResults.push({
+        public_id: up.public_id,
+        secure_url: up.secure_url,
+      });
       console.log(`  ↳ uploaded ${i + 1}/${imageUrls.length}: ${up.public_id}`);
     }
 
     const publicIds = uploadResults.map((u) => u.public_id);
 
     // Durée totale ≈ nbSlides * secondsPerSlide
-    const totalDurationSec = Math.max(1, Math.round(slides.length * secondsPerSlide));
+    const totalDurationSec = Math.max(
+      1,
+      Math.round(slides.length * secondsPerSlide),
+    );
 
     // On génère le MP4 via /image/multi
     const outPublicId = `slideshow_${Date.now()}`;
@@ -313,8 +357,7 @@ serve(async (req) => {
     });
 
     // multi.secure_url contient normalement la ressource animée (mp4)
-    const videoUrl: string =
-      multi?.secure_url ||
+    const videoUrl: string = multi?.secure_url ||
       `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/video/upload/${folder}/${outPublicId}.mp4`;
 
     console.log(`✅ [Phase 3] Slideshow ready: ${videoUrl}`);
@@ -359,7 +402,8 @@ serve(async (req) => {
         asset_id: asset.id,
         video_url: videoUrl,
         image_urls: imageUrls,
-        message: "Slideshow MP4 generated via Cloudinary image/multi. (Audio mux optional, not enabled.)",
+        message:
+          "Slideshow MP4 generated via Cloudinary image/multi. (Audio mux optional, not enabled.)",
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
@@ -369,7 +413,10 @@ serve(async (req) => {
       JSON.stringify({
         error: error instanceof Error ? error.message : "Unknown error",
       }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 });

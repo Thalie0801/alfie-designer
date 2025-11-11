@@ -14,10 +14,10 @@ function toBigIntSeed(seed: string): bigint {
     return BigInt(seed);
   } catch {
     // Try to interpret as hex (e.g., UUID without dashes)
-    const hex = seed.replace(/[^a-fA-F0-9]/g, '');
+    const hex = seed.replace(/[^a-fA-F0-9]/g, "");
     if (hex.length >= 8) {
       try {
-        return BigInt('0x' + hex.slice(0, 16)); // use first 64 bits
+        return BigInt("0x" + hex.slice(0, 16)); // use first 64 bits
       } catch { /* fallthrough */ }
     }
     // Fallback: simple rolling hash to 63-bit positive bigint

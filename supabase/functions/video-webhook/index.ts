@@ -3,7 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 type JsonValue = Record<string, unknown> | string | null | undefined;
@@ -17,24 +18,34 @@ type PayloadRecord = Record<string, unknown> & {
 };
 
 const jsonResponse = (body: string, status = 200) =>
-  new Response(body, { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  new Response(body, {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 
-const normalizeStatus = (payload: PayloadRecord): "processing" | "completed" | "failed" => {
+const normalizeStatus = (
+  payload: PayloadRecord,
+): "processing" | "completed" | "failed" => {
   const candidates: Array<string | undefined> = [
     typeof payload.status === "string" ? payload.status : undefined,
     typeof payload.state === "string" ? payload.state : undefined,
-    typeof (payload.data as Record<string, unknown> | undefined)?.status === "string"
+    typeof (payload.data as Record<string, unknown> | undefined)?.status ===
+        "string"
       ? (payload.data as Record<string, unknown>).status as string
       : undefined,
-    typeof (payload.data as Record<string, unknown> | undefined)?.state === "string"
+    typeof (payload.data as Record<string, unknown> | undefined)?.state ===
+        "string"
       ? (payload.data as Record<string, unknown>).state as string
-      : undefined
+      : undefined,
   ];
 
-  const value = candidates.find((item) => item && item.trim().length > 0)?.toLowerCase();
+  const value = candidates.find((item) => item && item.trim().length > 0)
+    ?.toLowerCase();
   if (!value) return "processing";
 
-  if (["succeeded", "success", "completed", "ready", "finished"].includes(value)) {
+  if (
+    ["succeeded", "success", "completed", "ready", "finished"].includes(value)
+  ) {
     return "completed";
   }
   if (["failed", "fail", "error", "cancelled", "canceled"].includes(value)) {
@@ -46,21 +57,22 @@ const normalizeStatus = (payload: PayloadRecord): "processing" | "completed" | "
 
 const isLikelyJson = (value: string) => {
   const trimmed = value.trim();
-  return (trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"));
+  return (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+    (trimmed.startsWith("[") && trimmed.endsWith("]"));
 };
 
 // ✅ SECURITY: Whitelist allowed domains to prevent malicious URL injection
 const ALLOWED_DOMAINS = [
-  'replicate.delivery',
-  'pbxt.replicate.delivery',
-  'kie-api-cdn.com',
-  'cdn.kie.ai'
+  "replicate.delivery",
+  "pbxt.replicate.delivery",
+  "kie-api-cdn.com",
+  "cdn.kie.ai",
 ];
 
 const isValidUrl = (url: string): boolean => {
   try {
     const parsed = new URL(url);
-    return ALLOWED_DOMAINS.some(domain => parsed.hostname.endsWith(domain));
+    return ALLOWED_DOMAINS.some((domain) => parsed.hostname.endsWith(domain));
   } catch {
     return false;
   }
@@ -106,7 +118,7 @@ const extractUrlFromValue = (value: JsonValue): string | null => {
       "url",
       "mp4",
       "src",
-      "href"
+      "href",
     ];
 
     for (const key of preferredKeys) {
@@ -118,7 +130,9 @@ const extractUrlFromValue = (value: JsonValue): string | null => {
     }
 
     if (Object.prototype.hasOwnProperty.call(objectValue, "resultUrls")) {
-      const extracted = extractUrlFromValue(objectValue.resultUrls as JsonValue);
+      const extracted = extractUrlFromValue(
+        objectValue.resultUrls as JsonValue,
+      );
       if (extracted) return extracted;
     }
 
@@ -144,7 +158,7 @@ const extractOutputUrl = (payload: PayloadRecord): string | null => {
     (payload.video as JsonValue) ?? null,
     (payload.result as JsonValue) ?? null,
     (payload.result_url as JsonValue) ?? null,
-    (payload.resultUrls as JsonValue) ?? null
+    (payload.resultUrls as JsonValue) ?? null,
   ];
 
   for (const source of nestedSources) {
@@ -159,7 +173,7 @@ const extractOutputUrl = (payload: PayloadRecord): string | null => {
       data.result as JsonValue,
       data.resultUrls as JsonValue,
       data.video as JsonValue,
-      data.video_url as JsonValue
+      data.video_url as JsonValue,
     ];
 
     if (typeof data.resultJson === "string") {
@@ -181,7 +195,10 @@ serve(async (req) => {
   }
 
   if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405, headers: corsHeaders });
+    return new Response("Method not allowed", {
+      status: 405,
+      headers: corsHeaders,
+    });
   }
 
   try {
@@ -200,7 +217,7 @@ serve(async (req) => {
     }
 
     const admin = createClient(supabaseUrl, supabaseKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
+      auth: { autoRefreshToken: false, persistSession: false },
     });
 
     const { data: record, error: selectError } = await admin
@@ -216,10 +233,11 @@ serve(async (req) => {
 
     if (!record) {
       console.warn("video-webhook: no media_generation found for", id);
-      return jsonResponse("\"ok\"");
+      return jsonResponse('"ok"');
     }
 
-    const existingMetadata = (record.metadata as Record<string, unknown> | null) ?? {};
+    const existingMetadata =
+      (record.metadata as Record<string, unknown> | null) ?? {};
     const normalizedStatus = normalizeStatus(payload);
     const outputUrl = extractOutputUrl(payload);
 
@@ -227,7 +245,7 @@ serve(async (req) => {
       ...existingMetadata,
       lastWebhookAt: new Date().toISOString(),
       lastWebhookStatus: payload.status ?? payload.state ?? normalizedStatus,
-      webhookPayload: payload
+      webhookPayload: payload,
     };
 
     if (payload.error) {
@@ -237,7 +255,7 @@ serve(async (req) => {
     const update: Record<string, unknown> = {
       status: normalizedStatus,
       updated_at: new Date().toISOString(),
-      metadata
+      metadata,
     };
 
     if (outputUrl) {
@@ -254,7 +272,7 @@ serve(async (req) => {
       return jsonResponse(JSON.stringify({ error: "update failed" }), 500);
     }
 
-    return jsonResponse("\"ok\"");
+    return jsonResponse('"ok"');
   } catch (error) {
     console.error("video-webhook error", error);
     const message = error instanceof Error ? error.message : "webhook error";

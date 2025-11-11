@@ -2,7 +2,8 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 const PLAN_NAMES = {
@@ -71,8 +72,9 @@ serve(async (req) => {
 });
 
 function getEmailHtml(planName: string, plan: string): string {
-  const baseUrl = Deno.env.get("SUPABASE_URL")?.replace("supabase.co", "lovable.app") || "";
-  
+  const baseUrl =
+    Deno.env.get("SUPABASE_URL")?.replace("supabase.co", "lovable.app") || "";
+
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -202,7 +204,7 @@ function getPlanFeatures(plan: string): string {
   };
 
   const planFeatures = features[plan as keyof typeof features] || [];
-  
+
   return planFeatures
     .map((feature) => `
       <div class="feature-item">

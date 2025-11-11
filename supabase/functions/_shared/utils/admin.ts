@@ -1,8 +1,12 @@
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import {
+  createClient,
+  SupabaseClient,
+} from "https://esm.sh/@supabase/supabase-js@2.57.2";
 
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
@@ -10,14 +14,18 @@ export const supabaseAdmin = () =>
   createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    { auth: { autoRefreshToken: false, persistSession: false } }
+    { auth: { autoRefreshToken: false, persistSession: false } },
   );
 
 export const supabaseUserFromReq = (req: Request) =>
   createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-    { global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } } }
+    {
+      global: {
+        headers: { Authorization: req.headers.get("Authorization") ?? "" },
+      },
+    },
   );
 
 export async function getAuthUserId(req: Request): Promise<string | null> {
@@ -26,28 +34,40 @@ export async function getAuthUserId(req: Request): Promise<string | null> {
   return data?.user?.id ?? null;
 }
 
-export async function assertIsAdmin(client: SupabaseClient, userId: string): Promise<boolean> {
+export async function assertIsAdmin(
+  client: SupabaseClient,
+  userId: string,
+): Promise<boolean> {
   // 1) Email autorisé via env (priorité pour éviter dépendance RLS)
   const { data: { user } } = await client.auth.getUser();
   const userEmail = user?.email?.toLowerCase() || "";
-  
+
   const admins = (Deno.env.get("ADMIN_EMAILS") ?? "")
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
-  
+
   const byEmail = userEmail && admins.includes(userEmail);
-  
+
   // 2) Rôle en BDD (check additionnel)
-  const { data: roles } = await client.from("user_roles").select("role").eq("user_id", userId);
+  const { data: roles } = await client.from("user_roles").select("role").eq(
+    "user_id",
+    userId,
+  );
   const byRole = !!roles?.some((r) => r.role === "admin");
 
   // Log diagnostic
-  console.log(`[AdminCheck] Checking admin for: ${userEmail} | byEmail: ${byEmail} | byRole: ${byRole} | ADMIN_EMAILS: ${admins.join(',')}`);
-  
+  console.log(
+    `[AdminCheck] Checking admin for: ${userEmail} | byEmail: ${byEmail} | byRole: ${byRole} | ADMIN_EMAILS: ${
+      admins.join(",")
+    }`,
+  );
+
   const isAdmin = byEmail || byRole;
   if (isAdmin) {
-    console.log(`[AdminCheck] ✅ Admin access granted via ${byEmail ? 'EMAIL' : 'ROLE'}`);
+    console.log(
+      `[AdminCheck] ✅ Admin access granted via ${byEmail ? "EMAIL" : "ROLE"}`,
+    );
   }
 
   return isAdmin;
