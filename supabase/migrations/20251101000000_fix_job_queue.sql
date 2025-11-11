@@ -114,6 +114,8 @@ $$;
  REVOKE ALL ON FUNCTION claim_next_job() FROM PUBLIC;
  REVOKE ALL ON FUNCTION claim_next_job() FROM authenticated;
  GRANT EXECUTE ON FUNCTION claim_next_job() TO service_role;
+GRANT EXECUTE ON FUNCTION claim_next_job() TO service_role;
+GRANT EXECUTE ON FUNCTION claim_next_job() TO authenticated;
 
 -- ÉTAPE 6: Ajouter une fonction pour débloquer les jobs stuck
 -- ============================================================================
@@ -143,6 +145,7 @@ $$;
  REVOKE ALL ON FUNCTION unlock_stuck_jobs(integer) FROM PUBLIC;
  REVOKE ALL ON FUNCTION unlock_stuck_jobs(integer) FROM authenticated;
  GRANT EXECUTE ON FUNCTION unlock_stuck_jobs(integer) TO service_role;
+GRANT EXECUTE ON FUNCTION unlock_stuck_jobs(integer) TO service_role;
 
 -- ÉTAPE 7: Fonction pour marquer les jobs expirés comme failed
 -- ============================================================================
@@ -171,6 +174,7 @@ $$;
  REVOKE ALL ON FUNCTION fail_expired_jobs(integer) FROM PUBLIC;
  REVOKE ALL ON FUNCTION fail_expired_jobs(integer) FROM authenticated;
  GRANT EXECUTE ON FUNCTION fail_expired_jobs(integer) TO service_role;
+GRANT EXECUTE ON FUNCTION fail_expired_jobs(integer) TO service_role;
 
 -- ÉTAPE 8: Ajouter une colonne scheduled_for si absente (pour retry delays)
 -- ============================================================================
