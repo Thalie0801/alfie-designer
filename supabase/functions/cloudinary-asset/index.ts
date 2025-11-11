@@ -1,31 +1,31 @@
-import cloudinary from 'npm:cloudinary';
+import cloudinary from "npm:cloudinary";
 
 cloudinary.v2.config({
-  cloud_name: Deno.env.get('CLOUDINARY_CLOUD_NAME'),
-  api_key: Deno.env.get('CLOUDINARY_API_KEY'),
-  api_secret: Deno.env.get('CLOUDINARY_API_SECRET'),
+  cloud_name: Deno.env.get("CLOUDINARY_CLOUD_NAME"),
+  api_key: Deno.env.get("CLOUDINARY_API_KEY"),
+  api_secret: Deno.env.get("CLOUDINARY_API_SECRET"),
 });
 
 type Json = Record<string, unknown>;
 const j = (d: Json, s = 200) =>
   new Response(JSON.stringify(d), {
     status: s,
-    headers: { 'content-type': 'application/json' },
+    headers: { "content-type": "application/json" },
   });
 
 Deno.serve(async (req) => {
   try {
     const { action, params } = (await req.json().catch(() => ({
-      action: 'ping',
+      action: "ping",
       params: {},
     }))) as {
-      action: 'ping' | 'sign' | 'upload' | 'upload_large' | 'delete';
+      action: "ping" | "sign" | "upload" | "upload_large" | "delete";
       params?: any;
     };
 
-    if (action === 'ping') return j({ ok: true, ts: Date.now() });
+    if (action === "ping") return j({ ok: true, ts: Date.now() });
 
-    if (action === 'sign') {
+    if (action === "sign") {
       const ts = Math.floor(Date.now() / 1000);
       const toSign: Record<string, string | number> = { timestamp: ts };
       if (params?.folder) toSign.folder = params.folder;
@@ -34,19 +34,20 @@ Deno.serve(async (req) => {
 
       const signature = cloudinary.v2.utils.api_sign_request(
         toSign,
-        Deno.env.get('CLOUDINARY_API_SECRET')!
+        Deno.env.get("CLOUDINARY_API_SECRET")!,
       );
 
       return j({
         timestamp: ts,
         signature,
-        api_key: Deno.env.get('CLOUDINARY_API_KEY'),
-        cloud_name: Deno.env.get('CLOUDINARY_CLOUD_NAME'),
+        api_key: Deno.env.get("CLOUDINARY_API_KEY"),
+        cloud_name: Deno.env.get("CLOUDINARY_CLOUD_NAME"),
       });
     }
 
-    if (action === 'upload') {
-      const { file, folder, public_id, resource_type = 'auto', ...rest } = params ?? {};
+    if (action === "upload") {
+      const { file, folder, public_id, resource_type = "auto", ...rest } =
+        params ?? {};
       const res = await cloudinary.v2.uploader.upload(file, {
         resource_type,
         folder,
@@ -58,12 +59,12 @@ Deno.serve(async (req) => {
       return j(res as Json);
     }
 
-    if (action === 'upload_large') {
+    if (action === "upload_large") {
       const {
         file,
         folder,
         public_id,
-        resource_type = 'video',
+        resource_type = "video",
         chunk_size = 8_000_000,
         ...rest
       } = params ?? {};
@@ -80,13 +81,15 @@ Deno.serve(async (req) => {
       return j(res as Json);
     }
 
-    if (action === 'delete') {
-      const { public_id, resource_type = 'image' } = params ?? {};
-      const res = await cloudinary.v2.uploader.destroy(public_id, { resource_type });
+    if (action === "delete") {
+      const { public_id, resource_type = "image" } = params ?? {};
+      const res = await cloudinary.v2.uploader.destroy(public_id, {
+        resource_type,
+      });
       return j(res);
     }
 
-    return j({ error: 'unknown action' }, 400);
+    return j({ error: "unknown action" }, 400);
   } catch (e: any) {
     return j({ error: String(e?.message ?? e) }, 500);
   }

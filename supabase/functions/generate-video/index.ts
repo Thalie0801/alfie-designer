@@ -3,21 +3,26 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 const REPLICATE_API = "https://api.replicate.com/v1/predictions";
 const DEFAULT_REPLICATE_MODEL_VERSION = "minimax/video-01"; // Remplace par le hash/slug exact
 const REPLICATE_TOKEN = Deno.env.get("REPLICATE_API_TOKEN");
 const KIE_TOKEN = Deno.env.get("KIE_API_KEY");
-const REPLICATE_MODEL_VERSION =
-  Deno.env.get("REPLICATE_VIDEO_MODEL_VERSION") ?? DEFAULT_REPLICATE_MODEL_VERSION;
+const REPLICATE_MODEL_VERSION = Deno.env.get("REPLICATE_VIDEO_MODEL_VERSION") ??
+  DEFAULT_REPLICATE_MODEL_VERSION;
 const DEFAULT_FFMPEG_BACKEND_URL = "https://alfie-ffmpeg-backend.onrender.com";
 
 const jsonResponse = (data: unknown, init?: ResponseInit) =>
   new Response(JSON.stringify(data), {
     ...(init ?? {}),
-    headers: { ...corsHeaders, "Content-Type": "application/json", ...(init?.headers ?? {}) }
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
   });
 
 const MEDIA_URL_KEYS = [
@@ -32,7 +37,7 @@ const MEDIA_URL_KEYS = [
   "resultUrl",
   "result_url",
   "fileUrl",
-  "file_url"
+  "file_url",
 ] as const;
 
 type UnknownRecord = Record<string, unknown>;
@@ -96,7 +101,7 @@ const collectStatusUrls = (payload: unknown): string[] => {
     "resultUrl",
     "result_url",
     "progressUrl",
-    "progress_url"
+    "progress_url",
   ];
 
   for (const field of statusFields) {
@@ -123,14 +128,18 @@ const readStatusString = (payload: unknown): string | null => {
 };
 
 const getBackendBaseUrl = () => {
-  const configured = Deno.env.get("FFMPEG_BACKEND_URL") ?? DEFAULT_FFMPEG_BACKEND_URL;
+  const configured = Deno.env.get("FFMPEG_BACKEND_URL") ??
+    DEFAULT_FFMPEG_BACKEND_URL;
   return configured.replace(/\/$/, "");
 };
 
 const buildBackendHeaders = () => {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
   const apiKey = Deno.env.get("FFMPEG_BACKEND_API_KEY");
-  const bearer = Deno.env.get("FFMPEG_BACKEND_BEARER") ?? Deno.env.get("FFMPEG_BACKEND_BEARER_TOKEN");
+  const bearer = Deno.env.get("FFMPEG_BACKEND_BEARER") ??
+    Deno.env.get("FFMPEG_BACKEND_BEARER_TOKEN");
   const customHeaderName = Deno.env.get("FFMPEG_BACKEND_AUTH_HEADER");
   const customHeaderValue = Deno.env.get("FFMPEG_BACKEND_AUTH_VALUE");
 
@@ -139,7 +148,9 @@ const buildBackendHeaders = () => {
   }
 
   if (bearer) {
-    headers["Authorization"] = bearer.startsWith("Bearer ") ? bearer : `Bearer ${bearer}`;
+    headers["Authorization"] = bearer.startsWith("Bearer ")
+      ? bearer
+      : `Bearer ${bearer}`;
   }
 
   if (customHeaderName && customHeaderValue) {
@@ -186,38 +197,54 @@ serve(async (req) => {
     // 🔒 SECURITY: Verify authentication before processing
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return jsonResponse({ error: "Missing Authorization header" }, { status: 401 });
+      return jsonResponse({ error: "Missing Authorization header" }, {
+        status: 401,
+      });
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
-    
+
     if (!supabaseUrl || !supabaseAnonKey) {
-      return jsonResponse({ error: "Server configuration error" }, { status: 500 });
+      return jsonResponse({ error: "Server configuration error" }, {
+        status: 500,
+      });
     }
 
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
+      global: { headers: { Authorization: authHeader } },
     });
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+
     if (authError || !user) {
       console.error("[generate-video] Authentication failed:", authError);
-      return jsonResponse({ error: "Authentication required" }, { status: 401 });
+      return jsonResponse({ error: "Authentication required" }, {
+        status: 401,
+      });
     }
 
     console.log(`[generate-video] ✅ Authenticated user: ${user.id}`);
 
     const body = await req.json();
     const prompt = typeof body?.prompt === "string" ? body.prompt : undefined;
-    const aspectRatio = typeof body?.aspectRatio === "string" ? body.aspectRatio : "16:9";
-    const imageUrl = typeof body?.imageUrl === "string" ? body.imageUrl : undefined;
-    const publicBaseUrl = typeof body?.publicBaseUrl === "string" ? body.publicBaseUrl : undefined;
-    const generationId = typeof body?.generationId === "string" ? body.generationId : undefined;
+    const aspectRatio = typeof body?.aspectRatio === "string"
+      ? body.aspectRatio
+      : "16:9";
+    const imageUrl = typeof body?.imageUrl === "string"
+      ? body.imageUrl
+      : undefined;
+    const publicBaseUrl = typeof body?.publicBaseUrl === "string"
+      ? body.publicBaseUrl
+      : undefined;
+    const generationId = typeof body?.generationId === "string"
+      ? body.generationId
+      : undefined;
     const jobId = typeof body?.jobId === "string" ? body.jobId : undefined;
 
-    const providerRaw = typeof body?.provider === "string" ? body.provider : undefined;
+    const providerRaw = typeof body?.provider === "string"
+      ? body.provider
+      : undefined;
     const providerResolution = resolveProvider(providerRaw);
     const providerDisplay = providerResolution.display;
     const providerApi = providerResolution.api;
@@ -245,13 +272,15 @@ serve(async (req) => {
         const response = await fetch(`${REPLICATE_API}/${lookupId}`, {
           headers: {
             Authorization: `Token ${REPLICATE_TOKEN}`,
-            "Content-Type": "application/json"
-          }
+            "Content-Type": "application/json",
+          },
         });
 
         const data = await response.json();
         if (!response.ok) {
-          const detail = typeof data?.detail === "string" ? data.detail : "Replicate error";
+          const detail = typeof data?.detail === "string"
+            ? data.detail
+            : "Replicate error";
           return jsonResponse({ error: detail }, { status: 500 });
         }
 
@@ -263,7 +292,7 @@ serve(async (req) => {
           status: data.status ?? data.state ?? "processing",
           output: data.output ?? null,
           logs: data.logs ?? undefined,
-          error: data.error ?? undefined
+          error: data.error ?? undefined,
         });
       }
 
@@ -272,16 +301,21 @@ serve(async (req) => {
           throw new Error("Missing KIE_API_KEY");
         }
 
-        const response = await fetch(`https://api.kie.ai/v1/video/${lookupId}`, {
-          headers: {
-            Authorization: `Bearer ${KIE_TOKEN}`,
-            "Content-Type": "application/json"
-          }
-        });
+        const response = await fetch(
+          `https://api.kie.ai/v1/video/${lookupId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${KIE_TOKEN}`,
+              "Content-Type": "application/json",
+            },
+          },
+        );
 
         const data = await response.json();
         if (!response.ok) {
-          const message = typeof data?.message === "string" ? data.message : "Kling error";
+          const message = typeof data?.message === "string"
+            ? data.message
+            : "Kling error";
           return jsonResponse({ error: message }, { status: 500 });
         }
 
@@ -296,7 +330,7 @@ serve(async (req) => {
           providerEngine,
           status: data?.status ?? data?.state ?? "processing",
           output,
-          metadata: data
+          metadata: data,
         });
       }
 
@@ -306,7 +340,7 @@ serve(async (req) => {
           `${baseUrl}/api/jobs/${lookupId}`,
           `${baseUrl}/api/status/${lookupId}`,
           `${baseUrl}/jobs/${lookupId}`,
-          `${baseUrl}/status/${lookupId}`
+          `${baseUrl}/status/${lookupId}`,
         ];
 
         let lastError: { status: number; payload: unknown } | null = null;
@@ -330,7 +364,8 @@ serve(async (req) => {
 
           if (response.ok) {
             const output = extractMediaUrl(parsed);
-            const statusString = readStatusString(parsed) ?? (output ? "succeeded" : "processing");
+            const statusString = readStatusString(parsed) ??
+              (output ? "succeeded" : "processing");
             const statusUrls = collectStatusUrls(parsed);
 
             return jsonResponse({
@@ -341,7 +376,7 @@ serve(async (req) => {
               status: statusString,
               output,
               metadata: isRecord(parsed) ? parsed : undefined,
-              statusUrls: statusUrls.length ? statusUrls : undefined
+              statusUrls: statusUrls.length ? statusUrls : undefined,
             });
           }
 
@@ -353,13 +388,15 @@ serve(async (req) => {
           return jsonResponse(
             {
               error: "Animate backend error",
-              details: lastError.payload
+              details: lastError.payload,
             },
-            { status: lastError.status }
+            { status: lastError.status },
           );
         }
 
-        return jsonResponse({ error: "Animate job not found" }, { status: 404 });
+        return jsonResponse({ error: "Animate job not found" }, {
+          status: 404,
+        });
       }
 
       return jsonResponse({ error: "Unknown provider" }, { status: 400 });
@@ -374,32 +411,39 @@ serve(async (req) => {
         throw new Error("Missing REPLICATE_API_TOKEN");
       }
 
-      const rawBaseUrl: string | undefined = publicBaseUrl ?? Deno.env.get("PUBLIC_BASE_URL") ?? undefined;
-      const sanitizedBase = rawBaseUrl ? rawBaseUrl.replace(/\/$/, "") : undefined;
-      const webhookUrl = sanitizedBase ? `${sanitizedBase}/functions/v1/video-webhook` : undefined;
+      const rawBaseUrl: string | undefined = publicBaseUrl ??
+        Deno.env.get("PUBLIC_BASE_URL") ?? undefined;
+      const sanitizedBase = rawBaseUrl
+        ? rawBaseUrl.replace(/\/$/, "")
+        : undefined;
+      const webhookUrl = sanitizedBase
+        ? `${sanitizedBase}/functions/v1/video-webhook`
+        : undefined;
 
       const response = await fetch(REPLICATE_API, {
         method: "POST",
         headers: {
           Authorization: `Token ${REPLICATE_TOKEN}`,
           "Content-Type": "application/json",
-          Prefer: "wait=60"
+          Prefer: "wait=60",
         },
         body: JSON.stringify({
           version: REPLICATE_MODEL_VERSION,
           input: {
             prompt,
             aspect_ratio: aspectRatio,
-            image: imageUrl || undefined
+            image: imageUrl || undefined,
           },
           webhook: webhookUrl,
-          webhook_events_filter: ["completed", "failed"]
-        })
+          webhook_events_filter: ["completed", "failed"],
+        }),
       });
 
       const data = await response.json();
       if (!response.ok) {
-        const detail = typeof data?.detail === "string" ? data.detail : "Replicate error";
+        const detail = typeof data?.detail === "string"
+          ? data.detail
+          : "Replicate error";
         return jsonResponse({ error: detail }, { status: 500 });
       }
 
@@ -407,53 +451,62 @@ serve(async (req) => {
       const status: string = data.status ?? "processing";
 
       // Save to media_generations for library
-      const authHeader = req.headers.get("Authorization")?.replace("Bearer ", "").trim();
+      const authHeader = req.headers.get("Authorization")?.replace(
+        "Bearer ",
+        "",
+      ).trim();
       if (authHeader && id) {
         try {
           const supabaseUrl = Deno.env.get("SUPABASE_URL");
           const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-          
+
           if (supabaseUrl && supabaseKey) {
             const supabase = createClient(supabaseUrl, supabaseKey);
             const { data: { user } } = await supabase.auth.getUser(authHeader);
-            
+
             if (user) {
               const { data: profile } = await supabase
-                .from('profiles')
-                .select('active_brand_id')
-                .eq('id', user.id)
+                .from("profiles")
+                .select("active_brand_id")
+                .eq("id", user.id)
                 .maybeSingle();
 
               const brandId = profile?.active_brand_id;
               if (!brandId) {
-                console.warn('[generate-video] No active brand for user', user.id);
+                console.warn(
+                  "[generate-video] No active brand for user",
+                  user.id,
+                );
               }
-              
+
               await supabase
-                .from('media_generations')
+                .from("media_generations")
                 .insert({
                   user_id: user.id,
                   brand_id: brandId!,
-                  type: 'video',
-                  engine: providerEngine || 'seededance',
-                  status: 'processing',
+                  type: "video",
+                  engine: providerEngine || "seededance",
+                  status: "processing",
                   prompt: prompt.substring(0, 500),
-                  output_url: '',
-                  thumbnail_url: '',
+                  output_url: "",
+                  thumbnail_url: "",
                   job_id: id,
                   metadata: {
                     provider: providerDisplay,
                     providerInternal: providerApi,
                     predictionId: id,
                     aspectRatio,
-                    generatedAt: new Date().toISOString()
-                  }
+                    generatedAt: new Date().toISOString(),
+                  },
                 });
               console.log(`[generate-video] Video entry created for job ${id}`);
             }
           }
         } catch (insertError) {
-          console.error('[generate-video] Failed to create media_generations entry:', insertError);
+          console.error(
+            "[generate-video] Failed to create media_generations entry:",
+            insertError,
+          );
         }
       }
 
@@ -468,8 +521,8 @@ serve(async (req) => {
         metadata: {
           provider: providerDisplay,
           providerInternal: providerApi,
-          modelVersion: REPLICATE_MODEL_VERSION
-        }
+          modelVersion: REPLICATE_MODEL_VERSION,
+        },
       });
     }
 
@@ -478,76 +531,92 @@ serve(async (req) => {
         throw new Error("Missing KIE_API_KEY");
       }
 
-      const response = await fetch("https://api.kie.ai/v2-1/kling/text-to-video", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${KIE_TOKEN}`,
-          "Content-Type": "application/json"
+      const response = await fetch(
+        "https://api.kie.ai/v2-1/kling/text-to-video",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${KIE_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            prompt,
+            resolution: aspectRatio === "9:16" ? "1080x1920" : "1920x1080",
+            duration: 6,
+            image_url: imageUrl || undefined,
+          }),
         },
-        body: JSON.stringify({
-          prompt,
-          resolution: aspectRatio === "9:16" ? "1080x1920" : "1920x1080",
-          duration: 6,
-          image_url: imageUrl || undefined
-        })
-      });
+      );
 
       const data = await response.json();
       if (!response.ok) {
-        const message = typeof data?.message === "string" ? data.message : "Kling error";
+        const message = typeof data?.message === "string"
+          ? data.message
+          : "Kling error";
         return jsonResponse({ error: message }, { status: 500 });
       }
 
       const jobId = data.jobId ?? data.id ?? data.task_id ?? null;
 
       // Save to media_generations for library
-      const authHeader = req.headers.get("Authorization")?.replace("Bearer ", "").trim();
+      const authHeader = req.headers.get("Authorization")?.replace(
+        "Bearer ",
+        "",
+      ).trim();
       if (authHeader && jobId) {
         try {
           const supabaseUrl = Deno.env.get("SUPABASE_URL");
           const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-          
+
           if (supabaseUrl && supabaseKey) {
             const supabase = createClient(supabaseUrl, supabaseKey);
             const { data: { user } } = await supabase.auth.getUser(authHeader);
-            
+
             if (user) {
               const { data: profile } = await supabase
-                .from('profiles')
-                .select('active_brand_id')
-                .eq('id', user.id)
+                .from("profiles")
+                .select("active_brand_id")
+                .eq("id", user.id)
                 .maybeSingle();
 
               const brandId = profile?.active_brand_id;
               if (!brandId) {
-                console.warn('[generate-video] No active brand for user', user.id);
+                console.warn(
+                  "[generate-video] No active brand for user",
+                  user.id,
+                );
               }
-              
+
               await supabase
-                .from('media_generations')
+                .from("media_generations")
                 .insert({
                   user_id: user.id,
                   brand_id: brandId!,
-                  type: 'video',
-                  engine: providerEngine || 'kling',
-                  status: 'processing',
+                  type: "video",
+                  engine: providerEngine || "kling",
+                  status: "processing",
                   prompt: prompt.substring(0, 500),
-                  output_url: '',
-                  thumbnail_url: '',
+                  output_url: "",
+                  thumbnail_url: "",
                   job_id: jobId,
                   metadata: {
                     provider: providerDisplay,
                     providerInternal: providerApi,
                     predictionId: jobId,
                     aspectRatio,
-                    generatedAt: new Date().toISOString()
-                  }
+                    generatedAt: new Date().toISOString(),
+                  },
                 });
-              console.log(`[generate-video] Video entry created for job ${jobId}`);
+              console.log(
+                `[generate-video] Video entry created for job ${jobId}`,
+              );
             }
           }
         } catch (insertError) {
-          console.error('[generate-video] Failed to create media_generations entry:', insertError);
+          console.error(
+            "[generate-video] Failed to create media_generations entry:",
+            insertError,
+          );
         }
       }
 
@@ -559,7 +628,7 @@ serve(async (req) => {
         jobId,
         jobShortId: jobId ? String(jobId).slice(0, 8) : null,
         status: "processing",
-        metadata: { provider: providerDisplay, providerInternal: providerApi }
+        metadata: { provider: providerDisplay, providerInternal: providerApi },
       });
     }
 
@@ -568,13 +637,15 @@ serve(async (req) => {
       const endpoints = [
         `${baseUrl}/api/generate`,
         `${baseUrl}/generate`,
-        `${baseUrl}/v1/generate`
+        `${baseUrl}/v1/generate`,
       ];
 
       const payload: UnknownRecord = {};
       if (isRecord(body)) {
         for (const [key, value] of Object.entries(body)) {
-          if (["provider", "publicBaseUrl", "generationId", "jobId"].includes(key)) continue;
+          if (
+            ["provider", "publicBaseUrl", "generationId", "jobId"].includes(key)
+          ) continue;
           payload[key] = value;
         }
       }
@@ -587,7 +658,7 @@ serve(async (req) => {
         const response = await fetch(url, {
           method: "POST",
           headers: buildBackendHeaders(),
-          body: JSON.stringify(payload)
+          body: JSON.stringify(payload),
         });
 
         const text = await response.text();
@@ -603,14 +674,21 @@ serve(async (req) => {
 
         if (response.ok) {
           const output = extractMediaUrl(parsed);
-          const statusString = readStatusString(parsed) ?? (output ? "succeeded" : "processing");
+          const statusString = readStatusString(parsed) ??
+            (output ? "succeeded" : "processing");
           const statusUrls = collectStatusUrls(parsed);
           const jobIdentifier =
-            (isRecord(parsed) && typeof parsed.jobId === "string" && parsed.jobId) ||
-            (isRecord(parsed) && typeof parsed.job_id === "string" && parsed.job_id) ||
+            (isRecord(parsed) && typeof parsed.jobId === "string" &&
+              parsed.jobId) ||
+            (isRecord(parsed) && typeof parsed.job_id === "string" &&
+              parsed.job_id) ||
             (isRecord(parsed) && typeof parsed.id === "string" && parsed.id) ||
-            (isRecord(parsed) && typeof (parsed as UnknownRecord).taskId === "string" && (parsed as UnknownRecord).taskId) ||
-            (isRecord(parsed) && typeof (parsed as UnknownRecord).task_id === "string" && (parsed as UnknownRecord).task_id) ||
+            (isRecord(parsed) &&
+              typeof (parsed as UnknownRecord).taskId === "string" &&
+              (parsed as UnknownRecord).taskId) ||
+            (isRecord(parsed) &&
+              typeof (parsed as UnknownRecord).task_id === "string" &&
+              (parsed as UnknownRecord).task_id) ||
             null;
 
           return jsonResponse({
@@ -619,29 +697,38 @@ serve(async (req) => {
             providerInternal: providerApi,
             providerEngine,
             jobId: jobIdentifier,
-            jobShortId: jobIdentifier ? String(jobIdentifier).slice(0, 8) : null,
+            jobShortId: jobIdentifier
+              ? String(jobIdentifier).slice(0, 8)
+              : null,
             status: statusString,
             output,
             statusUrls: statusUrls.length ? statusUrls : undefined,
-            metadata: isRecord(parsed) ? parsed : undefined
+            metadata: isRecord(parsed) ? parsed : undefined,
           });
         }
 
         if (response.status !== 404) {
           const errorMessage =
-            (isRecord(parsed) && typeof parsed.error === "string" && parsed.error) ||
+            (isRecord(parsed) && typeof parsed.error === "string" &&
+              parsed.error) ||
             (typeof parsed === "string" && parsed) ||
             text ||
             `Animate backend error (${response.status})`;
 
           return jsonResponse(
-            { error: errorMessage, status: response.status, raw: parsed ?? text },
-            { status: response.status }
+            {
+              error: errorMessage,
+              status: response.status,
+              raw: parsed ?? text,
+            },
+            { status: response.status },
           );
         }
       }
 
-      return jsonResponse({ error: "Animate backend unreachable" }, { status: 502 });
+      return jsonResponse({ error: "Animate backend unreachable" }, {
+        status: 502,
+      });
     }
 
     return jsonResponse({ error: "Unknown provider" }, { status: 400 });

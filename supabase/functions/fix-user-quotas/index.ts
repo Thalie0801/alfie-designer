@@ -3,7 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 // Import quotas from system config (single source of truth)
@@ -42,13 +43,15 @@ serve(async (req) => {
   try {
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
     // Get all users with plans
     const { data: profiles, error: fetchError } = await supabaseAdmin
       .from("profiles")
-      .select("id, email, plan, quota_visuals_per_month, quota_videos, quota_brands, generations_this_month")
+      .select(
+        "id, email, plan, quota_visuals_per_month, quota_videos, quota_brands, generations_this_month",
+      )
       .not("plan", "is", null)
       .neq("plan", "none");
 
@@ -170,7 +173,7 @@ serve(async (req) => {
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
-      }
+      },
     );
   } catch (error: any) {
     console.error("Fix quotas error:", error);
@@ -179,7 +182,7 @@ serve(async (req) => {
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 500,
-      }
+      },
     );
   }
 });
