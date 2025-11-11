@@ -8,7 +8,8 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 // ---------------------------
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST,OPTIONS",
   "Access-Control-Max-Age": "86400",
 };
@@ -78,15 +79,19 @@ const json = (data: any, status = 200) =>
     headers: { "Content-Type": "application/json", ...corsHeaders },
   });
 
-const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
+const clamp = (n: number, lo: number, hi: number) =>
+  Math.max(lo, Math.min(hi, n));
 const toInt = (v: any, d = 0) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : d;
 };
 
-const trimLen = (s: string | undefined, max: number) => (s ?? "").trim().slice(0, Math.max(0, max));
+const trimLen = (s: string | undefined, max: number) =>
+  (s ?? "").trim().slice(0, Math.max(0, max));
 
-const ensureHex = (c?: string) => ((c || "").match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i) ? c! : undefined);
+const ensureHex = (
+  c?: string,
+) => ((c || "").match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i) ? c! : undefined);
 
 function first2Palette(palette?: string[]) {
   const p = Array.isArray(palette) ? palette.filter(Boolean) : [];
@@ -139,12 +144,18 @@ function distributeTypes(slides: SlideContent[]) {
 
 function applyHardValidations(plan: CarouselPlan, slideCount: number) {
   // Ajuster counts prompts/slides
-  if (plan.prompts.length > slideCount) plan.prompts = plan.prompts.slice(0, slideCount);
+  if (plan.prompts.length > slideCount) {
+    plan.prompts = plan.prompts.slice(0, slideCount);
+  }
   while (plan.prompts.length < slideCount) {
-    plan.prompts.push("Minimalist gradient background with clean high-contrast center focus");
+    plan.prompts.push(
+      "Minimalist gradient background with clean high-contrast center focus",
+    );
   }
 
-  if (plan.slides.length > slideCount) plan.slides = plan.slides.slice(0, slideCount);
+  if (plan.slides.length > slideCount) {
+    plan.slides = plan.slides.slice(0, slideCount);
+  }
   while (plan.slides.length < slideCount) {
     plan.slides.push({
       type: "cta",
@@ -161,7 +172,9 @@ function applyHardValidations(plan: CarouselPlan, slideCount: number) {
     s.note = trimLen(s.note, 140);
     s.badge = trimLen(s.badge, 24);
     s.cta_primary = s.cta_primary ? trimLen(s.cta_primary, 24) : s.cta_primary;
-    s.cta_secondary = s.cta_secondary ? trimLen(s.cta_secondary, 24) : s.cta_secondary;
+    s.cta_secondary = s.cta_secondary
+      ? trimLen(s.cta_secondary, 24)
+      : s.cta_secondary;
     s.cta = s.cta ? trimLen(s.cta, 24) : s.cta;
 
     if (s.type === "problem" || s.type === "solution") {
@@ -190,7 +203,9 @@ function applyHardValidations(plan: CarouselPlan, slideCount: number) {
     if (slide.type === "problem" || slide.type === "solution") {
       if (!slide.bullets || slide.bullets.length < 3) {
         fixBullets(slide);
-        errors.push(`Slide ${n}/${slide.type} → bullets < 3 (fallback complété)`);
+        errors.push(
+          `Slide ${n}/${slide.type} → bullets < 3 (fallback complété)`,
+        );
       }
       if (titleLen < 10 || titleLen > 40) {
         slide.title = trimLen(slide.title || "Point clé", 40);
@@ -213,7 +228,8 @@ function applyHardValidations(plan: CarouselPlan, slideCount: number) {
 
 function extractJSON(text: string) {
   // supporte un retour dans un bloc ```json ... ```
-  const m = text.match(/```json\s*([\s\S]*?)```/i) || text.match(/```\s*([\s\S]*?)```/i);
+  const m = text.match(/```json\s*([\s\S]*?)```/i) ||
+    text.match(/```\s*([\s\S]*?)```/i);
   return JSON.parse(m ? m[1] : text);
 }
 
@@ -314,7 +330,9 @@ PROMPTS EXAMPLE:
   const outputFormat = `Output JSON strictly:
 {
   "style": "string",
-  "prompts": [ "${locale ? "scene description without text" : "scene description without text"}", ... ${slideCount} items ],
+  "prompts": [ "${
+    locale ? "scene description without text" : "scene description without text"
+  }", ... ${slideCount} items ],
   "slides": [
     { "type": "hero", "title": "...", "cta_primary": "...", "punchline": "optional", "badge": "optional" },
     { "type": "problem", "title": "...", "bullets": ["...", "...", "..."] },
@@ -345,13 +363,17 @@ function responseSchema(slideCount: number) {
   return {
     type: "object",
     properties: {
-      style: { type: "string", description: "Global visual style for all slides" },
+      style: {
+        type: "string",
+        description: "Global visual style for all slides",
+      },
       prompts: {
         type: "array",
         items: { type: "string" },
         minItems: slideCount,
         maxItems: slideCount,
-        description: `Array of ${slideCount} visual scene descriptions (no text overlay)`,
+        description:
+          `Array of ${slideCount} visual scene descriptions (no text overlay)`,
       },
       slides: {
         type: "array",
@@ -360,7 +382,10 @@ function responseSchema(slideCount: number) {
         items: {
           type: "object",
           properties: {
-            type: { type: "string", enum: ["hero", "problem", "solution", "impact", "cta"] },
+            type: {
+              type: "string",
+              enum: ["hero", "problem", "solution", "impact", "cta"],
+            },
             title: { type: "string" },
             subtitle: { type: "string" },
             punchline: { type: "string" },
@@ -407,12 +432,19 @@ serve(async (req) => {
 
     // Compatibilité entrée
     const rawPrompt = body.prompt || body.topic;
-    let slideCount = clamp(toInt(body.slideCount ?? body.numSlides ?? 5, 5), MIN_SLIDES, MAX_SLIDES);
+    let slideCount = clamp(
+      toInt(body.slideCount ?? body.numSlides ?? 5, 5),
+      MIN_SLIDES,
+      MAX_SLIDES,
+    );
 
-    const brandKit: BrandKit | undefined = body.brandKit || (body.brandVoice ? { voice: body.brandVoice } : undefined);
+    const brandKit: BrandKit | undefined = body.brandKit ||
+      (body.brandVoice ? { voice: body.brandVoice } : undefined);
 
     const lang = normalizeLanguage((body as any).language);
-    const aspectRatio = (body as any).aspectRatio as InputBodyNew["aspectRatio"] | undefined;
+    const aspectRatio = (body as any).aspectRatio as
+      | InputBodyNew["aspectRatio"]
+      | undefined;
 
     if (!rawPrompt) {
       return json({ error: "Missing prompt/topic" }, 400);
@@ -436,38 +468,53 @@ serve(async (req) => {
     }
 
     // --- Appel IA avec structured output
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: rawPrompt },
-        ],
-        temperature: 0.5,
-        response_format: {
-          type: "json_schema",
-          json_schema: {
-            name: "carousel_plan",
-            schema: responseSchema(slideCount),
-          },
+    const aiRes = await fetch(
+      "https://ai.gateway.lovable.dev/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
         },
-      }),
-    });
+        body: JSON.stringify({
+          model: MODEL,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: rawPrompt },
+          ],
+          temperature: 0.5,
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "carousel_plan",
+              schema: responseSchema(slideCount),
+            },
+          },
+        }),
+      },
+    );
 
     if (!aiRes.ok) {
       const status = aiRes.status;
       const errText = await aiRes.text().catch(() => "");
       console.error("[alfie-plan-carousel] AI error:", status, errText);
 
-      if (status === 429) return json({ error: "Rate limits exceeded, please try again later." }, 429);
-      if (status === 402)
-        return json({ error: "Payment required, please add funds to your Lovable AI workspace." }, 402);
-      return json({ error: "AI gateway error", details: errText.slice(0, 3000) }, status);
+      if (status === 429) {
+        return json(
+          { error: "Rate limits exceeded, please try again later." },
+          429,
+        );
+      }
+      if (status === 402) {
+        return json({
+          error:
+            "Payment required, please add funds to your Lovable AI workspace.",
+        }, 402);
+      }
+      return json({
+        error: "AI gateway error",
+        details: errText.slice(0, 3000),
+      }, status);
     }
 
     const data = await aiRes.json();
@@ -484,24 +531,35 @@ serve(async (req) => {
       console.warn("[alfie-plan-carousel] JSON parse fallback:", e);
       // Fallback ultra minimal si jamais
       plan = {
-        style: `Gradients ${primary}→${secondary}, modern minimalist, high-contrast center.`,
+        style:
+          `Gradients ${primary}→${secondary}, modern minimalist, high-contrast center.`,
         prompts: Array.from({ length: slideCount }, (_, i) =>
           forceNoTextPrompt(
             i === 0
               ? "Dynamic gradient with abstract shapes (opening)"
               : i === slideCount - 1
-                ? "Energetic background hinting at call-to-action (closing)"
-                : "Clean background with subtle geometric rhythm",
-          ),
-        ),
+              ? "Energetic background hinting at call-to-action (closing)"
+              : "Clean background with subtle geometric rhythm",
+          )),
         slides: [
-          { type: "hero" as SlideType, title: "Titre d'ouverture", cta_primary: "Découvrir" },
-          ...Array.from({ length: Math.max(0, slideCount - 2) }, (): SlideContent => ({
-            type: "problem" as SlideType,
-            title: "Point clé",
-            bullets: ["Bénéfice 1", "Bénéfice 2", "Bénéfice 3"],
-          })),
-          { type: "cta" as SlideType, title: "Passe à l'action", cta_primary: "En savoir plus" },
+          {
+            type: "hero" as SlideType,
+            title: "Titre d'ouverture",
+            cta_primary: "Découvrir",
+          },
+          ...Array.from(
+            { length: Math.max(0, slideCount - 2) },
+            (): SlideContent => ({
+              type: "problem" as SlideType,
+              title: "Point clé",
+              bullets: ["Bénéfice 1", "Bénéfice 2", "Bénéfice 3"],
+            }),
+          ),
+          {
+            type: "cta" as SlideType,
+            title: "Passe à l'action",
+            cta_primary: "En savoir plus",
+          },
         ],
       };
     }

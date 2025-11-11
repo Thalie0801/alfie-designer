@@ -5,7 +5,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -17,12 +18,12 @@ serve(async (req) => {
   const supabaseClient = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    { auth: { persistSession: false } }
+    { auth: { persistSession: false } },
   );
 
   try {
     const { session_id } = await req.json();
-    
+
     if (!session_id) {
       throw new Error("Session ID required");
     }
@@ -34,7 +35,7 @@ serve(async (req) => {
     // Retrieve session from Stripe
     const session = await stripe.checkout.sessions.retrieve(session_id);
 
-    if (session.payment_status !== 'paid') {
+    if (session.payment_status !== "paid") {
       throw new Error("Payment not completed");
     }
 
@@ -47,9 +48,9 @@ serve(async (req) => {
 
     // Credit the user
     const { data: profile, error: fetchError } = await supabaseClient
-      .from('profiles')
-      .select('ai_credits_purchased')
-      .eq('id', userId)
+      .from("profiles")
+      .select("ai_credits_purchased")
+      .eq("id", userId)
       .single();
 
     if (fetchError) throw fetchError;
@@ -57,30 +58,33 @@ serve(async (req) => {
     const newTotal = (profile?.ai_credits_purchased || 0) + credits;
 
     const { error: updateError } = await supabaseClient
-      .from('profiles')
+      .from("profiles")
       .update({ ai_credits_purchased: newTotal })
-      .eq('id', userId);
+      .eq("id", userId);
 
     if (updateError) throw updateError;
 
     // Log transaction
     await supabaseClient
-      .from('credit_transactions')
+      .from("credit_transactions")
       .insert({
         user_id: userId,
         amount: credits,
-        transaction_type: 'purchase',
-        action: 'credit_pack_purchase'
+        transaction_type: "purchase",
+        action: "credit_pack_purchase",
       });
 
-    return new Response(JSON.stringify({ 
-      success: true, 
-      credits_added: credits,
-      new_total: newTotal 
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
+    return new Response(
+      JSON.stringify({
+        success: true,
+        credits_added: credits,
+        new_total: newTotal,
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      },
+    );
   } catch (error: any) {
     console.error("Error in verify-credit-purchase:", error);
     return new Response(JSON.stringify({ error: error.message }), {

@@ -6,7 +6,8 @@ const INTERNAL_SECRET = Deno.env.get("INTERNAL_FN_SECRET") ?? "";
 /* ------------------------------- CORS ------------------------------- */
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -85,7 +86,8 @@ function buildMainPrompt(input: GenerateRequest): string {
 
   const res = clampRes(resolution);
 
-  let fullPrompt = prompt || "Create a high-quality marketing visual based on the description";
+  let fullPrompt = prompt ||
+    "Create a high-quality marketing visual based on the description";
 
   // Mode background pur
   if (backgroundOnly) {
@@ -94,26 +96,39 @@ function buildMainPrompt(input: GenerateRequest): string {
     // Mode normal : forcing overlayText exact si présent
     if (overlayText) {
       fullPrompt += `\n\n--- EXACT TEXT TO OVERLAY ---`;
-      fullPrompt += `\nUse EXACTLY this French text, word-for-word, no additions, no modifications:`;
+      fullPrompt +=
+        `\nUse EXACTLY this French text, word-for-word, no additions, no modifications:`;
       fullPrompt += `\n« ${overlayText} »`;
       fullPrompt += `\n--- END EXACT TEXT ---`;
     }
   }
 
   // Contexte carrousel (UNE SEULE slide)
-  if (typeof slideIndex === "number" && typeof totalSlides === "number" && totalSlides > 1) {
-    fullPrompt += `\n\nIMPORTANT: This is slide ${slideIndex + 1} of ${totalSlides} in a carousel.`;
-    fullPrompt += `\nGenerate ONLY slide ${slideIndex + 1} of ${totalSlides}. Create ONE SINGLE standalone image, NOT a collage or grid of multiple slides.`;
-    fullPrompt += `\nEach slide should be a complete, independent visual that works on its own.`;
+  if (
+    typeof slideIndex === "number" && typeof totalSlides === "number" &&
+    totalSlides > 1
+  ) {
+    fullPrompt += `\n\nIMPORTANT: This is slide ${
+      slideIndex + 1
+    } of ${totalSlides} in a carousel.`;
+    fullPrompt += `\nGenerate ONLY slide ${
+      slideIndex + 1
+    } of ${totalSlides}. Create ONE SINGLE standalone image, NOT a collage or grid of multiple slides.`;
+    fullPrompt +=
+      `\nEach slide should be a complete, independent visual that works on its own.`;
     if (templateImageUrl) {
-      fullPrompt += `\nKeep the same visual style as the reference image (colors, typography vibe, spacing, text placement).`;
-      fullPrompt += `\nMaintain visual coherence with the first slide while adapting the content.`;
+      fullPrompt +=
+        `\nKeep the same visual style as the reference image (colors, typography vibe, spacing, text placement).`;
+      fullPrompt +=
+        `\nMaintain visual coherence with the first slide while adapting the content.`;
     }
   }
 
   // Brand info si pas backgroundOnly
   if (!backgroundOnly) {
-    if (brandKit?.palette?.length) fullPrompt += `\n\nBrand Colors: ${brandKit.palette.join(", ")}`;
+    if (brandKit?.palette?.length) {
+      fullPrompt += `\n\nBrand Colors: ${brandKit.palette.join(", ")}`;
+    }
     if (brandKit?.voice) fullPrompt += `\nBrand Voice: ${brandKit.voice}`;
   }
 
@@ -164,23 +179,28 @@ function buildNegativePrompt(input: GenerateRequest) {
   return input.negativePrompt || "";
 }
 
-async function callLovableOnce(opts: { apiKey: string; system: string; userContent: any[] }) {
+async function callLovableOnce(
+  opts: { apiKey: string; system: string; userContent: any[] },
+) {
   const { apiKey, system, userContent } = opts;
-  const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
+  const resp = await fetch(
+    "https://ai.gateway.lovable.dev/v1/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-image-preview",
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: userContent },
+        ],
+        modalities: ["image", "text"],
+      }),
     },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash-image-preview",
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: userContent },
-      ],
-      modalities: ["image", "text"],
-    }),
-  });
+  );
 
   return resp;
 }
@@ -195,7 +215,9 @@ serve(async (req) => {
     return jsonRes({ error: "Method not allowed" }, { status: 405 });
   }
 
-  if (!INTERNAL_SECRET || req.headers.get("x-internal-secret") !== INTERNAL_SECRET) {
+  if (
+    !INTERNAL_SECRET || req.headers.get("x-internal-secret") !== INTERNAL_SECRET
+  ) {
     return jsonRes({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -214,8 +236,12 @@ serve(async (req) => {
     const userId = typeof body.userId === "string" ? body.userId : null;
     const brandId = typeof body.brandId === "string" ? body.brandId : null;
     const orderId = typeof body.orderId === "string" ? body.orderId : null;
-    const orderItemId = typeof body.orderItemId === "string" ? body.orderItemId : null;
-    const requestId = typeof body.requestId === "string" ? body.requestId : null;
+    const orderItemId = typeof body.orderItemId === "string"
+      ? body.orderItemId
+      : null;
+    const requestId = typeof body.requestId === "string"
+      ? body.requestId
+      : null;
 
     if (!userId) {
       return jsonRes({ error: "Missing userId" }, { status: 400 });
@@ -232,9 +258,13 @@ serve(async (req) => {
     const negative = buildNegativePrompt(body);
 
     const userContent: any[] = [{ type: "text", text: fullPrompt }];
-    const referenceImage = body.templateImageUrl?.trim() || body.uploadedSourceUrl?.trim();
+    const referenceImage = body.templateImageUrl?.trim() ||
+      body.uploadedSourceUrl?.trim();
     if (referenceImage) {
-      userContent.push({ type: "image_url", image_url: { url: referenceImage } });
+      userContent.push({
+        type: "image_url",
+        image_url: { url: referenceImage },
+      });
     }
     if (negative) {
       // On peut glisser le negative prompt explicitement dans le message
@@ -252,27 +282,41 @@ serve(async (req) => {
       const errText = await resp.text().catch(() => "");
       console.error("Lovable error:", resp.status, short(errText, 500));
 
-      if (resp.status === 429)
-        return jsonRes({ error: "Rate limit exceeded. Please try again later." }, { status: 429 });
-      if (resp.status === 402)
-        return jsonRes({ error: "Insufficient credits. Please add credits to your workspace." }, { status: 402 });
+      if (resp.status === 429) {
+        return jsonRes({
+          error: "Rate limit exceeded. Please try again later.",
+        }, { status: 429 });
+      }
+      if (resp.status === 402) {
+        return jsonRes({
+          error: "Insufficient credits. Please add credits to your workspace.",
+        }, { status: 402 });
+      }
 
       throw new Error(`AI gateway error: ${resp.status}`);
     }
 
     const data = await resp.json();
-    let generatedImageUrl: string | undefined = data?.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    let generatedImageUrl: string | undefined = data?.choices?.[0]?.message
+      ?.images?.[0]?.image_url?.url;
 
     // --- Retry unique si pas d'image ---
     if (!generatedImageUrl) {
-      const retryPrompt =
-        fullPrompt +
+      const retryPrompt = fullPrompt +
         "\n\nIMPORTANT: You MUST return an image. Generate a single canvas, no tiles, no grids, no multiple frames. One composition.";
       const retryContent = [{ type: "text", text: retryPrompt }] as any[];
       if (body.templateImageUrl?.trim()) {
-        retryContent.push({ type: "image_url", image_url: { url: body.templateImageUrl } });
+        retryContent.push({
+          type: "image_url",
+          image_url: { url: body.templateImageUrl },
+        });
       }
-      if (negative) retryContent.push({ type: "text", text: `Negative prompt: ${negative}` });
+      if (negative) {
+        retryContent.push({
+          type: "text",
+          text: `Negative prompt: ${negative}`,
+        });
+      }
 
       const retry = await callLovableOnce({
         apiKey: LOVABLE_API_KEY,
@@ -282,7 +326,8 @@ serve(async (req) => {
       });
 
       const retryJson = await retry.json().catch(() => null);
-      generatedImageUrl = retryJson?.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+      generatedImageUrl = retryJson?.choices?.[0]?.message?.images?.[0]
+        ?.image_url?.url;
 
       if (!generatedImageUrl) throw new Error("No image generated");
     }
@@ -292,9 +337,14 @@ serve(async (req) => {
     let errorDetail: string | null = null;
 
     try {
-      const brandIdForMetadata = brandId ?? (typeof body.brandKit?.id === "string" ? body.brandKit.id : null);
-      const slideIdx = typeof body.slideIndex === "number" ? body.slideIndex : null;
-      const totalSlides = typeof body.totalSlides === "number" ? body.totalSlides : null;
+      const brandIdForMetadata = brandId ??
+        (typeof body.brandKit?.id === "string" ? body.brandKit.id : null);
+      const slideIdx = typeof body.slideIndex === "number"
+        ? body.slideIndex
+        : null;
+      const totalSlides = typeof body.totalSlides === "number"
+        ? body.totalSlides
+        : null;
 
       const insertPayload = {
         user_id: userId,
@@ -337,7 +387,11 @@ serve(async (req) => {
         console.error("Save error:", insertError);
         errorDetail = insertError.message ?? "insert error";
       } else {
-        console.log(`Saved media id=${inserted?.id} user=${userId} brand=${brandIdForMetadata ?? "null"}`);
+        console.log(
+          `Saved media id=${inserted?.id} user=${userId} brand=${
+            brandIdForMetadata ?? "null"
+          }`,
+        );
         saved = true;
       }
     } catch (e: any) {
@@ -347,12 +401,15 @@ serve(async (req) => {
 
     return jsonRes({
       imageUrl: generatedImageUrl,
-      message: data?.choices?.[0]?.message?.content || "Image générée avec succès",
+      message: data?.choices?.[0]?.message?.content ||
+        "Image générée avec succès",
       saved,
       errorDetail,
     });
   } catch (error) {
     console.error("Error in alfie-generate-ai-image:", error);
-    return jsonRes({ error: error instanceof Error ? error.message : "Unknown error" }, { status: 500 });
+    return jsonRes({
+      error: error instanceof Error ? error.message : "Unknown error",
+    }, { status: 500 });
   }
 });

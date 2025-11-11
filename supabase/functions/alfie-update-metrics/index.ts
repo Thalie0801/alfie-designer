@@ -3,7 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
@@ -16,7 +17,7 @@ serve(async (req) => {
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
     // Phase 2: Upsert provider_metrics (bandit UCB)
@@ -31,11 +32,11 @@ serve(async (req) => {
 
     // Get existing metrics
     const { data: existing } = await supabase
-      .from('provider_metrics')
-      .select('*')
-      .eq('provider_id', provider)
-      .eq('use_case', use_case)
-      .eq('format', format)
+      .from("provider_metrics")
+      .select("*")
+      .eq("provider_id", provider)
+      .eq("use_case", use_case)
+      .eq("format", format)
       .single();
 
     const trials = (existing?.trials || 0) + 1;
@@ -44,7 +45,7 @@ serve(async (req) => {
 
     // Upsert metrics
     const { error: upsertError } = await supabase
-      .from('provider_metrics')
+      .from("provider_metrics")
       .upsert({
         provider_id: provider,
         use_case,
@@ -52,9 +53,9 @@ serve(async (req) => {
         trials,
         successes,
         total_reward: totalReward,
-        last_updated: new Date().toISOString()
+        last_updated: new Date().toISOString(),
       }, {
-        onConflict: 'provider_id,use_case,format'
+        onConflict: "provider_id,use_case,format",
       });
 
     if (upsertError) {
@@ -63,14 +64,22 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ ok: true, trials, successes, avg_reward: totalReward / trials }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({
+        ok: true,
+        trials,
+        successes,
+        avg_reward: totalReward / trials,
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error: any) {
     console.error("Error:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 });
