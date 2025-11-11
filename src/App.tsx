@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { FLAGS } from "@/config/flags";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 
@@ -17,6 +16,7 @@ import Admin from "./pages/Admin";
 import AdminCreateCustomerPage from "./pages/admin/CreateCustomer";
 import ManageAmbassadors from "./pages/admin/ManageAmbassadors";
 import ResetUserPassword from "./pages/admin/ResetUserPassword";
+import AdminJobQueueMonitorPage from "./pages/admin/JobQueueMonitor";
 import Affiliate from "./pages/Affiliate";
 import Profile from "./pages/Profile";
 import DevenirPartenaire from "./pages/DevenirPartenaire";
@@ -31,7 +31,7 @@ import Videos from "./pages/Videos";
 import CloudinaryTest from "./pages/CloudinaryTest";
 
 import ActivateAccess from "./pages/onboarding/Activate";
-import AlfieChat from "./components/AlfieChat";
+import { AlfieChat } from "./components/AlfieChat";
 import { AppLayoutWithSidebar } from "./components/AppLayoutWithSidebar";
 import { ChatGenerator } from "@/features/studio";
 
@@ -67,34 +67,30 @@ const AppRoutes = () => {
               </ProtectedRoute>
             }
           />
-          {FLAGS.DESIGN_API && (
-            <Route
-              path="/studio"
-              element={
-                <ProtectedRoute>
-                  <AppLayoutWithSidebar>
-                    <ChatGenerator />
-                  </AppLayoutWithSidebar>
-                </ProtectedRoute>
-              }
-            />
-          )}
+          <Route
+            path="/studio"
+            element={
+              <ProtectedRoute>
+                <AppLayoutWithSidebar>
+                  <ChatGenerator />
+                </AppLayoutWithSidebar>
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/app"
             element={<Navigate to="/chat" replace />}
           />
-          {FLAGS.CAROUSEL && (
-            <Route
-              path="/templates"
-              element={
-                <ProtectedRoute>
-                  <AppLayoutWithSidebar>
-                    <Templates />
-                  </AppLayoutWithSidebar>
-                </ProtectedRoute>
-              }
-            />
-          )}
+          <Route
+            path="/templates"
+            element={
+              <ProtectedRoute>
+                <AppLayoutWithSidebar>
+                  <Templates />
+                </AppLayoutWithSidebar>
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/library"
             element={
@@ -105,18 +101,16 @@ const AppRoutes = () => {
               </ProtectedRoute>
             }
           />
-          {FLAGS.VIDEO && (
-            <Route
-              path="/videos"
-              element={
-                <ProtectedRoute>
-                  <AppLayoutWithSidebar>
-                    <Videos />
-                  </AppLayoutWithSidebar>
-                </ProtectedRoute>
-              }
-            />
-          )}
+          <Route
+            path="/videos"
+            element={
+              <ProtectedRoute>
+                <AppLayoutWithSidebar>
+                  <Videos />
+                </AppLayoutWithSidebar>
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/cloudinary-test"
             element={
@@ -211,6 +205,16 @@ const AppRoutes = () => {
               <ProtectedRoute requireAdmin>
                 <AppLayoutWithSidebar>
                   <ResetUserPassword />
+                </AppLayoutWithSidebar>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/job-queue"
+            element={
+              <ProtectedRoute requireAdmin>
+                <AppLayoutWithSidebar>
+                  <AdminJobQueueMonitorPage />
                 </AppLayoutWithSidebar>
               </ProtectedRoute>
             }
