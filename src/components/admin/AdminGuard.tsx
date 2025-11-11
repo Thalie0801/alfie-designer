@@ -38,7 +38,7 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
     };
   }, []);
 
-  if (loading) return null;
+  if (loading) return null; // ou un spinner
   if (role !== 'admin' && role !== 'super_admin') {
     return <div className="p-6 text-sm text-muted-foreground">Accès refusé.</div>;
   }
