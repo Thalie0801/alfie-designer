@@ -10,6 +10,7 @@ ALTER TABLE job_queue
   ADD COLUMN IF NOT EXISTS attempts integer NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS max_attempts integer NOT NULL DEFAULT 3,
   ADD COLUMN IF NOT EXISTS idempotency_key text NULL;
+  ADD COLUMN IF NOT EXISTS max_attempts integer NOT NULL DEFAULT 3;
 
 -- Backfill kind depuis type (pour compatibilité Studio)
 UPDATE job_queue
@@ -89,6 +90,12 @@ AS $$
 BEGIN
   RETURN QUERY
   WITH candidate AS (
+SET search_path = public
+AS $$
+DECLARE
+  claimed_id uuid;
+BEGIN
+  WITH claimed AS (
     SELECT jq.id
     FROM job_queue jq
     WHERE jq.status = 'queued'
@@ -112,12 +119,37 @@ BEGIN
             j.payload,
             j.attempts,
             j.max_attempts;
+      AND (jq.scheduled_for IS NULL OR jq.scheduled_for <= NOW())
+    ORDER BY jq.created_at ASC
+    LIMIT 1
+    FOR UPDATE SKIP LOCKED
+  )
+  UPDATE job_queue jq
+  SET status = 'running',
+      attempts = attempts + 1,
+      updated_at = NOW()
+  FROM claimed
+  WHERE jq.id = claimed.id
+  RETURNING jq.id,
+            jq.order_id,
+            jq.user_id,
+            jq.type,
+            jq.payload,
+            jq.attempts,
+            jq.max_attempts
+    INTO id, order_id, user_id, type, payload, attempts, max_attempts;
+
+  IF FOUND THEN
+    RETURN NEXT;
+  END IF;
 END;
 $$;
 
  REVOKE ALL ON FUNCTION claim_next_job() FROM PUBLIC;
  REVOKE ALL ON FUNCTION claim_next_job() FROM authenticated;
  GRANT EXECUTE ON FUNCTION claim_next_job() TO service_role;
+GRANT EXECUTE ON FUNCTION claim_next_job() TO service_role;
+GRANT EXECUTE ON FUNCTION claim_next_job() TO authenticated;
 
 -- ÉTAPE 6: Ajouter une fonction pour débloquer les jobs stuck
 -- ============================================================================
@@ -147,6 +179,7 @@ $$;
  REVOKE ALL ON FUNCTION unlock_stuck_jobs(integer) FROM PUBLIC;
  REVOKE ALL ON FUNCTION unlock_stuck_jobs(integer) FROM authenticated;
  GRANT EXECUTE ON FUNCTION unlock_stuck_jobs(integer) TO service_role;
+GRANT EXECUTE ON FUNCTION unlock_stuck_jobs(integer) TO service_role;
 
 -- ÉTAPE 7: Fonction pour marquer les jobs expirés comme failed
 -- ============================================================================
@@ -175,6 +208,7 @@ $$;
  REVOKE ALL ON FUNCTION fail_expired_jobs(integer) FROM PUBLIC;
  REVOKE ALL ON FUNCTION fail_expired_jobs(integer) FROM authenticated;
  GRANT EXECUTE ON FUNCTION fail_expired_jobs(integer) TO service_role;
+GRANT EXECUTE ON FUNCTION fail_expired_jobs(integer) TO service_role;
 
 -- ÉTAPE 8: Ajouter une colonne scheduled_for si absente (pour retry delays)
 -- ============================================================================
