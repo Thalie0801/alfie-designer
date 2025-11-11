@@ -5,11 +5,16 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
-import { callAIWithFallback, enrichPromptWithBrandKit, type AgentContext } from "../_shared/aiOrchestrator.ts";
+import {
+  type AgentContext,
+  callAIWithFallback,
+  enrichPromptWithBrandKit,
+} from "../_shared/aiOrchestrator.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 type GenType = "image" | "carousel" | "video";
@@ -100,8 +105,7 @@ serve(async (req) => {
       { role: "system", content: systemPrompt },
       {
         role: "user",
-        content:
-          `User raw request: "${prompt}"\n\n` +
+        content: `User raw request: "${prompt}"\n\n` +
           `Aspect ratio: ${aspectRatio || "not specified"}\n\n` +
           `Transform this into an optimized prompt. Return JSON with exactly:\n` +
           `{\n` +
@@ -139,7 +143,8 @@ serve(async (req) => {
       const fallbackOptimized = enrichPromptWithBrandKit(prompt, brandKit);
       result = {
         optimizedPrompt: fallbackOptimized,
-        reasoning: "Fallback optimization applied due to unparsable JSON response.",
+        reasoning:
+          "Fallback optimization applied due to unparsable JSON response.",
         negativePrompt: defaultNegativePrompt(type),
         suggestedAspectRatio: suggestAspectRatio(type, aspectRatio, prompt),
         estimatedGenerationTime: defaultETA(type),
@@ -148,11 +153,19 @@ serve(async (req) => {
     }
 
     // --- Ensure BrandKit enrichment & fields presence ---
-    result.optimizedPrompt = ensureBrandInPrompt(result.optimizedPrompt, brandKit);
-    result.negativePrompt = result.negativePrompt?.trim() || defaultNegativePrompt(type);
+    result.optimizedPrompt = ensureBrandInPrompt(
+      result.optimizedPrompt,
+      brandKit,
+    );
+    result.negativePrompt = result.negativePrompt?.trim() ||
+      defaultNegativePrompt(type);
 
     if (!result.suggestedAspectRatio) {
-      result.suggestedAspectRatio = suggestAspectRatio(type, aspectRatio, prompt);
+      result.suggestedAspectRatio = suggestAspectRatio(
+        type,
+        aspectRatio,
+        prompt,
+      );
     }
     if (!result.estimatedGenerationTime) {
       result.estimatedGenerationTime = defaultETA(type);
@@ -193,7 +206,8 @@ function jsonError(message: string, status = 500) {
 function safeJsonFromContent<T = any>(content: string): T | null {
   try {
     // Extract from fenced code block if present
-    const m = content.match(/```json\s*([\s\S]*?)```/i) || content.match(/```\s*([\s\S]*?)```/i);
+    const m = content.match(/```json\s*([\s\S]*?)```/i) ||
+      content.match(/```\s*([\s\S]*?)```/i);
     const raw = (m ? m[1] : content).trim();
     return JSON.parse(raw) as T;
   } catch {
@@ -201,14 +215,19 @@ function safeJsonFromContent<T = any>(content: string): T | null {
   }
 }
 
-function ensureBrandInPrompt(optimized: string, brandKit?: AgentContext["brandKit"]): string {
+function ensureBrandInPrompt(
+  optimized: string,
+  brandKit?: AgentContext["brandKit"],
+): string {
   if (!brandKit) return optimized;
 
-  const hasColors = brandKit.colors && Array.isArray(brandKit.colors) && brandKit.colors.length > 0;
+  const hasColors = brandKit.colors && Array.isArray(brandKit.colors) &&
+    brandKit.colors.length > 0;
   const colorsTxt = hasColors ? (brandKit.colors?.join(", ") ?? "") : "";
   const voiceTxt = brandKit.voice || "professional";
 
-  const needColors = hasColors && !new RegExp(colorsTxt.slice(0, 6), "i").test(optimized);
+  const needColors = hasColors &&
+    !new RegExp(colorsTxt.slice(0, 6), "i").test(optimized);
   const needVoice = !new RegExp(voiceTxt.slice(0, 4), "i").test(optimized);
 
   let out = optimized;
@@ -248,7 +267,9 @@ function suggestAspectRatio(
   const t = prompt.toLowerCase();
   // Heuristics by keywords
   if (/(story|reel|tiktok|short|vertical)/i.test(t)) return "9:16";
-  if (/(youtube|banni[eè]re|cover|landscape|widescreen)/i.test(t)) return "16:9";
+  if (/(youtube|banni[eè]re|cover|landscape|widescreen)/i.test(t)) {
+    return "16:9";
+  }
   if (type === "carousel") return "4:5"; // Instagram carousel meta-friendly
   if (type === "video") return "16:9"; // Default for video when unsure
   return "1:1"; // Safe default for images
@@ -256,22 +277,31 @@ function suggestAspectRatio(
 
 function summarizeBrandAlignment(brandKit?: AgentContext["brandKit"]): string {
   if (!brandKit) return "No Brand Kit provided.";
-  const colors = Array.isArray(brandKit.colors) ? brandKit.colors.slice(0, 4).join(", ") : "";
-  return `Uses brand voice "${brandKit.voice || "professional"}"${colors ? ` and colors: ${colors}` : ""}.`;
+  const colors = Array.isArray(brandKit.colors)
+    ? brandKit.colors.slice(0, 4).join(", ")
+    : "";
+  return `Uses brand voice "${brandKit.voice || "professional"}"${
+    colors ? ` and colors: ${colors}` : ""
+  }.`;
 }
 
 /* ---------------- System prompt builder ---------------- */
 
-function buildSystemPromptForType(type: GenType, brandKit?: AgentContext["brandKit"]): string {
+function buildSystemPromptForType(
+  type: GenType,
+  brandKit?: AgentContext["brandKit"],
+): string {
   const base =
     "You are Alfie, a senior prompt engineer for visual generation. " +
     "Transform raw user ideas into precise, production-ready prompts. " +
     "Always return strict JSON only (no commentary).";
 
   const brand = brandKit
-    ? `\nBRAND KIT:\n- Colors: ${brandKit.colors?.join(", ") || "n/a"}\n- Voice: ${
-        brandKit.voice || "professional"
-      }\n- Niche: ${brandKit.niche || "general"}\n`
+    ? `\nBRAND KIT:\n- Colors: ${
+      brandKit.colors?.join(", ") || "n/a"
+    }\n- Voice: ${brandKit.voice || "professional"}\n- Niche: ${
+      brandKit.niche || "general"
+    }\n`
     : "\nBRAND KIT: none provided\n";
 
   if (type === "image") {

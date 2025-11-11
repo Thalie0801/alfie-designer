@@ -44,7 +44,8 @@ interface SlideFailure {
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 const supabaseAdmin = createClient(
@@ -65,10 +66,15 @@ function isNonEmptyString(v: unknown): v is string {
 
 function safeAspect(aspect?: unknown): AspectRatio {
   const a = String(aspect ?? "4:5");
-  return (["1:1", "4:5", "9:16", "16:9"].includes(a) ? a : "4:5") as AspectRatio;
+  return (["1:1", "4:5", "9:16", "16:9"].includes(a)
+    ? a
+    : "4:5") as AspectRatio;
 }
 
-function normalizeCarousel(input: any, fallbackAspect: AspectRatio): CarouselInput | null {
+function normalizeCarousel(
+  input: any,
+  fallbackAspect: AspectRatio,
+): CarouselInput | null {
   if (!input || typeof input !== "object") return null;
   const slides = isArray(input.slides) ? input.slides : [];
   if (slides.length === 0) return null;
@@ -76,7 +82,8 @@ function normalizeCarousel(input: any, fallbackAspect: AspectRatio): CarouselInp
   return {
     id: isNonEmptyString(input.id) ? input.id : crypto.randomUUID(),
     aspectRatio: safeAspect(input.aspectRatio ?? fallbackAspect),
-    globalStyle: (typeof input.globalStyle === "object" && input.globalStyle) || undefined,
+    globalStyle: (typeof input.globalStyle === "object" && input.globalStyle) ||
+      undefined,
     slides,
   };
 }
@@ -86,7 +93,11 @@ function clamp(n: number, lo: number, hi: number) {
 }
 
 /** Concurrence simple (p-limit like) */
-async function runWithConcurrency<T>(items: T[], limit: number, worker: (item: T, idx: number) => Promise<void>) {
+async function runWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  worker: (item: T, idx: number) => Promise<void>,
+) {
   let i = 0;
   const running: Promise<void>[] = [];
   while (i < items.length) {
@@ -110,7 +121,11 @@ async function runWithConcurrency<T>(items: T[], limit: number, worker: (item: T
 }
 
 /** Retry avec backoff (500ms, 900ms, 1300ms, …) */
-async function withRetries<T>(fn: () => Promise<T>, retries: number, label: string): Promise<T> {
+async function withRetries<T>(
+  fn: () => Promise<T>,
+  retries: number,
+  label: string,
+): Promise<T> {
   let attempt = 0;
   let lastError: unknown = null;
   while (attempt <= retries) {
@@ -121,7 +136,10 @@ async function withRetries<T>(fn: () => Promise<T>, retries: number, label: stri
       attempt++;
       if (attempt > retries) break;
       const delay = 500 + attempt * 400;
-      console.warn(`↻ Retry ${attempt}/${retries} after ${delay}ms for ${label}`, e);
+      console.warn(
+        `↻ Retry ${attempt}/${retries} after ${delay}ms for ${label}`,
+        e,
+      );
       await new Promise((r) => setTimeout(r, delay));
     }
   }
@@ -145,10 +163,13 @@ serve(async (req) => {
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Missing authorization header" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "Missing authorization header" }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     const token = authHeader.replace("Bearer ", "");
@@ -170,15 +191,22 @@ serve(async (req) => {
     // --- Parse & validate body
     const body = (await req.json()) as Partial<BulkRequestBody>;
     if (!body || !isArray(body.carousels) || body.carousels.length === 0) {
-      return new Response(JSON.stringify({ error: "carousels array is required and must be non-empty" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          error: "carousels array is required and must be non-empty",
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     const brandId = isNonEmptyString(body.brandId) ? body.brandId : null;
     const orderId = isNonEmptyString(body.orderId) ? body.orderId : null;
-    const textVersion = (body.textVersion === "v2" ? "v2" : "v1") as "v1" | "v2";
+    const textVersion = (body.textVersion === "v2" ? "v2" : "v1") as
+      | "v1"
+      | "v2";
     const forwardAuth = Boolean(body.forwardAuth);
 
     const defaultAspect: AspectRatio = "4:5";
@@ -188,10 +216,15 @@ serve(async (req) => {
       if (norm) normalizedCarousels.push(norm);
     }
     if (normalizedCarousels.length === 0) {
-      return new Response(JSON.stringify({ error: "No valid carousels provided (slides missing)" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          error: "No valid carousels provided (slides missing)",
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     // Concurrence & retries
@@ -217,7 +250,9 @@ serve(async (req) => {
       const slidesOut: Array<SlideSuccess | SlideFailure> = [];
       const totalSlides = carousel.slides.length;
 
-      console.log(`📚 [Carousel ${carouselId}] ${totalSlides} slides, aspect=${aspectRatio}`);
+      console.log(
+        `📚 [Carousel ${carouselId}] ${totalSlides} slides, aspect=${aspectRatio}`,
+      );
 
       // Prépare la liste de jobs (un job = une slide)
       const jobs = carousel.slides.map((slideContent, slideIndex) => ({
@@ -226,36 +261,45 @@ serve(async (req) => {
       }));
 
       // Worker d’exécution pour une slide
-      const worker = async (job: { slideContent: SlideInput; slideIndex: number }, idx: number) => {
-        const label = `carousel=${carouselId} slide=${job.slideIndex + 1}/${totalSlides}`;
+      const worker = async (
+        job: { slideContent: SlideInput; slideIndex: number },
+        idx: number,
+      ) => {
+        const label = `carousel=${carouselId} slide=${
+          job.slideIndex + 1
+        }/${totalSlides}`;
 
         const exec = async () => {
           const headers: Record<string, string> = forwardAuth && authHeader
-            ? { Authorization: authHeader, "X-Internal-Secret": INTERNAL_SECRET }
+            ? {
+              Authorization: authHeader,
+              "X-Internal-Secret": INTERNAL_SECRET,
+            }
             : { "X-Internal-Secret": INTERNAL_SECRET };
 
-          const { data: slideData, error: slideError } = await supabaseAdmin.functions.invoke(
-            "alfie-render-carousel-slide",
-            {
-              body: {
-                userId,
-                slideContent: job.slideContent,
-                globalStyle: carousel.globalStyle ?? body.globalStyle ?? {},
-                brandId,
-                orderId,
-                orderItemId: null,
-                carouselId,
-                slideIndex: job.slideIndex,
-                totalSlides,
-                aspectRatio,
-                textVersion,
-                renderVersion: "v1",
-                context: "bulk",
-                requestId: null,
+          const { data: slideData, error: slideError } = await supabaseAdmin
+            .functions.invoke(
+              "alfie-render-carousel-slide",
+              {
+                body: {
+                  userId,
+                  slideContent: job.slideContent,
+                  globalStyle: carousel.globalStyle ?? body.globalStyle ?? {},
+                  brandId,
+                  orderId,
+                  orderItemId: null,
+                  carouselId,
+                  slideIndex: job.slideIndex,
+                  totalSlides,
+                  aspectRatio,
+                  textVersion,
+                  renderVersion: "v1",
+                  context: "bulk",
+                  requestId: null,
+                },
+                headers,
               },
-              headers,
-            },
-          );
+            );
 
           if (slideError) {
             throw new Error(slideError.message || "Slide render failed");
@@ -265,8 +309,7 @@ serve(async (req) => {
           }
 
           // Normalisation d’un champ utile si dispo (facultatif)
-          const cloudinaryUrl =
-            slideData?.cloudinaryUrl ||
+          const cloudinaryUrl = slideData?.cloudinaryUrl ||
             slideData?.cloudinary_url ||
             slideData?.data?.cloudinaryUrl ||
             slideData?.data?.cloudinary_url;
@@ -305,13 +348,18 @@ serve(async (req) => {
       });
 
       const okCount = slidesOut.filter((s) => s.ok).length;
-      console.log(`✅ [Carousel ${carouselId}] ${okCount}/${totalSlides} slides ok`);
+      console.log(
+        `✅ [Carousel ${carouselId}] ${okCount}/${totalSlides} slides ok`,
+      );
     }
 
     // Statuts globaux
     const totalCarousels = bulkResults.length;
     const totalSlides = bulkResults.reduce((acc, c) => acc + c.totalSlides, 0);
-    const okSlides = bulkResults.reduce((acc, c) => acc + c.slides.filter((s) => s.ok).length, 0);
+    const okSlides = bulkResults.reduce(
+      (acc, c) => acc + c.slides.filter((s) => s.ok).length,
+      0,
+    );
     const failedSlides = totalSlides - okSlides;
 
     const success = failedSlides === 0;
@@ -335,7 +383,10 @@ serve(async (req) => {
         },
         carousels: bulkResults,
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      },
     );
   } catch (error) {
     console.error("❌ [Carousel Bulk] Crash:", error);
@@ -343,7 +394,10 @@ serve(async (req) => {
       JSON.stringify({
         error: error instanceof Error ? error.message : "Unknown error",
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 },
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+      },
     );
   }
 });

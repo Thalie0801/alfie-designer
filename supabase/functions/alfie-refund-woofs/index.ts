@@ -3,7 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
@@ -15,13 +16,13 @@ serve(async (req) => {
     const authHeader = req.headers.get("authorization");
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
     const supabaseAuth = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      { global: { headers: { Authorization: authHeader! } } }
+      { global: { headers: { Authorization: authHeader! } } },
     );
 
     const {
@@ -32,7 +33,10 @@ serve(async (req) => {
     if (userError || !user) {
       return new Response(
         JSON.stringify({ error: "Non authentifié" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
@@ -61,17 +65,21 @@ serve(async (req) => {
       .eq("id", user.id)
       .single();
 
-    const newBalance = (profile?.quota_videos || 0) - (profile?.woofs_consumed_this_month || 0);
+    const newBalance = (profile?.quota_videos || 0) -
+      (profile?.woofs_consumed_this_month || 0);
 
     return new Response(
       JSON.stringify({ ok: true, new_balance: newBalance }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error: any) {
     console.error("Error:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 });

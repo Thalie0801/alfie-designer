@@ -1,15 +1,17 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import {
-  supabaseAdmin,
-  supabaseUserFromReq,
-  getAuthUserId,
   assertIsAdmin,
   corsHeaders,
+  getAuthUserId,
   json,
+  supabaseAdmin,
+  supabaseUserFromReq,
 } from "../_shared/utils/admin.ts";
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
 
   try {
     const userId = await getAuthUserId(req);
@@ -31,10 +33,10 @@ serve(async (req) => {
 
     if (error) return json({ error: error.message }, 500);
 
-    return json({ 
-      success: true, 
+    return json({
+      success: true,
       count: data?.length || 0,
-      message: `${data?.length || 0} affilié(s) purgé(s)` 
+      message: `${data?.length || 0} affilié(s) purgé(s)`,
     });
   } catch (e) {
     return json({ error: (e as Error).message ?? "Erreur inconnue" }, 500);

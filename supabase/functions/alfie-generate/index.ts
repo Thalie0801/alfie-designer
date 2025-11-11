@@ -5,7 +5,8 @@ import { userHasAccess } from "../_shared/accessControl.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 type GenType = "hero" | "carousel" | "insight" | "reel";
@@ -56,8 +57,10 @@ const TYPE_LIMITS = {
 
 /** Utilitaires */
 const isString = (v: unknown): v is string => typeof v === "string";
-const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
-const wordCount = (s: string) => (s || "").trim().split(/\s+/).filter(Boolean).length;
+const clamp = (n: number, lo: number, hi: number) =>
+  Math.max(lo, Math.min(hi, n));
+const wordCount = (s: string) =>
+  (s || "").trim().split(/\s+/).filter(Boolean).length;
 
 function sanitizeHashtags(list: unknown): string[] {
   const raw = Array.isArray(list) ? list : [];
@@ -75,7 +78,12 @@ function sanitizeHashtags(list: unknown): string[] {
   return out.slice(0, 10);
 }
 
-function normalizeSteps(steps: unknown, maxChars: number, minLen = 1, maxLen = 10): string[] {
+function normalizeSteps(
+  steps: unknown,
+  maxChars: number,
+  minLen = 1,
+  maxLen = 10,
+): string[] {
   const raw = Array.isArray(steps) ? steps : [];
   const trimmed = raw
     .map((s) => (isString(s) ? s.trim() : ""))
@@ -87,13 +95,19 @@ function normalizeSteps(steps: unknown, maxChars: number, minLen = 1, maxLen = 1
 
 /** Tente d’extraire un JSON d’un contenu pouvant contenir des code fences */
 function extractJson(content: string): any {
-  const fences = content.match(/```json\s*([\s\S]*?)```/i) || content.match(/```\s*([\s\S]*?)```/);
+  const fences = content.match(/```json\s*([\s\S]*?)```/i) ||
+    content.match(/```\s*([\s\S]*?)```/);
   const jsonStr = fences ? fences[1] : content;
   return JSON.parse(jsonStr);
 }
 
 /** Construit le system prompt selon le type */
-function buildSystemPrompt(type: GenType, style: string, brandVoice: string, channel: string) {
+function buildSystemPrompt(
+  type: GenType,
+  style: string,
+  brandVoice: string,
+  channel: string,
+) {
   // Contraintes spécifiques
   const T = TYPE_LIMITS;
   return `Tu es Alfie, Directeur Artistique IA expert en création de contenu visuel pour les réseaux sociaux.
@@ -164,7 +178,10 @@ function enforceTypeRules(type: GenType, payload: CopyPayload): CopyPayload {
     case "hero": {
       // Headline courte
       if (wordCount(out.headline || "") > TYPE_LIMITS.hero.headlineMaxWords) {
-        out.headline = out.headline!.split(/\s+/).slice(0, TYPE_LIMITS.hero.headlineMaxWords).join(" ");
+        out.headline = out.headline!.split(/\s+/).slice(
+          0,
+          TYPE_LIMITS.hero.headlineMaxWords,
+        ).join(" ");
       }
       // steps non pertinentes → vide
       out.steps = [];
@@ -173,7 +190,10 @@ function enforceTypeRules(type: GenType, payload: CopyPayload): CopyPayload {
     case "carousel": {
       // Hook courte
       if (wordCount(out.hook || "") > TYPE_LIMITS.carousel.hookMaxWords) {
-        out.hook = out.hook!.split(/\s+/).slice(0, TYPE_LIMITS.carousel.hookMaxWords).join(" ");
+        out.hook = out.hook!.split(/\s+/).slice(
+          0,
+          TYPE_LIMITS.carousel.hookMaxWords,
+        ).join(" ");
       }
       out.steps = normalizeSteps(
         out.steps,
@@ -188,16 +208,27 @@ function enforceTypeRules(type: GenType, payload: CopyPayload): CopyPayload {
       out.steps = [];
       // Caption courte
       if (wordCount(out.caption || "") > TYPE_LIMITS.insight.contextMaxWords) {
-        out.caption = out.caption!.split(/\s+/).slice(0, TYPE_LIMITS.insight.contextMaxWords).join(" ");
+        out.caption = out.caption!.split(/\s+/).slice(
+          0,
+          TYPE_LIMITS.insight.contextMaxWords,
+        ).join(" ");
       }
       break;
     }
     case "reel": {
       if (wordCount(out.hook || "") > TYPE_LIMITS.reel.hookMaxWords) {
-        out.hook = out.hook!.split(/\s+/).slice(0, TYPE_LIMITS.reel.hookMaxWords).join(" ");
+        out.hook = out.hook!.split(/\s+/).slice(
+          0,
+          TYPE_LIMITS.reel.hookMaxWords,
+        ).join(" ");
       }
       // Steps borne 3–5, on borne la longueur à ~80 chars pour un sous-titre court
-      out.steps = normalizeSteps(out.steps, 80, TYPE_LIMITS.reel.stepsMin, TYPE_LIMITS.reel.stepsMax);
+      out.steps = normalizeSteps(
+        out.steps,
+        80,
+        TYPE_LIMITS.reel.stepsMin,
+        TYPE_LIMITS.reel.stepsMax,
+      );
       break;
     }
   }
@@ -210,8 +241,9 @@ function enforceTypeRules(type: GenType, payload: CopyPayload): CopyPayload {
 
   // Sécurité : si tout vide, mettre des placeholders minimalistes
   if (!out.headline && !out.hook) {
-    if (type === "hero" || type === "insight") out.headline = "Nouvelle annonce";
-    else out.hook = "Idée clé";
+    if (type === "hero" || type === "insight") {
+      out.headline = "Nouvelle annonce";
+    } else out.hook = "Idée clé";
   }
 
   if (!out.cta) out.cta = "En savoir plus";
@@ -220,7 +252,12 @@ function enforceTypeRules(type: GenType, payload: CopyPayload): CopyPayload {
 }
 
 /** Appel IA (Lovable Gateway) avec retry simple */
-async function callLovable(systemPrompt: string, userPrompt: string, key: string, model = "google/gemini-2.5-flash") {
+async function callLovable(
+  systemPrompt: string,
+  userPrompt: string,
+  key: string,
+  model = "google/gemini-2.5-flash",
+) {
   const body = JSON.stringify({
     model,
     messages: [
@@ -298,15 +335,21 @@ serve(async (req) => {
     const type = (rawBody.type || "").toLowerCase() as GenType;
     const theme = (rawBody.theme || "").toString().trim();
     const style = (rawBody.style || DEFAULTS.style).toString().trim();
-    const brandVoice = (rawBody.brandVoice || DEFAULTS.brandVoice).toString().trim();
+    const brandVoice = (rawBody.brandVoice || DEFAULTS.brandVoice).toString()
+      .trim();
     const channel = (rawBody.channel || DEFAULTS.channel).toString().trim();
 
     const allowedTypes: GenType[] = ["hero", "carousel", "insight", "reel"];
     if (!allowedTypes.includes(type)) {
-      return new Response(JSON.stringify({ error: "Invalid type. Must be one of hero|carousel|insight|reel" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          error: "Invalid type. Must be one of hero|carousel|insight|reel",
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
     if (!theme) {
       return new Response(JSON.stringify({ error: "Theme is required" }), {
@@ -333,22 +376,37 @@ serve(async (req) => {
     });
 
     // --- IA Gateway call ---
-    const response = await callLovable(systemPrompt, userPrompt, LOVABLE_API_KEY);
+    const response = await callLovable(
+      systemPrompt,
+      userPrompt,
+      LOVABLE_API_KEY,
+    );
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");
       console.error("Lovable AI error:", response.status, errorText);
 
       if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Trop de requêtes. Réessayez dans quelques instants." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({
+            error: "Trop de requêtes. Réessayez dans quelques instants.",
+          }),
+          {
+            status: 429,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
       }
       if (response.status === 402) {
         return new Response(
-          JSON.stringify({ error: "Crédits insuffisants. Veuillez recharger votre compte Lovable AI." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          JSON.stringify({
+            error:
+              "Crédits insuffisants. Veuillez recharger votre compte Lovable AI.",
+          }),
+          {
+            status: 402,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
         );
       }
       throw new Error(`Lovable AI error: ${response.status}`);
@@ -364,12 +422,17 @@ serve(async (req) => {
     try {
       parsed = extractJson(content);
     } catch (e) {
-      console.error("Failed to parse AI response as JSON, raw:", content.slice(0, 300));
+      console.error(
+        "Failed to parse AI response as JSON, raw:",
+        content.slice(0, 300),
+      );
       // Fallback minimal
       parsed = {
         headline: type === "hero" || type === "insight" ? "Contenu généré" : "",
         hook: type === "carousel" || type === "reel" ? theme.slice(0, 50) : "",
-        steps: type === "carousel" || type === "reel" ? ["Étape 1", "Étape 2", "Étape 3"] : [],
+        steps: type === "carousel" || type === "reel"
+          ? ["Étape 1", "Étape 2", "Étape 3"]
+          : [],
         cta: "En savoir plus",
         caption: theme,
         hashtags: ["#marketing", "#design", "#créativité"],
@@ -407,22 +470,27 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error("[alfie-generate] Error:", error);
-    const msg = error instanceof Error ? error.message : "Une erreur est survenue";
+    const msg = error instanceof Error
+      ? error.message
+      : "Une erreur est survenue";
     const status = /Unauthorized/i.test(msg)
       ? 401
       : /Access denied/i.test(msg)
-        ? 403
-        : /429|Rate limit/i.test(msg)
-          ? 429
-          : /402|Payment|Crédit/i.test(msg)
-            ? 402
-            : 500;
+      ? 403
+      : /429|Rate limit/i.test(msg)
+      ? 429
+      : /402|Payment|Crédit/i.test(msg)
+      ? 402
+      : 500;
 
     return new Response(
       JSON.stringify({
         error: msg,
       }),
-      { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      {
+        status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 });

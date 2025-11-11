@@ -3,7 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
@@ -21,7 +22,7 @@ serve(async (req) => {
           autoRefreshToken: false,
           persistSession: false,
         },
-      }
+      },
     );
 
     // ⚠️ SECURITY: Credentials must be passed in request body, never hardcoded
@@ -33,14 +34,15 @@ serve(async (req) => {
     for (const account of testAccounts) {
       try {
         // Create user in auth.users
-        const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
-          email: account.email,
-          password: account.password,
-          email_confirm: true,
-          user_metadata: {
-            full_name: account.full_name,
-          },
-        });
+        const { data: userData, error: userError } = await supabaseAdmin.auth
+          .admin.createUser({
+            email: account.email,
+            password: account.password,
+            email_confirm: true,
+            user_metadata: {
+              full_name: account.full_name,
+            },
+          });
 
         if (userError) {
           console.error(`Error creating user ${account.email}:`, userError);
@@ -66,7 +68,10 @@ serve(async (req) => {
           .eq("id", userData.user.id);
 
         if (updateError) {
-          console.error(`Error updating profile for ${account.email}:`, updateError);
+          console.error(
+            `Error updating profile for ${account.email}:`,
+            updateError,
+          );
           results.push({
             email: account.email,
             success: false,
@@ -104,7 +109,7 @@ serve(async (req) => {
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 500,
-      }
+      },
     );
   }
 });

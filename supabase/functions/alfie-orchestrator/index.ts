@@ -2,22 +2,26 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
-  type ConversationState,
   type ConversationContext,
+  type ConversationState,
   detectOrderIntent,
-  getNextQuestion,
-  extractResponseValue,
-  isSkipResponse,
   detectTopicIntent,
+  extractResponseValue,
+  getNextQuestion,
+  isSkipResponse,
 } from "../_shared/conversationFlow.ts";
 
 // ---- Supabase (service role pour la persistance session/ordres/jobs)
-const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+const sb = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+);
 
 // ---- CORS / helpers
 const corsHeaders = {
   "access-control-allow-origin": "*",
-  "access-control-allow-headers": "authorization, x-client-info, apikey, content-type",
+  "access-control-allow-headers":
+    "authorization, x-client-info, apikey, content-type",
   "access-control-allow-methods": "POST, OPTIONS",
   "access-control-max-age": "86400",
 };
@@ -35,7 +39,9 @@ const toInt = (v: any, d = 0) => {
 };
 
 // parse "9:16 • 12s" / "16:9 10s" / "9:16" / "12s"
-function parseFormatDuration(msg: string): { aspectRatio?: "9:16" | "16:9"; durationSec?: number } {
+function parseFormatDuration(
+  msg: string,
+): { aspectRatio?: "9:16" | "16:9"; durationSec?: number } {
   const fmtMatch = msg.match(/\b(9:16|16:9)\b/i);
   const durMatch = msg.match(/\b(\d{1,2})\s*s\b/i);
   return {
@@ -44,9 +50,15 @@ function parseFormatDuration(msg: string): { aspectRatio?: "9:16" | "16:9"; dura
   };
 }
 
-async function appendMessage(sessionId: string, role: "user" | "assistant", content: string) {
+async function appendMessage(
+  sessionId: string,
+  role: "user" | "assistant",
+  content: string,
+) {
   try {
-    const { data: s } = await sb.from("alfie_conversation_sessions").select("messages").eq("id", sessionId).single();
+    const { data: s } = await sb.from("alfie_conversation_sessions").select(
+      "messages",
+    ).eq("id", sessionId).single();
 
     const msgs = Array.isArray(s?.messages) ? s!.messages : [];
     msgs.push({ role, content, at: new Date().toISOString() });
@@ -61,8 +73,12 @@ async function appendMessage(sessionId: string, role: "user" | "assistant", cont
 }
 
 function assertBriefsValid(ctx: any) {
-  const imagesOk = (ctx.imageBriefs || []).every((b: any) => b?.objective && b?.content && b?.format);
-  const carouselsOk = (ctx.carouselBriefs || []).every((b: any) => b?.topic && b?.angle && toInt(b?.numSlides, 0) > 0);
+  const imagesOk = (ctx.imageBriefs || []).every((b: any) =>
+    b?.objective && b?.content && b?.format
+  );
+  const carouselsOk = (ctx.carouselBriefs || []).every((b: any) =>
+    b?.topic && b?.angle && toInt(b?.numSlides, 0) > 0
+  );
 
   if ((ctx.numImages && !imagesOk) || (ctx.numCarousels && !carouselsOk)) {
     throw new Error("Briefs incomplete");
@@ -101,9 +117,13 @@ serve(async (req) => {
     const authHeader = req.headers.get("authorization");
     if (!authHeader) return json({ error: "Missing authorization" }, 401);
 
-    const userClient = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_ANON_KEY") ?? "", {
-      global: { headers: { Authorization: authHeader } },
-    });
+    const userClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      {
+        global: { headers: { Authorization: authHeader } },
+      },
+    );
     const { data: auth } = await userClient.auth.getUser();
     const user = auth?.user;
     if (!user) return json({ error: "Unauthorized" }, 401);
@@ -111,7 +131,8 @@ serve(async (req) => {
     // --- 1) Charger/créer la session
     let session: any;
     if (session_id) {
-      const { data, error } = await sb.from("alfie_conversation_sessions").select("*").eq("id", session_id).single();
+      const { data, error } = await sb.from("alfie_conversation_sessions")
+        .select("*").eq("id", session_id).single();
       if (error) console.warn("[ORCH] loadSession error:", error);
       session = data;
     }
@@ -128,12 +149,18 @@ serve(async (req) => {
         })
         .select()
         .single();
-      if (err) return json({ error: "session_create_failed", details: err.message }, 500);
+      if (err) {
+        return json(
+          { error: "session_create_failed", details: err.message },
+          500,
+        );
+      }
       session = newSession;
       console.log("[ORCH] ✨ New session:", session.id);
     }
 
-    let state: ConversationState = session.conversation_state as ConversationState;
+    let state: ConversationState = session
+      .conversation_state as ConversationState;
     let context: ConversationContext = session.context_json || {};
 
     // Historiser le message user
@@ -143,8 +170,12 @@ serve(async (req) => {
 
     console.log("[ORCH] 📊 State:", state, "Context:", context);
 
-    if (forceTool === "generate_video" && (body?.aspectRatio || body?.durationSec || body?.uploadedSourceUrl)) {
-      const aspectRatio = (body?.aspectRatio as "9:16" | "16:9" | "1:1") ?? "9:16";
+    if (
+      forceTool === "generate_video" &&
+      (body?.aspectRatio || body?.durationSec || body?.uploadedSourceUrl)
+    ) {
+      const aspectRatio = (body?.aspectRatio as "9:16" | "16:9" | "1:1") ??
+        "9:16";
       const duration = Number(body?.durationSec) || 12;
       const promptText = (user_message || "").trim();
       const sourceUrl = body?.uploadedSourceUrl || null;
@@ -158,15 +189,27 @@ serve(async (req) => {
             brand_id: brand_id,
             campaign_name: `Video_${Date.now()}`,
             brief_json: {
-              video: { aspectRatio, durationSec: duration, prompt: promptText, sourceUrl },
+              video: {
+                aspectRatio,
+                durationSec: duration,
+                prompt: promptText,
+                sourceUrl,
+              },
             },
             status: "pending",
           })
           .select()
           .single();
-        if (oErr) return json({ error: "order_creation_failed", details: oErr.message }, 500);
+        if (oErr) {
+          return json(
+            { error: "order_creation_failed", details: oErr.message },
+            500,
+          );
+        }
         orderId = order.id;
-        await sb.from("alfie_conversation_sessions").update({ order_id: orderId }).eq("id", session.id);
+        await sb.from("alfie_conversation_sessions").update({
+          order_id: orderId,
+        }).eq("id", session.id);
       }
 
       await sb.from("job_queue").insert({
@@ -186,23 +229,35 @@ serve(async (req) => {
       });
 
       try {
-        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/alfie-job-worker`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
-            "Content-Type": "application/json",
+        await fetch(
+          `${Deno.env.get("SUPABASE_URL")}/functions/v1/alfie-job-worker`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ trigger: "video" }),
           },
-          body: JSON.stringify({ trigger: "video" }),
-        });
+        );
       } catch {}
 
-      await appendMessage(session.id, "assistant", "🚀 Vidéo lancée depuis le Studio.");
+      await appendMessage(
+        session.id,
+        "assistant",
+        "🚀 Vidéo lancée depuis le Studio.",
+      );
       await sb
         .from("alfie_conversation_sessions")
         .update({ conversation_state: "generating" })
         .eq("id", session.id);
 
-      return json({ response: "OK", orderId, conversationId: session.id, state: "generating" });
+      return json({
+        response: "OK",
+        orderId,
+        conversationId: session.id,
+        state: "generating",
+      });
     }
 
     if (forceTool === "generate_image") {
@@ -226,7 +281,9 @@ serve(async (req) => {
           .single();
         if (oErr) return json({ error: oErr.message }, 500);
         orderId = order.id;
-        await sb.from("alfie_conversation_sessions").update({ order_id: orderId }).eq("id", session.id);
+        await sb.from("alfie_conversation_sessions").update({
+          order_id: orderId,
+        }).eq("id", session.id);
       }
 
       const finalOrderId = orderId as string;
@@ -246,14 +303,17 @@ serve(async (req) => {
       });
 
       try {
-        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/alfie-job-worker`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
-            "Content-Type": "application/json",
+        await fetch(
+          `${Deno.env.get("SUPABASE_URL")}/functions/v1/alfie-job-worker`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ trigger: "image" }),
           },
-          body: JSON.stringify({ trigger: "image" }),
-        });
+        );
       } catch {}
 
       const responseText = "🚀 Génération lancée !";
@@ -292,7 +352,9 @@ serve(async (req) => {
           .single();
         if (oErr) return json({ error: oErr.message }, 500);
         orderId = order.id;
-        await sb.from("alfie_conversation_sessions").update({ order_id: orderId }).eq("id", session.id);
+        await sb.from("alfie_conversation_sessions").update({
+          order_id: orderId,
+        }).eq("id", session.id);
       }
 
       const finalOrderId = orderId as string;
@@ -311,14 +373,17 @@ serve(async (req) => {
       });
 
       try {
-        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/alfie-job-worker`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
-            "Content-Type": "application/json",
+        await fetch(
+          `${Deno.env.get("SUPABASE_URL")}/functions/v1/alfie-job-worker`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ trigger: "carousel" }),
           },
-          body: JSON.stringify({ trigger: "carousel" }),
-        });
+        );
       } catch {}
 
       const responseText = "🚀 Génération lancée !";
@@ -337,8 +402,7 @@ serve(async (req) => {
     }
 
     const VIDEO_RE = /\b(vid[ée]o|reel|r[ée]el|tiktok|shorts?|clip)\b/i;
-    const isVideoFlowActive =
-      state === "awaiting_video_params" ||
+    const isVideoFlowActive = state === "awaiting_video_params" ||
       state === "awaiting_video_prompt" ||
       (state === "generating" && Boolean(context?.video));
 
@@ -360,7 +424,12 @@ serve(async (req) => {
 
       const responseText =
         "🎬 Format vidéo ? 9:16 (vertical) ou 16:9 (paysage) — et durée ? (5–15 s conseillé)";
-      const quickReplies = ["9:16 • 7s", "9:16 • 12s", "16:9 • 10s", "16:9 • 15s"];
+      const quickReplies = [
+        "9:16 • 7s",
+        "9:16 • 12s",
+        "16:9 • 10s",
+        "16:9 • 15s",
+      ];
       await appendMessage(session.id, "assistant", responseText);
       return json({
         response: responseText,
@@ -378,7 +447,9 @@ serve(async (req) => {
         sourceUrl: body?.uploadedSourceUrl || null,
       };
 
-      const { aspectRatio, durationSec } = parseFormatDuration(user_message || "");
+      const { aspectRatio, durationSec } = parseFormatDuration(
+        user_message || "",
+      );
       if (aspectRatio) context.video!.aspectRatio = aspectRatio;
       if (durationSec) context.video!.durationSec = durationSec;
       if (!context.video!.sourceUrl && body?.uploadedSourceUrl) {
@@ -454,7 +525,12 @@ serve(async (req) => {
           })
           .select()
           .single();
-        if (oErr) return json({ error: "order_creation_failed", details: oErr.message }, 500);
+        if (oErr) {
+          return json(
+            { error: "order_creation_failed", details: oErr.message },
+            500,
+          );
+        }
         orderId = order.id;
         await sb
           .from("alfie_conversation_sessions")
@@ -480,14 +556,17 @@ serve(async (req) => {
       await sb.from("job_queue").insert(job);
 
       try {
-        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/alfie-job-worker`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
-            "Content-Type": "application/json",
+        await fetch(
+          `${Deno.env.get("SUPABASE_URL")}/functions/v1/alfie-job-worker`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ trigger: "video" }),
           },
-          body: JSON.stringify({ trigger: "video" }),
-        });
+        );
       } catch {}
 
       state = "generating";
@@ -496,7 +575,8 @@ serve(async (req) => {
         .update({ conversation_state: state, context_json: context })
         .eq("id", session.id);
 
-      const responseText = "🚀 Vidéo lancée ! Je te préviens dès que c’est prêt.";
+      const responseText =
+        "🚀 Vidéo lancée ! Je te préviens dès que c’est prêt.";
       await appendMessage(session.id, "assistant", responseText);
       return json({
         response: responseText,
@@ -561,20 +641,30 @@ serve(async (req) => {
 
       if (nextQ?.questionKey) {
         // enregistrer la réponse
-        const value = extractResponseValue({ key: nextQ.questionKey } as any, user_message || "");
-        if (!isSkipResponse(user_message || "")) currentBrief[nextQ.questionKey] = value;
+        const value = extractResponseValue(
+          { key: nextQ.questionKey } as any,
+          user_message || "",
+        );
+        if (!isSkipResponse(user_message || "")) {
+          currentBrief[nextQ.questionKey] = value;
+        }
         context.imageBriefs![currentIdx] = currentBrief;
 
-        await sb.from("alfie_conversation_sessions").update({ context_json: context }).eq("id", session.id);
+        await sb.from("alfie_conversation_sessions").update({
+          context_json: context,
+        }).eq("id", session.id);
 
         // calculer la prochaine question
         const next = getNextQuestion(state, context);
         if (next) {
           // si l'image devient complète et qu'on revient à objective → passer à l'image suivante
-          const briefIsComplete = currentBrief.objective && currentBrief.content && currentBrief.format;
+          const briefIsComplete = currentBrief.objective &&
+            currentBrief.content && currentBrief.format;
           if (briefIsComplete && next.questionKey === "objective") {
             context.currentImageIndex = currentIdx + 1;
-            await sb.from("alfie_conversation_sessions").update({ context_json: context }).eq("id", session.id);
+            await sb.from("alfie_conversation_sessions").update({
+              context_json: context,
+            }).eq("id", session.id);
           }
           await appendMessage(session.id, "assistant", next.question);
           return json({
@@ -620,18 +710,21 @@ serve(async (req) => {
 
       if (nextQ?.questionKey) {
         // détection AI du sujet si question = topic
-        if (nextQ.questionKey === "topic" && !isSkipResponse(user_message || "")) {
+        if (
+          nextQ.questionKey === "topic" && !isSkipResponse(user_message || "")
+        ) {
           const detection = await detectTopicIntent(user_message || "");
           if (detection.confidence > 0.7) {
             currentBrief.topic = detection.topic;
             if (detection.angle) currentBrief.angle = detection.angle;
             context.carouselBriefs![currentIdx] = currentBrief;
 
-            await sb.from("alfie_conversation_sessions").update({ context_json: context }).eq("id", session.id);
+            await sb.from("alfie_conversation_sessions").update({
+              context_json: context,
+            }).eq("id", session.id);
 
             const next = getNextQuestion(state, context);
-            const text =
-              `✅ Sujet détecté : "${detection.topic}"` +
+            const text = `✅ Sujet détecté : "${detection.topic}"` +
               (detection.angle ? ` (angle: ${detection.angle})` : "") +
               `\n\n${next?.question || ""}`;
             await appendMessage(session.id, "assistant", text);
@@ -658,19 +751,29 @@ serve(async (req) => {
         }
 
         // extraction standard
-        const value = extractResponseValue({ key: nextQ.questionKey } as any, user_message || "");
-        if (!isSkipResponse(user_message || "")) currentBrief[nextQ.questionKey] = value;
+        const value = extractResponseValue(
+          { key: nextQ.questionKey } as any,
+          user_message || "",
+        );
+        if (!isSkipResponse(user_message || "")) {
+          currentBrief[nextQ.questionKey] = value;
+        }
         context.carouselBriefs![currentIdx] = currentBrief;
 
-        await sb.from("alfie_conversation_sessions").update({ context_json: context }).eq("id", session.id);
+        await sb.from("alfie_conversation_sessions").update({
+          context_json: context,
+        }).eq("id", session.id);
 
         const next = getNextQuestion(state, context);
         if (next) {
           // si le brief est complet et que la prochaine question repart sur topic → passer au prochain carrousel
-          const briefIsComplete = currentBrief.topic && currentBrief.angle && toInt(currentBrief.numSlides, 0) > 0;
+          const briefIsComplete = currentBrief.topic && currentBrief.angle &&
+            toInt(currentBrief.numSlides, 0) > 0;
           if (briefIsComplete && next.questionKey === "topic") {
             context.currentCarouselIndex = currentIdx + 1;
-            await sb.from("alfie_conversation_sessions").update({ context_json: context }).eq("id", session.id);
+            await sb.from("alfie_conversation_sessions").update({
+              context_json: context,
+            }).eq("id", session.id);
           }
           await appendMessage(session.id, "assistant", next.question);
           return json({
@@ -705,9 +808,16 @@ serve(async (req) => {
     // --- 4) CONFIRMATION
     if (state === "confirming") {
       const normalized = (user_message || "").toLowerCase();
-      const confirmed = ["oui", "ok", "go", "lance", "genere", "valide", "✅", "confirme"].some((w) =>
-        normalized.includes(w),
-      );
+      const confirmed = [
+        "oui",
+        "ok",
+        "go",
+        "lance",
+        "genere",
+        "valide",
+        "✅",
+        "confirme",
+      ].some((w) => normalized.includes(w));
 
       if (!confirmed) {
         state = "initial";
@@ -733,7 +843,11 @@ serve(async (req) => {
       } catch {
         const text = "Il manque des infos dans le brief. On termine ça 👍";
         await appendMessage(session.id, "assistant", text);
-        return json({ response: text, conversationId: session.id, state: "confirming" }, 400);
+        return json({
+          response: text,
+          conversationId: session.id,
+          state: "confirming",
+        }, 400);
       }
 
       // Idempotence: si un ordre a déjà été créé sur la session
@@ -765,7 +879,10 @@ serve(async (req) => {
 
       if (oErr || !order) {
         console.error("[ORCH] ❌ Order creation failed:", oErr);
-        return json({ error: "order_creation_failed", details: oErr?.message }, 500);
+        return json(
+          { error: "order_creation_failed", details: oErr?.message },
+          500,
+        );
       }
 
       // Double-check idempotence (relecture rapide)
@@ -818,13 +935,19 @@ serve(async (req) => {
       }
 
       if (items.length > 0) {
-        const { data: existing } = await sb.from("order_items").select("id, type").eq("order_id", order.id);
+        const { data: existing } = await sb.from("order_items").select(
+          "id, type",
+        ).eq("order_id", order.id);
 
-        const existingTypes = new Set(existing?.map((it: any) => it.type) || []);
+        const existingTypes = new Set(
+          existing?.map((it: any) => it.type) || [],
+        );
         const newItems = items.filter((it) => !existingTypes.has(it.type));
 
         if (newItems.length > 0) {
-          const { error: itemsError } = await sb.from("order_items").insert(newItems);
+          const { error: itemsError } = await sb.from("order_items").insert(
+            newItems,
+          );
           if (itemsError) {
             console.error("[ORCH] ❌ Items insert failed:", itemsError);
           }
@@ -832,7 +955,9 @@ serve(async (req) => {
       }
 
       // Recharger items avec IDs
-      const { data: allOrderItems } = await sb.from("order_items").select("id, type").eq("order_id", order.id);
+      const { data: allOrderItems } = await sb.from("order_items").select(
+        "id, type",
+      ).eq("order_id", order.id);
 
       // Créer jobs de rendu (sans passer par “generate_texts”)
       const renderJobs: any[] = [];
@@ -853,7 +978,9 @@ serve(async (req) => {
         });
       }
       if (nC > 0 && context.carouselBriefs) {
-        const carouselItem = allOrderItems?.find((it: any) => it.type === "carousel");
+        const carouselItem = allOrderItems?.find((it: any) =>
+          it.type === "carousel"
+        );
         renderJobs.push({
           user_id: user.id,
           order_id: order.id,
@@ -876,11 +1003,15 @@ serve(async (req) => {
           .eq("order_id", order.id)
           .in("type", ["render_images", "render_carousels"]);
 
-        const existingKeys = new Set((existingJobs || []).map((j: any) => j.type));
+        const existingKeys = new Set(
+          (existingJobs || []).map((j: any) => j.type),
+        );
         const newJobs = renderJobs.filter((j) => !existingKeys.has(j.type));
 
         if (newJobs.length > 0) {
-          const { error: jobError } = await sb.from("job_queue").insert(newJobs);
+          const { error: jobError } = await sb.from("job_queue").insert(
+            newJobs,
+          );
           if (jobError) {
             console.error("[ORCH] ❌ Queue jobs failed:", jobError);
             return json({ error: "failed_to_queue_jobs" }, 500);
@@ -889,7 +1020,9 @@ serve(async (req) => {
       }
 
       // Invoke worker (avec timeout)
-      const workerUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/alfie-job-worker`;
+      const workerUrl = `${
+        Deno.env.get("SUPABASE_URL")
+      }/functions/v1/alfie-job-worker`;
       try {
         console.log("[ORCH] ▶️ Invoking worker:", workerUrl);
         const controller = new AbortController();
@@ -946,10 +1079,16 @@ serve(async (req) => {
 
       // Nouveau brief pendant la génération → réinitialiser et relancer
       const newIntent = detectOrderIntent(user_message || "");
-      if (newIntent && (newIntent.numImages > 0 || newIntent.numCarousels > 0)) {
+      if (
+        newIntent && (newIntent.numImages > 0 || newIntent.numCarousels > 0)
+      ) {
         await sb
           .from("alfie_conversation_sessions")
-          .update({ conversation_state: "initial", context_json: {}, order_id: null })
+          .update({
+            conversation_state: "initial",
+            context_json: {},
+            order_id: null,
+          })
           .eq("id", session.id);
 
         const newContext: any = {
@@ -965,8 +1104,9 @@ serve(async (req) => {
           currentCarouselIndex: 0,
         };
 
-        const newState: ConversationState =
-          newIntent.numImages > 0 ? "collecting_image_brief" : "collecting_carousel_brief";
+        const newState: ConversationState = newIntent.numImages > 0
+          ? "collecting_image_brief"
+          : "collecting_carousel_brief";
 
         await sb
           .from("alfie_conversation_sessions")
@@ -991,14 +1131,20 @@ serve(async (req) => {
         const wantsCarousel = /\b(carrousel|carousel)\b/.test(norm);
         await sb
           .from("alfie_conversation_sessions")
-          .update({ conversation_state: "initial", context_json: {}, order_id: null })
+          .update({
+            conversation_state: "initial",
+            context_json: {},
+            order_id: null,
+          })
           .eq("id", session.id);
 
         const ctx: any = wantsCarousel
           ? { numCarousels: 1, carouselBriefs: [{}], currentCarouselIndex: 0 }
           : { numImages: 1, imageBriefs: [{}], currentImageIndex: 0 };
 
-        const newState: ConversationState = wantsCarousel ? "collecting_carousel_brief" : "collecting_image_brief";
+        const newState: ConversationState = wantsCarousel
+          ? "collecting_carousel_brief"
+          : "collecting_image_brief";
 
         await sb
           .from("alfie_conversation_sessions")
@@ -1028,12 +1174,19 @@ serve(async (req) => {
         for (const it of items || []) {
           const b: any = it.brief_json || {};
           if (it.type === "image") {
-            const c = typeof b.count === "number" ? b.count : Array.isArray(b.briefs) ? b.briefs.length : 0;
+            const c = typeof b.count === "number"
+              ? b.count
+              : Array.isArray(b.briefs)
+              ? b.briefs.length
+              : 0;
             expected += c || 0;
           }
           if (it.type === "carousel") {
             const briefs = Array.isArray(b.briefs) ? b.briefs : [];
-            expected += briefs.reduce((sum: number, br: any) => sum + toInt(br?.numSlides, 0), 0);
+            expected += briefs.reduce(
+              (sum: number, br: any) => sum + toInt(br?.numSlides, 0),
+              0,
+            );
           }
         }
 
@@ -1049,14 +1202,20 @@ serve(async (req) => {
         });
 
         if ((done ?? 0) >= expected && expected > 0) {
-          await sb.from("alfie_conversation_sessions").update({ conversation_state: "completed" }).eq("id", session.id);
+          await sb.from("alfie_conversation_sessions").update({
+            conversation_state: "completed",
+          }).eq("id", session.id);
 
-          const text = "🎉 Génération terminée ! Toutes tes slides sont prêtes.";
+          const text =
+            "🎉 Génération terminée ! Toutes tes slides sont prêtes.";
           await appendMessage(session.id, "assistant", text);
           return json({
             response: text,
             orderId: session.order_id,
-            quickReplies: ["Voir la bibliothèque", "Créer un nouveau carrousel"],
+            quickReplies: [
+              "Voir la bibliothèque",
+              "Créer un nouveau carrousel",
+            ],
             conversationId: session.id,
             state: "completed",
           });
@@ -1078,7 +1237,11 @@ serve(async (req) => {
     if (state === "completed") {
       await sb
         .from("alfie_conversation_sessions")
-        .update({ conversation_state: "initial", context_json: {}, order_id: null })
+        .update({
+          conversation_state: "initial",
+          context_json: {},
+          order_id: null,
+        })
         .eq("id", session.id);
 
       const welcomeQ = getNextQuestion("initial", {});
@@ -1086,7 +1249,8 @@ serve(async (req) => {
       await appendMessage(session.id, "assistant", text);
       return json({
         response: text,
-        quickReplies: welcomeQ?.quickReplies || ["3 images", "2 carrousels", "1 image + 1 carrousel"],
+        quickReplies: welcomeQ?.quickReplies ||
+          ["3 images", "2 carrousels", "1 image + 1 carrousel"],
         conversationId: session.id,
         state: "initial",
       });
