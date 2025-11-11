@@ -1,4 +1,5 @@
 // @ts-nocheck
+// @ts-nocheck  (tu peux typer plus tard)
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -39,6 +40,14 @@ Deno.serve(async (req: Request) => {
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
     const { data: claimed, error: rpcErr } = await sb.rpc("claim_next_job");
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!SUPABASE_URL || !SERVICE_ROLE) return json({ ok: false, error: "Missing env" }, 500);
+
+    const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
+
+    // 1) Claim 1 job
+    const { data: claimed, error: rpcErr } = await sb.rpc('claim_next_job');
     if (rpcErr) return json({ ok: false, error: rpcErr.message }, 500);
     if (!claimed || claimed.length === 0) return json({ ok: true, message: "No jobs" });
 
@@ -53,6 +62,16 @@ Deno.serve(async (req: Request) => {
       .eq("id", job.id);
 
     if (upErr) return json({ ok: false, error: upErr.message }, 500);
+    // 2) Simuler traitement (à remplacer par ton rendu réel)
+    let result: Record<string, unknown> = { ok: true, processedAt: new Date().toISOString() };
+
+    // 3) Success
+    const { error: upErr } = await sb
+      .from('job_queue')
+      .update({ status: 'completed', result, updated_at: new Date().toISOString() })
+      .eq('id', job.id);
+    if (upErr) return json({ ok: false, error: upErr.message }, 500);
+
     return json({ ok: true, processed: job.id });
   } catch (e) {
     return json({ ok: false, error: e?.message ?? String(e) }, 500);
