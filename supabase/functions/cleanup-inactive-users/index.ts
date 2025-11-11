@@ -3,7 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
@@ -17,7 +18,10 @@ serve(async (req) => {
   if (!supabaseUrl || !serviceKey) {
     return new Response(
       JSON.stringify({ error: "Missing Supabase environment configuration" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 
@@ -31,7 +35,10 @@ serve(async (req) => {
     if (!forceRun && today.getUTCDate() !== 30) {
       return new Response(
         JSON.stringify({ message: "Cleanup skipped (runs on 30th)" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
@@ -44,14 +51,26 @@ serve(async (req) => {
     const purgedCount = Array.isArray(data) ? data.length : 0;
 
     return new Response(
-      JSON.stringify({ message: "Cleanup executed", purgedCount, affected: data ?? [] }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({
+        message: "Cleanup executed",
+        purgedCount,
+        affected: data ?? [],
+      }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   } catch (error) {
     console.error("[cleanup-inactive-users]", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({
+        error: error instanceof Error ? error.message : "Unknown error",
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 });

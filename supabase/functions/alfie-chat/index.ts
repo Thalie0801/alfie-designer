@@ -3,7 +3,11 @@ import { serve } from "https://deno.land/std/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import { userHasAccess } from "../_shared/access.ts";
-import { callAIWithFallback, type AgentContext, type AIResponse } from "../_shared/aiOrchestrator.ts";
+import {
+  type AgentContext,
+  type AIResponse,
+  callAIWithFallback,
+} from "../_shared/aiOrchestrator.ts";
 
 /* ------------------------------------------
  * Helpers très simples
@@ -22,9 +26,25 @@ function detectIntent(message: string): string {
 function isApproval(message: string): boolean {
   const lower = (message || "").trim().toLowerCase();
   const approvalPhrases = [
-    "oui", "ok", "d'accord", "go", "je valide", "lance", "vas-y", "parfait",
-    "c'est bon", "yes", "yep", "ouais", "exact", "carrément", "absolument",
-    "très bien", "impec", "nickel", "top",
+    "oui",
+    "ok",
+    "d'accord",
+    "go",
+    "je valide",
+    "lance",
+    "vas-y",
+    "parfait",
+    "c'est bon",
+    "yes",
+    "yep",
+    "ouais",
+    "exact",
+    "carrément",
+    "absolument",
+    "très bien",
+    "impec",
+    "nickel",
+    "top",
   ];
   return approvalPhrases.some(
     (phrase) => lower === phrase || lower.startsWith(phrase + " "),
@@ -101,8 +121,13 @@ serve(async (req) => {
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       console.error("[TRACE] ❌ Missing or empty messages array");
       return new Response(
-        JSON.stringify({ error: "Messages array is required and must not be empty" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        JSON.stringify({
+          error: "Messages array is required and must not be empty",
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
@@ -126,12 +151,12 @@ serve(async (req) => {
     // Récupérer Brand Kit
     let brandKit:
       | {
-          name: string;
-          colors: string[];
-          fonts: any[];
-          voice?: string;
-          niche?: string;
-        }
+        name: string;
+        colors: string[];
+        fonts: any[];
+        voice?: string;
+        niche?: string;
+      }
       | null = null;
 
     let brandContext = "";
@@ -159,26 +184,30 @@ serve(async (req) => {
           voice: brand.voice,
         });
 
-        const colorList =
-          brand.palette
-            ?.map((c: any) => (typeof c === "string" ? c : c?.hex || c?.value))
-            .filter(Boolean)
-            .join(", ") || "non défini";
+        const colorList = brand.palette
+          ?.map((c: any) => (typeof c === "string" ? c : c?.hex || c?.value))
+          .filter(Boolean)
+          .join(", ") || "non défini";
 
         const fontsText = Array.isArray(brand.fonts)
           ? brand.fonts
-              .map((f: any) => (typeof f === "string" ? f : f?.family || f?.name || String(f)))
-              .join(", ")
+            .map((
+              f: any,
+            ) => (typeof f === "string"
+              ? f
+              : f?.family || f?.name || String(f))
+            )
+            .join(", ")
           : typeof brand.fonts === "object" && brand.fonts !== null
           ? [
-              brand.fonts?.primary,
-              brand.fonts?.secondary,
-              brand.fonts?.tertiary,
-              brand.fonts?.headline,
-              brand.fonts?.body,
-            ]
-              .filter(Boolean)
-              .join(", ")
+            brand.fonts?.primary,
+            brand.fonts?.secondary,
+            brand.fonts?.tertiary,
+            brand.fonts?.headline,
+            brand.fonts?.body,
+          ]
+            .filter(Boolean)
+            .join(", ")
           : typeof brand.fonts === "string"
           ? brand.fonts
           : "";
@@ -220,7 +249,8 @@ ${fontsText || "Non définie"}
     });
 
     // System Prompt
-    const systemPrompt = `Tu es **Alfie** 🐾, assistant IA pour la création de contenu visuel.
+    const systemPrompt =
+      `Tu es **Alfie** 🐾, assistant IA pour la création de contenu visuel.
 
 🚨 **RÈGLE ABSOLUE : TOUJOURS UTILISER LES TOOLS**
 Pour TOUTE demande de création, tu DOIS appeler un tool :
@@ -246,10 +276,10 @@ Chaleureux, motivant, tutoiement, emojis naturels. Phrases courtes.
 - Image/Vidéo: demander FORMAT en premier (1:1, 4:5, 9:16, 16:9) → generate_image / generate_video
 
 ${
-  expertMode
-    ? "## 🧠 MODE EXPERT: explique (brièvement) tes choix créatifs et l'alignement au Brand Kit."
-    : ""
-}
+        expertMode
+          ? "## 🧠 MODE EXPERT: explique (brièvement) tes choix créatifs et l'alignement au Brand Kit."
+          : ""
+      }
 Utilise **classify_intent** en premier !`;
 
     // Tools
@@ -298,7 +328,10 @@ Utilise **classify_intent** en premier !`;
                   type: "string",
                   description: "Aspect ratio: '1:1','16:9','9:16','4:5'",
                 },
-                limit: { type: "number", description: "Max results (default 5)" },
+                limit: {
+                  type: "number",
+                  description: "Max results (default 5)",
+                },
               },
             },
           },
@@ -307,7 +340,8 @@ Utilise **classify_intent** en premier !`;
           type: "function",
           function: {
             name: "show_brandkit",
-            description: "Show the user's current Brand Kit (colors, logo, fonts)",
+            description:
+              "Show the user's current Brand Kit (colors, logo, fonts)",
             parameters: { type: "object", properties: {} },
           },
         },
@@ -440,7 +474,10 @@ Utilise **classify_intent** en premier !`;
               type: "object",
               properties: {
                 asset_ids: { type: "array", items: { type: "string" } },
-                filter_type: { type: "string", enum: ["images", "videos", "all"] },
+                filter_type: {
+                  type: "string",
+                  enum: ["images", "videos", "all"],
+                },
               },
             },
           },
@@ -503,7 +540,11 @@ Utilise **classify_intent** en premier !`;
           },
         },
       ];
-      console.log("[TRACE] ✅ Tools array built successfully:", tools.length, "tools");
+      console.log(
+        "[TRACE] ✅ Tools array built successfully:",
+        tools.length,
+        "tools",
+      );
     } catch (err) {
       console.error("[TRACE] ❌ Error building tools array:", err);
       throw err;
@@ -513,13 +554,13 @@ Utilise **classify_intent** en premier !`;
     const context: AgentContext = {
       brandKit: brandKit
         ? {
-            name: brandKit.name,
-            colors: brandKit.colors,
-            fonts: brandKit.fonts,
-            voice: brandKit.voice,
-            style: brandKit.voice || "modern professional",
-            niche: brandKit.niche,
-          }
+          name: brandKit.name,
+          colors: brandKit.colors,
+          fonts: brandKit.fonts,
+          voice: brandKit.voice,
+          style: brandKit.voice || "modern professional",
+          niche: brandKit.niche,
+        }
         : undefined,
       conversationHistory: transformedMessages,
       userMessage:
@@ -549,26 +590,29 @@ Utilise **classify_intent** en premier !`;
 
     while (iterationCount < maxIterations) {
       iterationCount++;
-      console.log(`[Tool Loop] === Iteration ${iterationCount}/${maxIterations} ===`);
+      console.log(
+        `[Tool Loop] === Iteration ${iterationCount}/${maxIterations} ===`,
+      );
 
       // Pré-check quotas si 1ère itération & intent génération
       if (iterationCount === 1) {
-        const lastUser = conversationMessages.filter((m) => m.role === "user").pop();
-        const lastUserMessage =
-          typeof lastUser?.content === "string"
-            ? lastUser?.content
-            : Array.isArray(lastUser?.content)
-            ? lastUser?.content?.[0]?.text ?? ""
-            : "";
+        const lastUser = conversationMessages.filter((m) => m.role === "user")
+          .pop();
+        const lastUserMessage = typeof lastUser?.content === "string"
+          ? lastUser?.content
+          : Array.isArray(lastUser?.content)
+          ? lastUser?.content?.[0]?.text ?? ""
+          : "";
         const detected = detectIntent(lastUserMessage);
         console.log(`[Pre-check] Detected intent: ${detected}`);
 
         if (["carousel", "image", "video"].includes(detected) && brandId) {
           try {
-            const { data: quota, error: quotaError } = await supabase.functions.invoke(
-              "get-quota",
-              { body: { brand_id: brandId }, headers: functionHeaders },
-            );
+            const { data: quota, error: quotaError } = await supabase.functions
+              .invoke(
+                "get-quota",
+                { body: { brand_id: brandId }, headers: functionHeaders },
+              );
             if (!quotaError && quota?.data) {
               const woofsRemaining = quota.data?.woofs_remaining ?? 0;
               if (woofsRemaining === 0) {
@@ -580,7 +624,10 @@ Utilise **classify_intent** en premier !`;
                   }),
                   {
                     status: 402,
-                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                    headers: {
+                      ...corsHeaders,
+                      "Content-Type": "application/json",
+                    },
                   },
                 );
               }
@@ -596,10 +643,9 @@ Utilise **classify_intent** en premier !`;
         JSON.stringify(
           conversationMessages.map((m) => ({
             role: m.role,
-            content:
-              typeof m.content === "string"
-                ? m.content.slice(0, 200) + "..."
-                : m.content,
+            content: typeof m.content === "string"
+              ? m.content.slice(0, 200) + "..."
+              : m.content,
             tool_calls: m.tool_calls?.length || 0,
           })),
           null,
@@ -617,7 +663,9 @@ Utilise **classify_intent** en premier !`;
       );
 
       const assistantMessage: any = aiResponse.choices?.[0]?.message;
-      if (!assistantMessage) throw new Error("No assistant message in AI response");
+      if (!assistantMessage) {
+        throw new Error("No assistant message in AI response");
+      }
 
       const toolCalls = assistantMessage.tool_calls;
       if (!toolCalls || toolCalls.length === 0) {
@@ -625,13 +673,13 @@ Utilise **classify_intent** en premier !`;
 
         // Injection synthétique #1 (iteration 2) → classify_intent
         if (iterationCount === 2 && !syntheticInjectionDone) {
-          const lastUser = conversationMessages.filter((m) => m.role === "user").pop();
-          const lastUserMessage =
-            typeof lastUser?.content === "string"
-              ? lastUser?.content
-              : Array.isArray(lastUser?.content)
-              ? lastUser?.content?.[0]?.text ?? ""
-              : "";
+          const lastUser = conversationMessages.filter((m) => m.role === "user")
+            .pop();
+          const lastUserMessage = typeof lastUser?.content === "string"
+            ? lastUser?.content
+            : Array.isArray(lastUser?.content)
+            ? lastUser?.content?.[0]?.text ?? ""
+            : "";
           console.log("[Synthetic] Injecting classify_intent...");
 
           syntheticInjectionDone = true;
@@ -664,13 +712,13 @@ Utilise **classify_intent** en premier !`;
 
         // Injection synthétique #2 (iteration 3) → plan_carousel si intent carousel
         if (iterationCount === 3 && syntheticInjectionDone) {
-          const lastUser = conversationMessages.filter((m) => m.role === "user").pop();
-          const lastUserMessage =
-            typeof lastUser?.content === "string"
-              ? lastUser?.content
-              : Array.isArray(lastUser?.content)
-              ? lastUser?.content?.[0]?.text ?? ""
-              : "";
+          const lastUser = conversationMessages.filter((m) => m.role === "user")
+            .pop();
+          const lastUserMessage = typeof lastUser?.content === "string"
+            ? lastUser?.content
+            : Array.isArray(lastUser?.content)
+            ? lastUser?.content?.[0]?.text ?? ""
+            : "";
           const detected = detectIntent(lastUserMessage);
 
           if (detected === "carousel") {
@@ -680,7 +728,11 @@ Utilise **classify_intent** en premier !`;
               const { data: planData } = await supabase.functions.invoke(
                 "alfie-plan-carousel",
                 {
-                  body: { prompt: lastUserMessage, slideCount: 5, brandKit: brandKit },
+                  body: {
+                    prompt: lastUserMessage,
+                    slideCount: 5,
+                    brandKit: brandKit,
+                  },
                   headers: functionHeaders,
                 },
               );
@@ -729,13 +781,13 @@ Utilise **classify_intent** en premier !`;
 
         // Fallback dur à partir itération 4
         if (iterationCount >= 4) {
-          const lastUser = conversationMessages.filter((m) => m.role === "user").pop();
-          const lastUserMessage =
-            typeof lastUser?.content === "string"
-              ? lastUser?.content
-              : Array.isArray(lastUser?.content)
-              ? lastUser?.content?.[0]?.text ?? ""
-              : "";
+          const lastUser = conversationMessages.filter((m) => m.role === "user")
+            .pop();
+          const lastUserMessage = typeof lastUser?.content === "string"
+            ? lastUser?.content
+            : Array.isArray(lastUser?.content)
+            ? lastUser?.content?.[0]?.text ?? ""
+            : "";
 
           if (isApproval(lastUserMessage)) {
             // Cas approbation après plan carrousel → on exécute côté serveur
@@ -754,7 +806,9 @@ Utilise **classify_intent** en premier !`;
                 requiresInput: true,
                 formatOptions: ["1:1", "4:5", "9:16", "16:9"],
               }),
-              { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+              {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              },
             );
           }
 
@@ -763,10 +817,9 @@ Utilise **classify_intent** en premier !`;
           if (detected === "image" || detected === "video") {
             conversationMessages.push({
               role: "assistant",
-              content:
-                detected === "image"
-                  ? "Top ! Quel format pour l’image ? (1:1, 4:5, 9:16, 16:9)"
-                  : "Super ! Quel format pour la vidéo ? (9:16 ou 16:9)",
+              content: detected === "image"
+                ? "Top ! Quel format pour l’image ? (1:1, 4:5, 9:16, 16:9)"
+                : "Super ! Quel format pour la vidéo ? (9:16 ou 16:9)",
             });
             continue;
           }
@@ -804,17 +857,18 @@ Utilise **classify_intent** en premier !`;
             }
 
             case "plan_carousel": {
-              const { data: planData, error: planError } = await supabase.functions.invoke(
-                "alfie-plan-carousel",
-                {
-                  body: {
-                    prompt: toolArgs.prompt,
-                    slideCount: toolArgs.count || 5,
-                    brandKit: brandKit || {},
+              const { data: planData, error: planError } = await supabase
+                .functions.invoke(
+                  "alfie-plan-carousel",
+                  {
+                    body: {
+                      prompt: toolArgs.prompt,
+                      slideCount: toolArgs.count || 5,
+                      brandKit: brandKit || {},
+                    },
+                    headers: functionHeaders,
                   },
-                  headers: functionHeaders,
-                },
-              );
+                );
               if (planError) throw planError;
               toolResult = planData?.plan || planData || { slides: [] };
               break;
@@ -829,14 +883,20 @@ Utilise **classify_intent** en premier !`;
                       {
                         message: {
                           role: "assistant",
-                          content: "⚠️ Choisis un format 📐 : 1:1, 4:5, 9:16 ou 16:9",
+                          content:
+                            "⚠️ Choisis un format 📐 : 1:1, 4:5, 9:16 ou 16:9",
                         },
                       },
                     ],
                     requiresInput: true,
                     formatOptions: ["1:1", "4:5", "9:16", "16:9"],
                   }),
-                  { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+                  {
+                    headers: {
+                      ...corsHeaders,
+                      "Content-Type": "application/json",
+                    },
+                  },
                 );
               }
 
@@ -857,8 +917,8 @@ Utilise **classify_intent** en premier !`;
                 },
               );
 
-              const carouselPlan =
-                toolArgs.plan ?? planResp?.plan ?? planResp ?? { slides: [] };
+              const carouselPlan = toolArgs.plan ?? planResp?.plan ??
+                planResp ?? { slides: [] };
               const slides: any[] = Array.isArray(carouselPlan?.slides)
                 ? carouselPlan.slides
                 : [];
@@ -881,21 +941,22 @@ Utilise **classify_intent** en premier !`;
                   );
                   if (proofData?.data) {
                     correctedTitle = proofData.data.title || correctedTitle;
-                    correctedSubtitle = proofData.data.subtitle || correctedSubtitle;
+                    correctedSubtitle = proofData.data.subtitle ||
+                      correctedSubtitle;
                   }
                 } catch {
                   // noop
                 }
 
-                const aspectRatio = carouselPlan?.globals?.aspect_ratio ?? toolArgs.aspect_ratio;
-                const format =
-                  aspectRatio === "9:16"
-                    ? "1024x1820"
-                    : aspectRatio === "16:9"
-                    ? "1820x1024"
-                    : aspectRatio === "4:5"
-                    ? "1024x1280"
-                    : "1024x1024";
+                const aspectRatio = carouselPlan?.globals?.aspect_ratio ??
+                  toolArgs.aspect_ratio;
+                const format = aspectRatio === "9:16"
+                  ? "1024x1820"
+                  : aspectRatio === "16:9"
+                  ? "1820x1024"
+                  : aspectRatio === "4:5"
+                  ? "1024x1280"
+                  : "1024x1024";
 
                 // Step 1: background only
                 let bgUrl: string | null = null;
@@ -905,8 +966,7 @@ Utilise **classify_intent** en premier !`;
                     {
                       body: {
                         provider: "gemini_image",
-                        prompt:
-                          slide.note ??
+                        prompt: slide.note ??
                           "Abstract clean gradient background, center safe area, NO TEXT.",
                         format,
                         brand_id: brandId,
@@ -924,7 +984,8 @@ Utilise **classify_intent** en premier !`;
                 if (!bgUrl) continue;
 
                 // Step 2: text overlay
-                const overlayText = `${correctedTitle}\n${correctedSubtitle}`.trim();
+                const overlayText = `${correctedTitle}\n${correctedSubtitle}`
+                  .trim();
                 let finalUrl: string | null = null;
                 for (let r = 0; r < 3 && !finalUrl; r++) {
                   const { data: overlayData } = await supabase.functions.invoke(
@@ -936,7 +997,8 @@ Utilise **classify_intent** en premier !`;
                         brand_id: brandId,
                         slideIndex: i,
                         totalSlides: slides.length,
-                        slideNumber: slide.slideNumber || `${i + 1}/${slides.length}`,
+                        slideNumber: slide.slideNumber ||
+                          `${i + 1}/${slides.length}`,
                         textContrast: slide.textContrast || "dark",
                         isLastSlide: i === slides.length - 1,
                         textPosition: "center",
@@ -956,7 +1018,9 @@ Utilise **classify_intent** en premier !`;
                     finalUrl === bgUrl ? " (bg only)" : ""
                   }`,
                   reasoning: slide.note || "",
-                  brandAlignment: brandKit ? "Aligned with brand colors and voice" : "",
+                  brandAlignment: brandKit
+                    ? "Aligned with brand colors and voice"
+                    : "",
                 });
               }
 
@@ -977,19 +1041,26 @@ Utilise **classify_intent** en premier !`;
                       {
                         message: {
                           role: "assistant",
-                          content: "⚠️ Format image ? 📐 1:1, 4:5, 9:16 ou 16:9",
+                          content:
+                            "⚠️ Format image ? 📐 1:1, 4:5, 9:16 ou 16:9",
                         },
                       },
                     ],
                     requiresInput: true,
                     formatOptions: ["1:1", "4:5", "9:16", "16:9"],
                   }),
-                  { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+                  {
+                    headers: {
+                      ...corsHeaders,
+                      "Content-Type": "application/json",
+                    },
+                  },
                 );
               }
 
               // Optimisation prompt avec BrandKit
-              let optimizedPrompt: string = toolArgs.prompt || "professional visual";
+              let optimizedPrompt: string = toolArgs.prompt ||
+                "professional visual";
               if (brandKit) {
                 const { data: opt } = await supabase.functions.invoke(
                   "alfie-optimize-prompt",
@@ -1009,27 +1080,27 @@ Utilise **classify_intent** en premier !`;
               }
 
               const aspectRatio: string = toolArgs.aspect_ratio;
-              const format =
-                aspectRatio === "9:16"
-                  ? "1024x1820"
-                  : aspectRatio === "16:9"
-                  ? "1820x1024"
-                  : aspectRatio === "4:5"
-                  ? "1024x1280"
-                  : "1024x1024";
+              const format = aspectRatio === "9:16"
+                ? "1024x1820"
+                : aspectRatio === "16:9"
+                ? "1820x1024"
+                : aspectRatio === "4:5"
+                ? "1024x1280"
+                : "1024x1024";
 
-              const { data: imageData, error: imageError } = await supabase.functions.invoke(
-                "alfie-render-image",
-                {
-                  body: {
-                    provider: "gemini_image",
-                    prompt: optimizedPrompt,
-                    format,
-                    brand_id: brandId,
+              const { data: imageData, error: imageError } = await supabase
+                .functions.invoke(
+                  "alfie-render-image",
+                  {
+                    body: {
+                      provider: "gemini_image",
+                      prompt: optimizedPrompt,
+                      format,
+                      brand_id: brandId,
+                    },
+                    headers: { Authorization: authHeader },
                   },
-                  headers: { Authorization: authHeader },
-                },
-              );
+                );
               if (imageError) throw imageError;
 
               const url = imageData?.data?.image_urls?.[0];
@@ -1066,22 +1137,28 @@ Utilise **classify_intent** en premier !`;
                     requiresInput: true,
                     formatOptions: ["9:16", "16:9"],
                   }),
-                  { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+                  {
+                    headers: {
+                      ...corsHeaders,
+                      "Content-Type": "application/json",
+                    },
+                  },
                 );
               }
 
-              const { data: videoData, error: videoError } = await supabase.functions.invoke(
-                "generate-video",
-                {
-                  body: {
-                    prompt: toolArgs.prompt,
-                    aspect_ratio: toolArgs.aspectRatio,
-                    brand_id: brandId,
-                    imageUrl: toolArgs.imageUrl ?? null,
+              const { data: videoData, error: videoError } = await supabase
+                .functions.invoke(
+                  "generate-video",
+                  {
+                    body: {
+                      prompt: toolArgs.prompt,
+                      aspect_ratio: toolArgs.aspectRatio,
+                      brand_id: brandId,
+                      imageUrl: toolArgs.imageUrl ?? null,
+                    },
+                    headers: { Authorization: authHeader },
                   },
-                  headers: { Authorization: authHeader },
-                },
-              );
+                );
               if (videoError) throw videoError;
 
               toolResult = {
@@ -1094,10 +1171,13 @@ Utilise **classify_intent** en premier !`;
 
             case "check_credits":
             case "show_usage": {
-              const { data: quota } = await supabase.functions.invoke("get-quota", {
-                body: { brand_id: brandId },
-                headers: { Authorization: authHeader },
-              });
+              const { data: quota } = await supabase.functions.invoke(
+                "get-quota",
+                {
+                  body: { brand_id: brandId },
+                  headers: { Authorization: authHeader },
+                },
+              );
 
               toolResult = {
                 woofs_remaining: quota?.woofs_remaining ?? 0,
@@ -1158,7 +1238,9 @@ Utilise **classify_intent** en premier !`;
     if (finalJobSetId) responsePayload.jobSetId = finalJobSetId;
 
     // Si aucun tool call et aucune injection → signaler à l'app
-    if (collectedAssets.length === 0 && !finalJobSetId && !syntheticInjectionDone) {
+    if (
+      collectedAssets.length === 0 && !finalJobSetId && !syntheticInjectionDone
+    ) {
       responsePayload.noToolCalls = true;
       console.warn(
         "[Response] Surfacing noToolCalls=true (no generation triggered, no synthetic injection)",
@@ -1176,10 +1258,14 @@ Utilise **classify_intent** en premier !`;
     if (status === 402 || /402|Payment required/i.test(msg)) {
       return new Response(
         JSON.stringify({
-          error: "Payment required, please add funds to your Lovable AI workspace.",
+          error:
+            "Payment required, please add funds to your Lovable AI workspace.",
           code: "PAYMENT_REQUIRED",
         }),
-        { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        {
+          status: 402,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
@@ -1189,7 +1275,10 @@ Utilise **classify_intent** en premier !`;
           error: "Rate limits exceeded, please try again later.",
           code: "RATE_LIMIT",
         }),
-        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
@@ -1198,7 +1287,10 @@ Utilise **classify_intent** en premier !`;
         error: error instanceof Error ? error.message : "Unknown error",
         details: error instanceof Error ? error.stack : undefined,
       }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 });

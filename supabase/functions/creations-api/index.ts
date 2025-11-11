@@ -1,89 +1,100 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 
-const INTERNAL_SECRET = Deno.env.get('INTERNAL_FN_SECRET') ?? '';
+const INTERNAL_SECRET = Deno.env.get("INTERNAL_FN_SECRET") ?? "";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       {
         global: {
-          headers: { Authorization: req.headers.get('Authorization')! },
+          headers: { Authorization: req.headers.get("Authorization")! },
         },
-      }
+      },
     );
 
     const url = new URL(req.url);
     const path = url.pathname;
 
     // POST /v1/creations - Créer un livrable
-    if (path.endsWith('/v1/creations') && req.method === 'POST') {
+    if (path.endsWith("/v1/creations") && req.method === "POST") {
       return await handleCreateDeliverable(req, supabaseClient);
     }
 
     // GET /v1/creations/:id/preview - Obtenir preview
-    if (path.includes('/preview')) {
-      const id = path.split('/')[3];
+    if (path.includes("/preview")) {
+      const id = path.split("/")[3];
       return await handleGetPreview(id, supabaseClient);
     }
 
     // POST /v1/creations/:id/confirm-premium - Confirmer Premium
-    if (path.includes('/confirm-premium') && req.method === 'POST') {
-      const id = path.split('/')[3];
+    if (path.includes("/confirm-premium") && req.method === "POST") {
+      const id = path.split("/")[3];
       return await handleConfirmPremium(id, supabaseClient);
     }
 
     // GET /v1/creations/:id/deliver - Livraison PULL (Canva + ZIP)
-    if (path.includes('/deliver')) {
-      const id = path.split('/')[3];
+    if (path.includes("/deliver")) {
+      const id = path.split("/")[3];
       return await handleDeliver(id, supabaseClient);
     }
 
-    return new Response(JSON.stringify({ error: 'Not found' }), {
+    return new Response(JSON.stringify({ error: "Not found" }), {
       status: 404,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    console.error('Error in creations-api:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error("Error in creations-api:", error);
+    const errorMessage = error instanceof Error
+      ? error.message
+      : "Unknown error";
     return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
 
 async function handleCreateDeliverable(req: Request, supabase: any) {
-  const { format, objective, styleChoice, brandId, brandKitId, assets, premiumT2VRequested } = await req.json();
+  const {
+    format,
+    objective,
+    styleChoice,
+    brandId,
+    brandKitId,
+    assets,
+    premiumT2VRequested,
+  } = await req.json();
 
   // Validation
   if (!format || !objective || !styleChoice || !brandId) {
-    return new Response(JSON.stringify({ error: 'Missing required fields' }), {
+    return new Response(JSON.stringify({ error: "Missing required fields" }), {
       status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
   // Créer le livrable
   const { data: deliverable, error: insertError } = await supabase
-    .from('deliverable')
+    .from("deliverable")
     .insert({
       brand_id: brandId,
       format,
       objective,
       style_choice: styleChoice,
-      status: 'pending',
+      status: "pending",
       metadata: {
         brandKitId,
         assets,
@@ -94,19 +105,21 @@ async function handleCreateDeliverable(req: Request, supabase: any) {
     .single();
 
   if (insertError) {
-    console.error('Error creating deliverable:', insertError);
+    console.error("Error creating deliverable:", insertError);
     return new Response(JSON.stringify({ error: insertError.message }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
   // Incrémenter compteurs mensuels
-  const periodYYYYMM = parseInt(new Date().toISOString().slice(0, 7).replace('-', ''));
-  const incrementImages = format === 'image' ? 1 : 0;
-  const incrementReels = format === 'reel' ? 1 : 0;
+  const periodYYYYMM = parseInt(
+    new Date().toISOString().slice(0, 7).replace("-", ""),
+  );
+  const incrementImages = format === "image" ? 1 : 0;
+  const incrementReels = format === "reel" ? 1 : 0;
 
-  await supabase.rpc('increment_monthly_counters', {
+  await supabase.rpc("increment_monthly_counters", {
     p_brand_id: brandId,
     p_period_yyyymm: periodYYYYMM,
     p_images: incrementImages,
@@ -119,22 +132,26 @@ async function handleCreateDeliverable(req: Request, supabase: any) {
     error: userError,
   } = await supabase.auth.getUser();
   if (userError || !user) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
   if (!INTERNAL_SECRET) {
-    return new Response(JSON.stringify({ error: 'Server misconfigured' }), {
+    return new Response(JSON.stringify({ error: "Server misconfigured" }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
   // Logger l'événement
-  const eventKind = format === 'image' ? 'image_ai' : format === 'carousel' ? 'carousel_ai_image' : 'reel_export';
-  await supabase.from('usage_event').insert({
+  const eventKind = format === "image"
+    ? "image_ai"
+    : format === "carousel"
+    ? "carousel_ai_image"
+    : "reel_export";
+  await supabase.from("usage_event").insert({
     brand_id: brandId,
     deliverable_id: deliverable.id,
     kind: eventKind,
@@ -142,20 +159,20 @@ async function handleCreateDeliverable(req: Request, supabase: any) {
   });
 
   // Lancer la génération en arrière-plan selon le type
-  if (styleChoice === 'ia') {
-    if (format === 'reel') {
+  if (styleChoice === "ia") {
+    if (format === "reel") {
       // Appeler generate-video
-      await supabase.functions.invoke('generate-video', {
+      await supabase.functions.invoke("generate-video", {
         body: {
           prompt: objective,
-          aspectRatio: '9:16',
+          aspectRatio: "9:16",
           deliverableId: deliverable.id,
           brandId,
         },
       });
     } else {
       // Appeler alfie-generate-ai-image
-      await supabase.functions.invoke('alfie-generate-ai-image', {
+      await supabase.functions.invoke("alfie-generate-ai-image", {
         body: {
           prompt: objective,
           deliverableId: deliverable.id,
@@ -164,71 +181,71 @@ async function handleCreateDeliverable(req: Request, supabase: any) {
           orderId: null,
           requestId: `deliverable:${deliverable.id}`,
         },
-        headers: { 'X-Internal-Secret': INTERNAL_SECRET },
+        headers: { "X-Internal-Secret": INTERNAL_SECRET },
       });
     }
   }
 
   return new Response(JSON.stringify(deliverable), {
     status: 201,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
 
 async function handleGetPreview(id: string, supabase: any) {
   const { data: deliverable, error } = await supabase
-    .from('deliverable')
-    .select('*')
-    .eq('id', id)
+    .from("deliverable")
+    .select("*")
+    .eq("id", id)
     .single();
 
   if (error || !deliverable) {
-    return new Response(JSON.stringify({ error: 'Deliverable not found' }), {
+    return new Response(JSON.stringify({ error: "Deliverable not found" }), {
       status: 404,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
   // Si pending, retourner 202 Accepted avec hint de polling
-  if (deliverable.status === 'pending' || deliverable.status === 'processing') {
+  if (deliverable.status === "pending" || deliverable.status === "processing") {
     return new Response(
       JSON.stringify({
         id: deliverable.id,
         status: deliverable.status,
-        message: 'Generation in progress, poll again in a few seconds',
+        message: "Generation in progress, poll again in a few seconds",
       }),
       {
         status: 202,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 
   return new Response(JSON.stringify(deliverable), {
     status: 200,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
 
 async function handleConfirmPremium(id: string, supabase: any) {
   const { data: deliverable, error } = await supabase
-    .from('deliverable')
-    .select('*')
-    .eq('id', id)
+    .from("deliverable")
+    .select("*")
+    .eq("id", id)
     .single();
 
   if (error || !deliverable) {
-    return new Response(JSON.stringify({ error: 'Deliverable not found' }), {
+    return new Response(JSON.stringify({ error: "Deliverable not found" }), {
       status: 404,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
   // Vérifier quota Woofs
   const { data: brand } = await supabase
-    .from('brands')
-    .select('quota_woofs, woofs_used')
-    .eq('id', deliverable.brand_id)
+    .from("brands")
+    .select("quota_woofs, woofs_used")
+    .eq("id", deliverable.brand_id)
     .single();
 
   const woofsRequired = 4; // Veo3
@@ -236,17 +253,23 @@ async function handleConfirmPremium(id: string, supabase: any) {
 
   if (woofsAvailable < woofsRequired) {
     return new Response(
-      JSON.stringify({ error: 'Insufficient Woofs', woofsAvailable, woofsRequired }),
+      JSON.stringify({
+        error: "Insufficient Woofs",
+        woofsAvailable,
+        woofsRequired,
+      }),
       {
         status: 402,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 
   // Consommer Woofs
-  const periodYYYYMM = parseInt(new Date().toISOString().slice(0, 7).replace('-', ''));
-  await supabase.rpc('increment_monthly_counters', {
+  const periodYYYYMM = parseInt(
+    new Date().toISOString().slice(0, 7).replace("-", ""),
+  );
+  await supabase.rpc("increment_monthly_counters", {
     p_brand_id: deliverable.brand_id,
     p_period_yyyymm: periodYYYYMM,
     p_images: 0,
@@ -256,26 +279,26 @@ async function handleConfirmPremium(id: string, supabase: any) {
 
   // Mettre à jour le livrable
   await supabase
-    .from('deliverable')
-    .update({ status: 'processing' })
-    .eq('id', id);
+    .from("deliverable")
+    .update({ status: "processing" })
+    .eq("id", id);
 
   // Lancer génération Veo3
-  await supabase.functions.invoke('generate-video', {
+  await supabase.functions.invoke("generate-video", {
     body: {
       prompt: deliverable.objective,
-      aspectRatio: '9:16',
-      provider: 'veo3',
+      aspectRatio: "9:16",
+      provider: "veo3",
       deliverableId: id,
       brandId: deliverable.brand_id,
     },
   });
 
   // Logger événement Premium T2V
-  await supabase.from('usage_event').insert({
+  await supabase.from("usage_event").insert({
     brand_id: deliverable.brand_id,
     deliverable_id: id,
-    kind: 'premium_t2v',
+    kind: "premium_t2v",
     meta: { woofs_consumed: woofsRequired },
   });
 
@@ -283,32 +306,35 @@ async function handleConfirmPremium(id: string, supabase: any) {
     JSON.stringify({ confirmed: true, woofs_consumed: woofsRequired }),
     {
       status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    }
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    },
   );
 }
 
 async function handleDeliver(id: string, supabase: any) {
   const { data: deliverable, error } = await supabase
-    .from('deliverable')
-    .select('*')
-    .eq('id', id)
+    .from("deliverable")
+    .select("*")
+    .eq("id", id)
     .single();
 
   if (error || !deliverable) {
-    return new Response(JSON.stringify({ error: 'Deliverable not found' }), {
+    return new Response(JSON.stringify({ error: "Deliverable not found" }), {
       status: 404,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
-  if (deliverable.status !== 'completed') {
+  if (deliverable.status !== "completed") {
     return new Response(
-      JSON.stringify({ error: 'Deliverable not ready', status: deliverable.status }),
+      JSON.stringify({
+        error: "Deliverable not ready",
+        status: deliverable.status,
+      }),
       {
         status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 
@@ -328,7 +354,7 @@ async function handleDeliver(id: string, supabase: any) {
     }),
     {
       status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    }
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    },
   );
 }

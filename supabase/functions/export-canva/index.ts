@@ -3,35 +3,44 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import JSZip from "https://esm.sh/jszip@3.10.1";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const authHeader = req.headers.get('Authorization');
+    const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
-        JSON.stringify({ error: 'Missing authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: "Missing authorization header" }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
-    const token = authHeader.replace('Bearer ', '');
+    const token = authHeader.replace("Bearer ", "");
     const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
     );
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const { data: { user }, error: authError } = await supabase.auth.getUser(
+      token,
+    );
     if (authError || !user) {
       return new Response(
-        JSON.stringify({ error: 'Invalid authentication' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: "Invalid authentication" }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
@@ -39,14 +48,17 @@ serve(async (req) => {
 
     if (!assets || !Array.isArray(assets) || assets.length === 0) {
       return new Response(
-        JSON.stringify({ error: 'No assets provided' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: "No assets provided" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
     // Créer un ZIP avec JSZip
     const zip = new JSZip();
-    const assetsFolder = zip.folder('assets');
+    const assetsFolder = zip.folder("assets");
 
     // Télécharger chaque image et l'ajouter au ZIP
     for (let i = 0; i < assets.length; i++) {
@@ -67,23 +79,26 @@ serve(async (req) => {
 
     // Créer le fichier d'instructions Canva
     const canvaInstructions = {
-      version: '1.0',
-      template_type: template_type || 'instagram_post',
+      version: "1.0",
+      template_type: template_type || "instagram_post",
       assets: assets.map((url, i) => ({
         id: `image_${i + 1}`,
         filename: `image_${i + 1}.jpg`,
-        original_url: url
+        original_url: url,
       })),
       instructions: [
-        '1. Ouvrez Canva et créez un nouveau design',
-        '2. Importez les images depuis le dossier assets/',
-        '3. Glissez-déposez les images sur votre design',
-        '4. Personnalisez selon vos besoins',
-        '5. Exportez votre création finale'
-      ]
+        "1. Ouvrez Canva et créez un nouveau design",
+        "2. Importez les images depuis le dossier assets/",
+        "3. Glissez-déposez les images sur votre design",
+        "4. Personnalisez selon vos besoins",
+        "5. Exportez votre création finale",
+      ],
     };
 
-    zip.file('canva_instructions.json', JSON.stringify(canvaInstructions, null, 2));
+    zip.file(
+      "canva_instructions.json",
+      JSON.stringify(canvaInstructions, null, 2),
+    );
 
     // Créer un README
     const readme = `# Export Canva - Alfie Designer
@@ -126,51 +141,56 @@ Pour toute question, contactez le support Alfie Designer
 Généré par Alfie Designer
 `;
 
-    zip.file('readme_canva.txt', readme);
+    zip.file("readme_canva.txt", readme);
 
     // Générer le ZIP
-    const zipBlob = await zip.generateAsync({ type: 'uint8array' });
+    const zipBlob = await zip.generateAsync({ type: "uint8array" });
 
     // Uploader le ZIP vers Supabase Storage
     const zipFileName = `canva-export-${user.id}-${Date.now()}.zip`;
     const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('media-generations')
+      .from("media-generations")
       .upload(`exports/${zipFileName}`, zipBlob, {
-        contentType: 'application/zip',
-        upsert: false
+        contentType: "application/zip",
+        upsert: false,
       });
 
     if (uploadError) {
-      console.error('Upload error:', uploadError);
+      console.error("Upload error:", uploadError);
       return new Response(
-        JSON.stringify({ error: 'Failed to upload ZIP file' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: "Failed to upload ZIP file" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
     // Générer l'URL publique
     const { data: { publicUrl } } = supabase.storage
-      .from('media-generations')
+      .from("media-generations")
       .getPublicUrl(`exports/${zipFileName}`);
 
     // Lien vers un template Canva public (exemple)
-    const templateLink = 'https://www.canva.com/templates/';
+    const templateLink = "https://www.canva.com/templates/";
 
     return new Response(
       JSON.stringify({
         zipUrl: publicUrl,
         templateLink,
         assetsCount: assets.length,
-        message: 'Export Canva créé avec succès'
+        message: "Export Canva créé avec succès",
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
-
   } catch (error: any) {
-    console.error('Error in export-canva:', error);
+    console.error("Error in export-canva:", error);
     return new Response(
-      JSON.stringify({ error: error.message || 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: error.message || "Internal server error" }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 });

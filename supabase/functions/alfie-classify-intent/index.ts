@@ -2,10 +2,19 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
-type IntentType = "carousel" | "video" | "image" | "credits" | "brandkit" | "open_canva" | "templates" | "other";
+type IntentType =
+  | "carousel"
+  | "video"
+  | "image"
+  | "credits"
+  | "brandkit"
+  | "open_canva"
+  | "templates"
+  | "other";
 
 interface IntentResponse {
   intent: IntentType;
@@ -26,8 +35,10 @@ interface IntentResponse {
 
 /** Heuristique simple de langue */
 function detectLanguage(msg: string): "fr" | "en" | "und" {
-  const frHits = /(carrousel|vidéo|visuel|diaporama|marque|couleur|police|oui|d'accord|vas-y|lance|quels? formats?)/i;
-  const enHits = /(carousel|video|visual|slide|brand kit|template|yes|okay|go ahead|which format)/i;
+  const frHits =
+    /(carrousel|vidéo|visuel|diaporama|marque|couleur|police|oui|d'accord|vas-y|lance|quels? formats?)/i;
+  const enHits =
+    /(carousel|video|visual|slide|brand kit|template|yes|okay|go ahead|which format)/i;
   if (frHits.test(msg)) return "fr";
   if (enHits.test(msg)) return "en";
   return "und";
@@ -61,9 +72,12 @@ function isApproval(msg: string): boolean {
 }
 
 /** Extraction d’un aspect-ratio dans un texte libre */
-function extractAspectRatio(msg: string): "1:1" | "4:5" | "9:16" | "16:9" | undefined {
+function extractAspectRatio(
+  msg: string,
+): "1:1" | "4:5" | "9:16" | "16:9" | undefined {
   // tolère 1:1, 1/1, 1-1, 1 1 ; idem pour 4:5, 9:16, 16:9
-  const ratioRegex = /\b(1\s*[:\/\-]\s*1|4\s*[:\/\-]\s*5|9\s*[:\/\-]\s*16|16\s*[:\/\-]\s*9)\b/;
+  const ratioRegex =
+    /\b(1\s*[:\/\-]\s*1|4\s*[:\/\-]\s*5|9\s*[:\/\-]\s*16|16\s*[:\/\-]\s*9)\b/;
   const m = msg.match(ratioRegex);
   if (!m) return undefined;
   const raw = m[1].replace(/\s+/g, "");
@@ -105,23 +119,31 @@ serve(async (req) => {
   try {
     const contentType = req.headers.get("content-type") || "";
     if (!/application\/json/i.test(contentType)) {
-      return new Response(JSON.stringify({ error: "Content-Type must be application/json" }), {
-        status: 415,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "Content-Type must be application/json" }),
+        {
+          status: 415,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     const { user_message } = await req.json();
 
     if (!user_message || typeof user_message !== "string") {
-      return new Response(JSON.stringify({ error: "user_message is required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "user_message is required" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     // Sécurité: borne max pour éviter logs géants
-    const raw = user_message.length > 4000 ? user_message.slice(0, 4000) : user_message;
+    const raw = user_message.length > 4000
+      ? user_message.slice(0, 4000)
+      : user_message;
 
     const msg = normalize(raw);
     const lang = detectLanguage(msg);
@@ -133,7 +155,8 @@ serve(async (req) => {
     const k = {
       carousel: /(carrousel|carousel|slides?|diaporama|série)/i,
       video: /(vid[eé]o|video|reel|shorts?|story\s*vid[eé]o|clip)/i,
-      image: /(image|visuel|cover|miniature|photo|illustration|banni[eè]re|banner)/i,
+      image:
+        /(image|visuel|cover|miniature|photo|illustration|banni[eè]re|banner)/i,
       credits: /(cr[ée]dit|quota|woofs?)/i,
       brandkit: /(brand\s*kit|marque|palette|couleurs?|polices?|logo)/i,
       canva: /\bcanva\b/i,
@@ -217,7 +240,9 @@ serve(async (req) => {
 
     // Logs sobres
     console.log(
-      `[Classifier] "${raw.slice(0, 120)}${raw.length > 120 ? "…" : ""}" → ${intent} (${result.confidence})`,
+      `[Classifier] "${raw.slice(0, 120)}${
+        raw.length > 120 ? "…" : ""
+      }" → ${intent} (${result.confidence})`,
       result.params ? JSON.stringify(result.params) : "",
     );
 
@@ -226,9 +251,12 @@ serve(async (req) => {
     });
   } catch (error: any) {
     console.error("[Classifier] Error:", error);
-    return new Response(JSON.stringify({ error: error?.message || "Unknown error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ error: error?.message || "Unknown error" }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 });

@@ -3,7 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
@@ -16,7 +17,7 @@ serve(async (req) => {
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      { global: { headers: { Authorization: authHeader! } } }
+      { global: { headers: { Authorization: authHeader! } } },
     );
 
     const {
@@ -27,11 +28,15 @@ serve(async (req) => {
     if (userError || !user) {
       return new Response(
         JSON.stringify({ error: "Non authentifié" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
-    const { source_url, target_resolution = "3840x2160", provider } = await req.json();
+    const { source_url, target_resolution = "3840x2160", provider } = await req
+      .json();
 
     // Phase 2 stub - will be implemented with Higgsfield/Kling upscale API
     console.log("[Alfie Video Upscale] Stubbed for Phase 2", {
@@ -54,7 +59,7 @@ serve(async (req) => {
         input_url: source_url,
         output_url: upscaledUrl,
         params_json: { upscale: true, target_resolution },
-        status: "completed"
+        status: "completed",
       })
       .select()
       .single();
@@ -66,15 +71,18 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         video_url: upscaledUrl,
-        meta: { target_resolution, media_gen_id: mediaGen?.id }
+        meta: { target_resolution, media_gen_id: mediaGen?.id },
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error: any) {
     console.error("Error:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 });

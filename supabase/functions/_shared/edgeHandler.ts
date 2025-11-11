@@ -6,23 +6,26 @@
 
 export async function edgeHandler(
   req: Request,
-  logic: (ctx: { jwt: string | null; input: any; req: Request }) => Promise<any>
+  logic: (
+    ctx: { jwt: string | null; input: any; req: Request },
+  ) => Promise<any>,
 ): Promise<Response> {
-  const origin = req.headers.get('origin') || '*';
+  const origin = req.headers.get("origin") || "*";
   const cors = {
-    'Access-Control-Allow-Origin': origin,
-    'Access-Control-Allow-Methods': 'POST,OPTIONS,GET',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization,x-client-info,apikey',
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "POST,OPTIONS,GET",
+    "Access-Control-Allow-Headers":
+      "Content-Type,Authorization,x-client-info,apikey",
   };
 
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: cors });
   }
 
   try {
-    const auth = req.headers.get('authorization') || '';
-    const jwt = auth.startsWith('Bearer ') ? auth.slice(7) : null;
-    
+    const auth = req.headers.get("authorization") || "";
+    const jwt = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+
     let input: any = {};
     try {
       const cloned = req.clone();
@@ -32,20 +35,20 @@ export async function edgeHandler(
     }
 
     const result = await logic({ jwt, input, req });
-    
+
     return new Response(
       JSON.stringify({ ok: true, data: result }),
-      { status: 200, headers: { 'Content-Type': 'application/json', ...cors } }
+      { status: 200, headers: { "Content-Type": "application/json", ...cors } },
     );
   } catch (e: any) {
-    console.error('[edgeHandler] Error:', e.message, e.stack);
+    console.error("[edgeHandler] Error:", e.message, e.stack);
     return new Response(
-      JSON.stringify({ 
-        ok: false, 
-        error: e?.message || 'unexpected_error',
-        code: e?.code || 'INTERNAL_ERROR'
+      JSON.stringify({
+        ok: false,
+        error: e?.message || "unexpected_error",
+        code: e?.code || "INTERNAL_ERROR",
       }),
-      { status: 200, headers: { 'Content-Type': 'application/json', ...cors } }
+      { status: 200, headers: { "Content-Type": "application/json", ...cors } },
     );
   }
 }
