@@ -3,7 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
@@ -14,7 +15,7 @@ serve(async (req) => {
   try {
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
     // Query batch requests ready to process
@@ -30,7 +31,7 @@ serve(async (req) => {
     if (!requests || requests.length === 0) {
       return new Response(
         JSON.stringify({ processed: 0, message: "No requests to process" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -57,19 +58,19 @@ serve(async (req) => {
           .from("batch_requests")
           .update({
             status: "done",
-            result_json: { message: "Processed (stub)" }
+            result_json: { message: "Processed (stub)" },
           })
           .eq("id", request.id);
 
         processedCount++;
       } catch (error: any) {
         console.error(`Error processing request ${request.id}:`, error);
-        
+
         await supabase
           .from("batch_requests")
           .update({
             status: "failed",
-            result_json: { error: error.message }
+            result_json: { error: error.message },
           })
           .eq("id", request.id);
       }
@@ -77,13 +78,16 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ processed: processedCount }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error: any) {
     console.error("Error:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 });

@@ -3,7 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
@@ -13,7 +14,7 @@ serve(async (req) => {
 
   const supabaseClient = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
   );
 
   try {
@@ -25,27 +26,27 @@ serve(async (req) => {
     if (currentDay !== 1) {
       console.log(`[RESET] Not reset day (current day: ${currentDay})`);
       return new Response(
-        JSON.stringify({ 
-          success: true, 
+        JSON.stringify({
+          success: true,
           message: "Not reset day, skipping",
-          currentDay 
+          currentDay,
         }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
           status: 200,
-        }
+        },
       );
     }
 
     // Calculer la prochaine date de reset (1er du mois suivant)
     const nextReset = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-    const nextResetDate = nextReset.toISOString().split('T')[0];
+    const nextResetDate = nextReset.toISOString().split("T")[0];
 
     // Reset des compteurs pour toutes les marques
     const { data: brands, error: fetchError } = await supabaseClient
       .from("brands")
       .select("id, name, plan, images_used, videos_used, woofs_used")
-      .lte("resets_on", now.toISOString().split('T')[0]);
+      .lte("resets_on", now.toISOString().split("T")[0]);
 
     if (fetchError) {
       console.error("[RESET] Error fetching brands:", fetchError);
@@ -55,15 +56,15 @@ serve(async (req) => {
     if (!brands || brands.length === 0) {
       console.log("[RESET] No brands to reset");
       return new Response(
-        JSON.stringify({ 
-          success: true, 
+        JSON.stringify({
+          success: true,
           message: "No brands to reset",
-          reset: 0 
+          reset: 0,
         }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
           status: 200,
-        }
+        },
       );
     }
 
@@ -72,14 +73,14 @@ serve(async (req) => {
     // Reset des compteurs
     const { error: updateError } = await supabaseClient
       .from("brands")
-      .update({ 
+      .update({
         images_used: 0,
         videos_used: 0,
         woofs_used: 0,
         resets_on: nextResetDate,
-        updated_at: now.toISOString()
+        updated_at: now.toISOString(),
       })
-      .lte("resets_on", now.toISOString().split('T')[0]);
+      .lte("resets_on", now.toISOString().split("T")[0]);
 
     if (updateError) {
       console.error("[RESET] Error resetting quotas:", updateError);
@@ -103,17 +104,17 @@ serve(async (req) => {
     console.log(`[RESET] Successfully reset ${brands.length} brands`);
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         message: `Reset quotas for ${brands.length} brands`,
         reset: brands.length,
         nextResetDate,
-        statsByPlan: resetStats
+        statsByPlan: resetStats,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
-      }
+      },
     );
   } catch (error: any) {
     console.error("[RESET] Error in reset-monthly-quotas:", error);
@@ -122,7 +123,7 @@ serve(async (req) => {
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 500,
-      }
+      },
     );
   }
 });

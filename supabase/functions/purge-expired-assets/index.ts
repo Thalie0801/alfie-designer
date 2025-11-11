@@ -3,7 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
@@ -13,7 +14,7 @@ serve(async (req) => {
 
   const supabaseClient = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
   );
 
   try {
@@ -35,15 +36,15 @@ serve(async (req) => {
     if (!expiredAssets || expiredAssets.length === 0) {
       console.log("[PURGE] No expired assets to purge");
       return new Response(
-        JSON.stringify({ 
-          success: true, 
+        JSON.stringify({
+          success: true,
           message: "No expired assets to purge",
-          purged: 0 
+          purged: 0,
         }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
           status: 200,
-        }
+        },
       );
     }
 
@@ -56,9 +57,9 @@ serve(async (req) => {
     // 3. Marquer les assets comme "expired" au lieu de les supprimer (audit trail)
     const { error: updateError } = await supabaseClient
       .from("media_generations")
-      .update({ 
+      .update({
         status: "expired",
-        updated_at: now
+        updated_at: now,
       })
       .lt("expires_at", now)
       .eq("status", "completed");
@@ -83,19 +84,21 @@ serve(async (req) => {
     }, {});
 
     console.log("[PURGE] Assets purged by brand:", purgedByBrand);
-    console.log(`[PURGE] Successfully purged ${expiredAssets.length} expired assets`);
+    console.log(
+      `[PURGE] Successfully purged ${expiredAssets.length} expired assets`,
+    );
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         message: `Purged ${expiredAssets.length} expired assets`,
         purged: expiredAssets.length,
-        byBrand: purgedByBrand
+        byBrand: purgedByBrand,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
-      }
+      },
     );
   } catch (error: any) {
     console.error("[PURGE] Error in purge-expired-assets:", error);
@@ -104,7 +107,7 @@ serve(async (req) => {
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 500,
-      }
+      },
     );
   }
 });

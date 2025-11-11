@@ -1,5 +1,11 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { corsHeaders, supabaseAdmin, getAuthUserId, assertIsAdmin, json } from "../_shared/utils/admin.ts";
+import {
+  assertIsAdmin,
+  corsHeaders,
+  getAuthUserId,
+  json,
+  supabaseAdmin,
+} from "../_shared/utils/admin.ts";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -32,7 +38,10 @@ serve(async (req) => {
       .maybeSingle();
 
     if (parentError || !parent) {
-      return json({ error: `Parent affiliate not found: ${parent_email}` }, 404);
+      return json(
+        { error: `Parent affiliate not found: ${parent_email}` },
+        404,
+      );
     }
 
     // Get affiliate to link
@@ -64,7 +73,7 @@ serve(async (req) => {
 
     // Recalculate parent status
     const { error: rpcError } = await admin.rpc("update_affiliate_status", {
-      affiliate_id_param: parent.id
+      affiliate_id_param: parent.id,
     });
 
     if (rpcError) {
@@ -74,7 +83,7 @@ serve(async (req) => {
     // Also recalculate old parent status if existed
     if (affiliate.parent_id) {
       await admin.rpc("update_affiliate_status", {
-        affiliate_id_param: affiliate.parent_id
+        affiliate_id_param: affiliate.parent_id,
       });
     }
 
@@ -82,9 +91,8 @@ serve(async (req) => {
       success: true,
       message: `${affiliate_email} linked to ${parent_email}`,
       affiliate_id: affiliate.id,
-      parent_id: parent.id
+      parent_id: parent.id,
     });
-
   } catch (error: any) {
     console.error("[admin-link-affiliate] Error:", error);
     return json({ error: error.message || "Unknown error" }, 500);

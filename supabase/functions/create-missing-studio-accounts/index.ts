@@ -3,7 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
@@ -20,7 +21,7 @@ serve(async (req) => {
           autoRefreshToken: false,
           persistSession: false,
         },
-      }
+      },
     );
 
     const accounts = [
@@ -41,20 +42,24 @@ serve(async (req) => {
     for (const account of accounts) {
       try {
         // Try to create user
-        const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
-          email: account.email,
-          password: account.password,
-          email_confirm: true,
-          user_metadata: {
-            full_name: account.full_name,
-          },
-        });
+        const { data: userData, error: userError } = await supabaseAdmin.auth
+          .admin.createUser({
+            email: account.email,
+            password: account.password,
+            email_confirm: true,
+            user_metadata: {
+              full_name: account.full_name,
+            },
+          });
 
         if (userError) {
           // If user already exists, try to find them
-          const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-          const existingUser = existingUsers?.users?.find(u => u.email === account.email);
-          
+          const { data: existingUsers } = await supabaseAdmin.auth.admin
+            .listUsers();
+          const existingUser = existingUsers?.users?.find((u) =>
+            u.email === account.email
+          );
+
           if (existingUser) {
             // Update existing profile
             const { error: updateError } = await supabaseAdmin
@@ -144,7 +149,7 @@ serve(async (req) => {
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 500,
-      }
+      },
     );
   }
 });

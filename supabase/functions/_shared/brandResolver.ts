@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 const admin = createClient(
   Deno.env.get("SUPABASE_URL") ?? "",
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-  { auth: { autoRefreshToken: false, persistSession: false } }
+  { auth: { autoRefreshToken: false, persistSession: false } },
 );
 
 export interface BrandSnapshot {
@@ -22,9 +22,9 @@ export interface BrandSnapshot {
 
 export async function resolveBrandKit(brandId: string): Promise<BrandSnapshot> {
   const { data } = await admin
-    .from('brands')
-    .select('*')
-    .eq('id', brandId)
+    .from("brands")
+    .select("*")
+    .eq("id", brandId)
     .maybeSingle();
 
   if (!data) return {};
@@ -41,18 +41,25 @@ export async function resolveBrandKit(brandId: string): Promise<BrandSnapshot> {
     accent_color,
     logo_url: data.logo_url,
     voice: data.voice,
-    fonts: data.fonts
+    fonts: data.fonts,
   };
 }
 
-export function enrichPromptWithBrand(basePrompt: string, brand: BrandSnapshot): string {
+export function enrichPromptWithBrand(
+  basePrompt: string,
+  brand: BrandSnapshot,
+): string {
   let enhanced = basePrompt.trim();
 
   // Couleurs (CRITICAL)
   if (brand.primary_color) {
-    const colors = [brand.primary_color, brand.secondary_color, brand.accent_color]
+    const colors = [
+      brand.primary_color,
+      brand.secondary_color,
+      brand.accent_color,
+    ]
       .filter(Boolean)
-      .join(', ');
+      .join(", ");
     enhanced += ` CRITICAL: Use ONLY these exact brand colors: ${colors}. `;
   }
 
@@ -68,19 +75,24 @@ export function enrichPromptWithBrand(basePrompt: string, brand: BrandSnapshot):
 
   // Garde-fous
   if (brand.rules?.forbidden_terms && brand.rules.forbidden_terms.length > 0) {
-    enhanced += `AVOID these terms: ${brand.rules.forbidden_terms.join(', ')}. `;
+    enhanced += `AVOID these terms: ${
+      brand.rules.forbidden_terms.join(", ")
+    }. `;
   }
 
   return enhanced.trim();
 }
 
-export function calculateBrandScore(imageUrl: string, brand: BrandSnapshot): number {
+export function calculateBrandScore(
+  imageUrl: string,
+  brand: BrandSnapshot,
+): number {
   // Version simplifiée : retourner un score basique
   // En production, analyser l'image pour vérifier :
   // - Présence des couleurs brand (via histogramme)
   // - Contraste (WCAG AA)
   // - Position du logo (si présent)
-  
+
   let score = 50; // Base
 
   if (brand.primary_color) score += 20;

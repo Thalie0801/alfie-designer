@@ -3,7 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
@@ -17,7 +18,9 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       auth: { persistSession: false, autoRefreshToken: false },
-      global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } },
+      global: {
+        headers: { Authorization: req.headers.get("Authorization") ?? "" },
+      },
     });
 
     const {
@@ -27,10 +30,13 @@ serve(async (req) => {
 
     if (userErr || !user) {
       console.warn("[queue-monitor] Unauthorized access", { userErr });
-      return new Response(JSON.stringify({ ok: false, error: "unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ ok: false, error: "unauthorized" }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     const userId = user.id;
@@ -40,20 +46,28 @@ serve(async (req) => {
     // Fetch recent jobs for the user
     const { data: jobs, error: jobsErr } = await supabase
       .from("job_queue")
-      .select("id, type, status, error, retry_count, max_retries, created_at, updated_at")
+      .select(
+        "id, type, status, error, retry_count, max_retries, created_at, updated_at",
+      )
       .eq("user_id", userId)
       .order("updated_at", { ascending: false })
       .limit(50);
 
     if (jobsErr) {
       console.error("[queue-monitor] jobsErr", jobsErr);
-      return new Response(JSON.stringify({ ok: false, error: jobsErr.message }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ ok: false, error: jobsErr.message }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
-    const counts = { queued: 0, running: 0, completed: 0, failed: 0 } as Record<string, number>;
+    const counts = { queued: 0, running: 0, completed: 0, failed: 0 } as Record<
+      string,
+      number
+    >;
     let oldestQueuedAgeSec: number | null = null;
     let runningStuckCount = 0;
     const STUCK_THRESHOLD_SEC = 5 * 60; // 5 minutes
@@ -63,11 +77,17 @@ serve(async (req) => {
     for (const j of jobs ?? []) {
       counts[j.status] = (counts[j.status] ?? 0) + 1;
       if (j.status === "queued") {
-        const ageSec = Math.floor((now - new Date(j.created_at as string).getTime()) / 1000);
-        if (oldestQueuedAgeSec === null || ageSec > oldestQueuedAgeSec) oldestQueuedAgeSec = ageSec;
+        const ageSec = Math.floor(
+          (now - new Date(j.created_at as string).getTime()) / 1000,
+        );
+        if (oldestQueuedAgeSec === null || ageSec > oldestQueuedAgeSec) {
+          oldestQueuedAgeSec = ageSec;
+        }
       }
       if (j.status === "running") {
-        const ageSec = Math.floor((now - new Date(j.updated_at as string).getTime()) / 1000);
+        const ageSec = Math.floor(
+          (now - new Date(j.updated_at as string).getTime()) / 1000,
+        );
         if (ageSec > STUCK_THRESHOLD_SEC) runningStuckCount += 1;
       }
     }
@@ -108,9 +128,12 @@ serve(async (req) => {
     });
   } catch (e) {
     console.error("[queue-monitor] Fatal", e);
-    return new Response(JSON.stringify({ ok: false, error: "internal_error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ ok: false, error: "internal_error" }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 });
