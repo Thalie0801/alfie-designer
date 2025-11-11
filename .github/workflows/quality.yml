@@ -1,4 +1,4 @@
-name: Quality Checks
+name: Node Quality Checks
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [main, refonte-alfie-2025]
 
 permissions:
-  contents: read
+  contents: write        # nécessaire pour créer la branche/PR
   pull-requests: write
 
 concurrency:
@@ -64,8 +64,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      - name: Restore node_modules
-        uses: actions/cache@v4
+      - uses: actions/cache@v4
         with:
           path: node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
@@ -92,8 +91,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      - name: Restore node_modules
-        uses: actions/cache@v4
+      - uses: actions/cache@v4
         with:
           path: node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
@@ -135,11 +133,33 @@ jobs:
     needs: install
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 1 }
+        with: { fetch-depth: 0 }
+
       - uses: denoland/setup-deno@v1
         with: { deno-version: v1.x }
-      - name: deno fmt --check
+
+      # 1) Auto-fix format
+      - name: deno fmt (auto-fix)
+        run: deno fmt supabase/functions
+
+      # 2) Ouvrir une PR si des fichiers ont changé
+      - name: Create PR with formatting
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "chore(deno): fmt supabase/functions"
+          title: "chore(deno): fmt supabase/functions"
+          body: "Auto-format via CI (deno fmt)."
+          branch: chore/deno-fmt-${{ github.run_id }}
+          base: ${{ github.base_ref || 'main' }}
+          labels: deno, automated
+          draft: false
+
+      # 3) Check informatif (ne bloque pas)
+      - name: deno fmt --check (informative)
+        continue-on-error: true
         run: deno fmt --check supabase/functions
+
+      # 4) Lint bloquant
       - name: deno lint
         run: deno lint supabase/functions
 
@@ -154,8 +174,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      - name: Restore node_modules
-        uses: actions/cache@v4
+      - uses: actions/cache@v4
         with:
           path: node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
@@ -183,4 +202,5 @@ jobs:
           test "${{ needs.typecheck.result }}" = "success"
           test "${{ needs.deno.result }}"     = "success"
           test "${{ needs.build.result }}"    = "success"
+  = "success"
           # Lint peut échouer → à toi de durcir si besoin
