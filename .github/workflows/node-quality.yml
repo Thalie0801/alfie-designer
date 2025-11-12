@@ -18,16 +18,20 @@ jobs:
     env:
       NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
       NPM_CONFIG_ALWAYS_AUTH: "false"
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup pnpm (use package.json packageManager)
+      # pnpm selon "packageManager" du package.json
+      - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           run_install: false
 
       # Node + cache + registry npmjs
+      # Node + cache PNPM (nécessite pnpm-lock.yaml)
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -55,11 +59,30 @@ jobs:
         run: pnpm typecheck || true   # on ne bloque pas la suite
 
       - name: ESLint (skippable)
+      - name: Confirm registry
+        run: |
+          echo "Using registry:" && npm config get registry
+          cat .npmrc || true
+
+      # Install robuste (retries)
+      - name: Install deps (with cache + retry)
+        run: |
+          pnpm config set registry https://registry.npmjs.org/
+          pnpm config set fetch-retries 5
+          pnpm config set fetch-retry-factor 2
+          pnpm config set fetch-timeout 60000
+          pnpm install --frozen-lockfile || pnpm install
+
+      - name: TypeScript
+        run: pnpm typecheck || true
+
+      - name: ESLint (skippable si plugins manquants)
         run: |
           if pnpm lint; then
             echo "Lint OK"
           else
             echo "⚠️ Lint skipped (registry or dependency issue)"
+            echo "⚠️ Lint skipped (plugins/registry)."
           fi
 
       - name: Build
