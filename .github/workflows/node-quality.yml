@@ -18,25 +18,25 @@ jobs:
     env:
       NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
       NPM_CONFIG_ALWAYS_AUTH: "false"
-      COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
 
     steps:
       - uses: actions/checkout@v4
 
-      # Node + pnpm + cache + registry npmjs
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+          run_install: false
+
+      # Node + cache + registry npmjs
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
           registry-url: https://registry.npmjs.org
 
-      - name: Enable corepack & pin pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@9 --activate
-          pnpm -v
-
-      - name: Force npmjs registry (.npmrc in repo)
+      # (optionnel) forcer le registry via .npmrc
+      - name: Use npmjs registry
         run: |
           cat > .npmrc <<'EONPM'
           registry=https://registry.npmjs.org/
@@ -44,26 +44,13 @@ jobs:
           strict-ssl=true
           always-auth=false
           EONPM
-          echo "Registry:" && npm config get registry
 
-      # INSTALL ROBUSTE avec retries + logs
-      - name: Install deps (with cache)
+      # Install (avec retry)
+      - name: Install deps
         run: |
-          set -e
+          pnpm -v
           pnpm config set registry https://registry.npmjs.org/
-          pnpm config set fetch-retries 5
-          pnpm config set fetch-retry-factor 2
-          pnpm config set fetch-timeout 60000
-          if [ -f pnpm-lock.yaml ]; then FROZEN="--frozen-lockfile"; else FROZEN=""; fi
-          for i in 1 2 3; do
-            echo "pnpm install (attempt $i)…"
-            pnpm install $FROZEN && DONE=1 && break || true
-            sleep 5
-          done
-          if [ -z "$DONE" ]; then
-            echo "Last attempt without frozen lockfile…"
-            pnpm install || { echo "---- NPM LOGS ----"; ls -lat ~/.npm/_logs || true; tail -n +1 -v ~/.npm/_logs/* 2>/dev/null || true; exit 1; }
-          fi
+          pnpm install --frozen-lockfile || pnpm install
 
       - name: TypeScript
         run: pnpm typecheck || true   # on ne bloque pas la suite
