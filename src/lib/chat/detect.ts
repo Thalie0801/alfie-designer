@@ -19,6 +19,16 @@ export function detectContentIntent(raw: string) {
   const ratioFromText: Ratio | undefined = m ? (m[1] as Ratio) : undefined;
 
   const defaultRatioByPlatform: Record<string, Ratio> = {
+  const ratioFromText = q.match(/\b(1:1|9:16|16:9|3:4|4:5|2:3)\b/)?[1] as
+    | "1:1"
+    | "9:16"
+    | "16:9"
+    | "3:4"
+    | "4:5"
+    | "2:3"
+    | undefined;
+
+  const defaultRatioByPlatform: Record<string, any> = {
     instagram: isCarousel ? "4:5" : "1:1",
     tiktok: "9:16",
     pinterest: "2:3",
@@ -29,6 +39,7 @@ export function detectContentIntent(raw: string) {
   const ratio: Ratio =
     ratioFromText ??
     (platform ? defaultRatioByPlatform[platform] ?? (isVideo ? "9:16" : isCarousel ? "4:5" : "1:1") : (isVideo ? "9:16" : isCarousel ? "4:5" : "1:1"));
+  const ratio = ratioFromText || (platform ? defaultRatioByPlatform[platform] || "1:1" : isVideo ? "9:16" : isCarousel ? "4:5" : "1:1");
 
   const tone =
     (/(apple|minimal|sobre|premium)/.test(q) && "premium") ||
