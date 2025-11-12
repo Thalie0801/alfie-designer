@@ -98,13 +98,6 @@ export function JobQueueMonitor() {
         if (typeof processed === 'number') {
           window.alert(`${processed} job(s) traité(s)`);
         }
-      const { data, error: fnError } = await supabase.functions.invoke('trigger-job-worker', {
-        body: { force: true },
-      });
-
-      if (fnError) throw fnError;
-      if (!data?.ok) {
-        throw new Error(data?.error || 'Failed to trigger worker');
       }
       await fetchData();
     } catch (err) {

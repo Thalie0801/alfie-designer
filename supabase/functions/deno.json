@@ -1,0 +1,28 @@
+{
+  "lint": {
+    "rules": {
+      "exclude": [
+        "no-explicit-any",
+        "no-import-prefix",
+        "no-unversioned-import",
+        "no-inner-declarations",
+        "prefer-const",
+        "no-redeclare",
+        "no-unused-vars",
+        "require-await",
+        "adjacent-overload-signatures",
+        "no-dupe-keys",
+        "ban-ts-comment",
+        "no-empty"
+      ]
+    }
+  },
+  "fmt": {
+    "useTabs": false,
+    "lineWidth": 120,
+    "indentWidth": 2,
+    "semiColons": true,
+    "singleQuote": true,
+    "proseWrap": "preserve"
+  }
+}
