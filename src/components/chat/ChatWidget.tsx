@@ -1,10 +1,9 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { MessageCircle, X } from "lucide-react";
-import { useBrief } from "@/hooks/useBrief";
-import { useBrandKit } from "@/hooks/useBrandKit";
 import { supabase } from "@/integrations/supabase/client";
 import { useBrief, type Brief } from "@/hooks/useBrief";
+import { useBrandKit } from "@/hooks/useBrandKit";
 import { detectContentIntent, detectPlatformHelp } from "@/lib/chat/detect";
 import { chooseCarouselOutline, chooseImageVariant, chooseVideoVariant } from "@/lib/chat/coachPresets";
 import { whatCanDoBlocks } from "@/lib/chat/helpMap";
@@ -12,6 +11,12 @@ import { whatCanDoBlocks } from "@/lib/chat/helpMap";
 type CoachMode = "strategy" | "da" | "maker";
 type ChatMessage = { role: "user" | "assistant"; node: ReactNode };
 type AssistantReply = ChatMessage;
+
+type ChatAIResponse = {
+  ok: boolean;
+  data?: { message?: string };
+  error?: string;
+};
 
 export default function ChatWidget() {
   const [open, setOpen] = useState(false);
@@ -175,6 +180,17 @@ export default function ChatWidget() {
     setMsgs((m) => [...m, { role: "assistant", node }]);
   };
 
+  const buildErrorReply = (message?: string): AssistantReply => ({
+    role: "assistant" as const,
+    node: (
+      <div className="space-y-2 bg-white rounded-lg p-3 border" style={{ borderColor: BRAND.grayBorder }}>
+        <p className="text-sm">
+          {message ?? "Oups, je n'ai pas réussi à traiter ta demande. Réessaie plus tard."}
+        </p>
+      </div>
+    ),
+  });
+
   const buildTemplateReply = (it: ReturnType<typeof detectContentIntent>): AssistantReply => {
   function replyContent(raw: string): AssistantReply {
     const it = detectContentIntent(raw);
@@ -266,17 +282,12 @@ export default function ChatWidget() {
           </div>
         </>
       );
-    } else if (it.mode === "video") {
-      const v = chooseVideoVariant(it, seed);
-      next();
-      body = v;
     } else {
-      const v = chooseImageVariant(it, seed);
-      const v = chooseVideoVariant({ topic: it.topic ?? undefined, cta: it.cta ?? undefined }, seed);
-      next();
-      body = v;
-    } else {
-      const v = chooseImageVariant({ topic: it.topic ?? undefined, cta: it.cta ?? undefined }, seed);
+      const v =
+        it.mode === "video"
+          ? chooseVideoVariant({ topic: it.topic ?? undefined, cta: it.cta ?? undefined }, seed)
+          : chooseImageVariant({ topic: it.topic ?? undefined, cta: it.cta ?? undefined }, seed);
+
       next();
       body = v;
     }
@@ -341,7 +352,7 @@ export default function ChatWidget() {
 
     try {
       clearThinking = showThinking();
-      const { data, error } = await supabase.functions.invoke<{ message?: string }>("chat-ai-assistant", {
+      const { data, error } = await supabase.functions.invoke<ChatAIResponse>("chat-ai-assistant", {
         body: {
           message: raw,
           context: {
@@ -354,7 +365,12 @@ export default function ChatWidget() {
       });
 
       if (error) {
-        throw error;
+        console.error("chat-ai-assistant invoke error", error);
+        if (clearThinking) {
+          clearThinking();
+          clearThinking = undefined;
+        }
+        return buildErrorReply(error.message);
       }
 
       if (clearThinking) {
@@ -362,7 +378,12 @@ export default function ChatWidget() {
         clearThinking = undefined;
       }
 
-      const aiResponse = data?.message || "Je peux t'aider à créer ce contenu !";
+      if (!data?.ok) {
+        console.error("chat-ai-assistant response error", data?.error);
+        return buildErrorReply(data?.error);
+      }
+
+      const aiResponse = data.data?.message || "Je peux t'aider à créer ce contenu !";
 
       return {
         role: "assistant" as const,
@@ -392,7 +413,7 @@ export default function ChatWidget() {
         clearThinking();
         clearThinking = undefined;
       }
-      return buildTemplateReply(it);
+      return buildErrorReply();
     }
   }
 
@@ -400,12 +421,6 @@ export default function ChatWidget() {
     const concierge = replyPlatform(raw);
     if (concierge) return concierge;
     return await replyContentWithAI(raw);
-  }
-
-  function makeReply(raw: string): AssistantReply | null {
-    const concierge = replyPlatform(raw);
-    if (concierge) return concierge;
-    return replyContent(raw);
   }
 
   function pushUser(text: string) {
@@ -425,19 +440,13 @@ export default function ChatWidget() {
     ]);
   }
 
-  const handleSend = async () => {
-  function handleSend() {
+  async function handleSend() {
     const text = input.trim();
     if (!text) return;
     setInput("");
     pushUser(text);
     const reply = await makeReply(text);
-    if (!reply) return;
-    setMsgs((m) => [...m, reply]);
-  };
-    const reply = makeReply(text);
-    if (!reply) return;
-    setTimeout(() => setMsgs((m) => [...m, reply]), 60);
+    if (reply) setMsgs((m) => [...m, reply]);
   }
 
   const portalTarget = typeof document !== "undefined" ? document.body : null;
@@ -515,7 +524,6 @@ export default function ChatWidget() {
                 if (e.key === "Enter") {
                   e.preventDefault();
                   void handleSend();
-                  handleSend();
                 }
               }}
               className="flex-1 rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
@@ -526,7 +534,6 @@ export default function ChatWidget() {
               onClick={() => {
                 void handleSend();
               }}
-              onClick={handleSend}
               className="px-3 py-2 rounded-md text-sm font-medium text-white disabled:opacity-50"
               style={{ background: `linear-gradient(135deg, ${BRAND.mint}, ${BRAND.mintDark})` }}
               disabled={!input.trim()}
