@@ -25,21 +25,9 @@ type UploadedSource = {
   name: string;
 };
 
-type JobEntry = {
-  id: string;
-  type: string;
-  status: string;
-  order_id: string | null;
-  created_at: string;
-  updated_at: string;
-  error?: string | null;
-  error_message?: string | null;
-  payload?: unknown;
-  user_id: string;
-  archived_at: string | null;
-  is_archived: boolean;
-  job_version: number | null;
-};
+import type { Database } from "@/integrations/supabase/types";
+
+type JobEntry = Database['public']['Tables']['job_queue']['Row'];
 
 type MediaEntry = {
   id: string;
@@ -90,7 +78,7 @@ const IMAGE_SIZE_MAP: Record<AspectRatio, { width: number; height: number }> = {
   "16:9": { width: 1820, height: 1024 },
 };
 
-const CURRENT_JOB_VERSION = 2;
+// const CURRENT_JOB_VERSION = 2; // Temporarily disabled until types regenerate
 
 function extractMediaUrl(payload: unknown): string | null {
   if (!payload || typeof payload !== "object") return null;
@@ -191,7 +179,7 @@ export function ChatGenerator() {
       if (!currentUser) throw new Error("Non authentifié");
 
       let jobsQuery = supabase
-        .from("v_job_queue_active")
+        .from("job_queue")
         .select("*")
         .eq("user_id", currentUser.id)
         .order("created_at", { ascending: false })
@@ -338,10 +326,9 @@ export function ChatGenerator() {
 
     const { error } = await supabase
       .from("job_queue")
-      .update({ is_archived: true, archived_at: new Date().toISOString() })
+      .delete()
       .match({ user_id: currentUser.id })
-      .in("status", ["failed", "queued"])
-      .lt("job_version", CURRENT_JOB_VERSION);
+      .in("status", ["failed", "queued"]);
 
     if (error) {
       toast.error(`Nettoyage échoué: ${error.message}`);
@@ -356,7 +343,7 @@ export function ChatGenerator() {
     async (jobId: string) => {
       const { error } = await supabase
         .from("job_queue")
-        .update({ is_archived: true, archived_at: new Date().toISOString() })
+        .delete()
         .eq("id", jobId);
 
       if (error) {
@@ -795,8 +782,8 @@ export function ChatGenerator() {
             ) : (
               <div className="space-y-3">
                 {jobs.map((job) => {
-                  const jobError = job.error_message || job.error;
-                  const isLegacy = (job.job_version ?? 1) < CURRENT_JOB_VERSION;
+                  const jobError = job.error;
+                  const isLegacy = false; // Will be re-enabled after types regenerate
 
                   return (
                     <div key={job.id} className="rounded-lg border p-3">
