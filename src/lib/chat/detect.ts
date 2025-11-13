@@ -63,6 +63,20 @@ export function detectPlatformHelp(raw: string) {
   const q = raw.toLowerCase();
 
   const matches = HELP.filter((intent) => intent.match.test(q));
+  const intents = [
+    { test: /(studio|génération|créer|lancer)/, to: "/studio", label: "Ouvrir Studio" },
+    { test: /(template|catalogue|modèles?)/, to: "/templates", label: "Catalogue" },
+    { test: /(bibliothèque|assets?|médias?)/, to: "/library", label: "Bibliothèque" },
+    { test: /(brand[\s-]?kit|marque|couleurs|typo)/, to: "/brand-kit-questionnaire", label: "Brand Kit" },
+    { test: /(factur|abonnement|paiement|pricing|prix|crédit|woofs)/, to: "/billing", label: "Facturation" },
+    { test: /(profil|compte|email|mot de passe)/, to: "/profile", label: "Profil" },
+    { test: /(dashboard|stat|performances?)/, to: "/dashboard", label: "Dashboard" },
+    { test: /(affiliation|parrain|ambassadeur)/, to: "/affiliate", label: "Affiliation" },
+    { test: /(contact|support|aide|bug|problème)/, to: "/contact", label: "Contact" },
+    { test: /(admin|job queue|monitor|bloqués?)/, to: "/admin", label: "Admin" },
+  ];
+
+  const matches = intents.filter((i) => i.test.test(q));
 
   const isWhatCanDo =
     /(que|quoi).*(peut|peux).*(faire|proposer)|capacités?|features?|fonctionnalités?|comment (ça|ca) marche|mode d'emploi|help/i.test(q);
