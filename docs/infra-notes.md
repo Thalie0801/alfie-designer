@@ -18,3 +18,6 @@
 - Define `RENDER_BACKEND_URL` (default `https://alfie-designer.onrender.com`) for both `generate-image` and `process-jobs` Edge Functions so they can reach the Render backend.
 - Keep the value in Supabase's project configuration and Render's environment to stay in sync.
 - Ensure `RENDER_BACKEND_URL` remains reachable from Supabase's infrastructure (used by `process-jobs`).
+## Edge function secrets
+- Define `RENDER_BACKEND_URL` (default `https://alfie-designer.onrender.com`) for both `generate-image` and `process-jobs` Edge Functions so they can reach the Render backend.
+- Keep the value in Supabase's project configuration and Render's environment to stay in sync.
