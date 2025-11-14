@@ -317,17 +317,21 @@ async function processJob(job: JobRecord): Promise<JobOutcome> {
 
   const startedAt = new Date().toISOString();
   history.push({ step, status: "processing", at: startedAt });
+  const now = new Date().toISOString();
+  history.push({ step, status: "processing", at: now });
 
   const processingPayload = {
     ...payload,
     metadata,
     history,
     lastStartedAt: startedAt,
+    lastStartedAt: now,
   };
 
   const { data: claimed, error: claimError } = await supabase
     .from("job_queue")
     .update({ status: "processing", payload: toJson(processingPayload), started_at: startedAt })
+    .update({ status: "processing", payload: toJson(processingPayload) })
     .eq("id", job.id)
     .eq("status", "pending")
     .select("id")
