@@ -1,19 +1,24 @@
 name: Node Quality Checks
+
 on:
   pull_request:
     branches: [ main, refonte-alfie-2025 ]
   workflow_dispatch: {}
+
 concurrency:
   group: qa-${{ github.ref }}
   cancel-in-progress: true
+
 permissions:
   contents: read
+
 jobs:
   qa:
     runs-on: ubuntu-latest
     env:
       NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
       COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,6 +26,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
+          version: 9.15.3
           run_install: false
 
       - name: Setup Node
@@ -28,6 +34,7 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
           registry-url: https://registry.npmjs.org
 
       - name: Force npmjs registry
@@ -44,8 +51,14 @@ jobs:
           pnpm config set fetch-retries 5
           pnpm config set fetch-retry-factor 2
           pnpm config set fetch-timeout 60000
-          if [ -f pnpm-lock.yaml ]; then FROZEN="--frozen-lockfile"; else FROZEN=""; fi
-          pnpm install $FROZEN || pnpm install
+
+          if [ -f pnpm-lock.yaml ]; then
+            echo "Found pnpm-lock.yaml – installing with no frozen lockfile (QA job)"
+            pnpm install --no-frozen-lockfile
+          else
+            echo "No pnpm-lock.yaml found – running plain pnpm install"
+            pnpm install
+          fi
 
       - name: TypeScript
         run: pnpm typecheck || true
@@ -61,3 +74,4 @@ jobs:
       - name: Build
         run: pnpm build
         continue-on-error: true
+
