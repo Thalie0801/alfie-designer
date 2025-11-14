@@ -20,6 +20,7 @@ interface ErrorResponse {
 
 interface SuccessResponse {
   success: true;
+interface SuccessResponse {
   orderId: string;
   jobId: string;
   status: "pending" | "processing";
@@ -28,6 +29,15 @@ interface SuccessResponse {
 }
 
 function jsonErrorResponse(payload: ErrorResponse, status = 200) {
+}
+
+interface ErrorResponse {
+  error: string;
+  orderId: null;
+  status: "error";
+}
+
+function jsonResponse(payload: SuccessResponse | ErrorResponse, status = 200) {
   return new Response(JSON.stringify(payload), {
     status,
     headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -47,11 +57,13 @@ serve(async (req) => {
   if (req.method !== "POST") {
     console.error("[generate-image] invalid method", req.method);
     return jsonErrorResponse({ error: "method_not_allowed", orderId: null, status: "error" }, 405);
+    return jsonResponse({ error: "method_not_allowed", orderId: null, status: "error" }, 405);
   }
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     console.error("[generate-image] Missing Supabase configuration");
     return jsonErrorResponse({ error: "server_misconfigured", orderId: null, status: "error" }, 500);
+    return jsonResponse({ error: "server_misconfigured", orderId: null, status: "error" }, 500);
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -64,6 +76,7 @@ serve(async (req) => {
   if (!token) {
     console.error("[generate-image] missing bearer token");
     return jsonErrorResponse({ error: "unauthorized", orderId: null, status: "error" }, 401);
+    return jsonResponse({ error: "unauthorized", orderId: null, status: "error" }, 401);
   }
 
   let body: GenerateImageRequest;
@@ -72,6 +85,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("[generate-image] Invalid JSON payload", error);
     return jsonErrorResponse({ error: "invalid_json", orderId: null, status: "error" }, 400);
+    return jsonResponse({ error: "invalid_json", orderId: null, status: "error" }, 400);
   }
 
   const brandId = typeof body.brandId === "string" ? body.brandId : "";
@@ -84,12 +98,14 @@ serve(async (req) => {
   if (!brandId || !prompt) {
     console.error("[generate-image] invalid body", { brandId, hasPrompt: Boolean(prompt) });
     return jsonErrorResponse({ error: "invalid_body", orderId: null, status: "error" }, 400);
+    return jsonResponse({ error: "invalid_body", orderId: null, status: "error" }, 400);
   }
 
   const { data: { user }, error: authError } = await supabase.auth.getUser(token);
   if (authError || !user) {
     console.error("[generate-image] auth.getUser error", authError);
     return jsonErrorResponse({ error: "unauthorized", orderId: null, status: "error" }, 401);
+    return jsonResponse({ error: "unauthorized", orderId: null, status: "error" }, 401);
   }
 
   const { data: brand, error: brandError } = await supabase
@@ -110,11 +126,21 @@ serve(async (req) => {
 
   if (brand.user_id !== user.id) {
     console.error("[generate-image] brand does not belong to user", {
+    return jsonResponse({ error: "brand_fetch_failed", orderId: null, status: "error" }, 500);
+  }
+
+  if (!brand) {
+    return jsonResponse({ error: "brand_not_found", orderId: null, status: "error" }, 404);
+  }
+
+  if (brand.user_id !== user.id) {
+    console.warn("[generate-image] brand does not belong to user", {
       brandId,
       brandOwner: brand.user_id,
       userId: user.id,
     });
     return jsonErrorResponse({ error: "forbidden", orderId: null, status: "error" }, 403);
+    return jsonResponse({ error: "forbidden", orderId: null, status: "error" }, 403);
   }
 
   const quotaLimit = typeof (brand as Record<string, unknown>).quota_images === "number"
@@ -131,6 +157,7 @@ serve(async (req) => {
       requestedUsage: imagesUsed + 1,
     });
     return jsonErrorResponse({ error: "quota_exceeded", orderId: null, status: "error" }, 403);
+    return jsonResponse({ error: "quota_exceeded", orderId: null, status: "error" }, 403);
   }
 
   const now = new Date().toISOString();
@@ -166,6 +193,7 @@ serve(async (req) => {
   if (orderError || !order) {
     console.error("[generate-image] failed to create order", orderError);
     return jsonErrorResponse({ error: "order_creation_failed", orderId: null, status: "error" }, 500);
+    return jsonResponse({ error: "order_creation_failed", orderId: null, status: "error" }, 500);
   }
 
   const baseJobPayload = {
@@ -200,6 +228,7 @@ serve(async (req) => {
     console.error("[generate-image] failed to enqueue job", jobError);
     await supabase.from("orders").update({ status: "failed" }).eq("id", order.id);
     return jsonErrorResponse({ error: "job_enqueue_failed", orderId: null, status: "error" }, 500);
+    return jsonResponse({ error: "job_enqueue_failed", orderId: null, status: "error" }, 500);
   }
 
   if (typeof imagesUsed === "number") {
@@ -247,4 +276,11 @@ serve(async (req) => {
     status: 200,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+    orderId: order.id,
+    jobId: job.id,
+    status: "pending",
+    message: "Generation queued",
+  };
+
+  return jsonResponse(response, 200);
 });
