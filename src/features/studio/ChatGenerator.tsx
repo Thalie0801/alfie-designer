@@ -711,6 +711,40 @@ export function ChatGenerator() {
           navigate(`/studio?order=${orderIdFromResponse}`);
         }
 
+      const requestBody: Record<string, unknown> = {
+        brandId: activeBrandId,
+        prompt: promptText,
+        format: "image",
+        ratio: aspectRatio,
+        metadata: {
+          source: "studio-chat",
+          contentType,
+          aspectRatio,
+          uploadedSource: uploadedSource
+            ? { type: uploadedSource.type, url: uploadedSource.url }
+            : undefined,
+          requestedAt: new Date().toISOString(),
+        },
+      };
+
+      const { data, error } = await supabase.functions.invoke('generate-image', {
+        body: requestBody,
+      });
+
+      if (error) {
+        console.error('[Studio] image generation error:', error);
+        const description = error.message || 'Generation failed';
+        showToast({
+          title: "Erreur de génération",
+          description,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const orderIdFromResponse = typeof data?.orderId === 'string' ? data.orderId : null;
+      if (!orderIdFromResponse) {
+        console.error('[Studio] image generation error: no orderId in response', data);
         showToast({
           title: "Génération lancée",
           description:
@@ -725,12 +759,26 @@ export function ChatGenerator() {
         showToast({
           title: "Erreur de génération",
           description: `Erreur de génération : ${message}`,
+          title: "Erreur de génération",
+          description: "Aucun orderId renvoyé par l'API",
           variant: "destructive",
         });
       }
+
+      await refetchAll();
+      if (orderIdFromResponse !== orderId) {
+        navigate(`/studio?order=${orderIdFromResponse}`);
+      }
+
+      showToast({
+        title: "Génération lancée",
+        description: typeof data?.message === 'string'
+          ? data.message
+          : "Ton visuel arrive dans le Studio dans quelques instants.",
+      });
     } catch (err: unknown) {
-      console.error("[Studio] image generation error:", err);
-      const message = err instanceof Error ? err.message : "Une erreur est survenue";
+      console.error('[Studio] image generation error:', err);
+      const message = err instanceof Error ? err.message : 'Une erreur est survenue';
       showToast({
         title: "Erreur de génération",
         description: `Erreur de génération : ${message}`,
