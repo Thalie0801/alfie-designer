@@ -69,52 +69,16 @@ const PROMPT_EXAMPLES = {
   ],
 };
 
-const MEDIA_URL_KEYS = [
-  "imageUrl",
-  "image_url",
-  "url",
-  "outputUrl",
-  "output_url",
-  "videoUrl",
-  "video_url",
-];
-
 const ASPECT_TO_TW: Record<AspectRatio, string> = {
   "1:1": "aspect-square",
   "9:16": "aspect-[9/16]",
   "16:9": "aspect-video",
 };
 
-const IMAGE_SIZE_MAP: Record<AspectRatio, { width: number; height: number }> = {
-  "1:1": { width: 1024, height: 1024 },
-  "9:16": { width: 1024, height: 1820 },
-  "16:9": { width: 1820, height: 1024 },
-};
-
 // const CURRENT_JOB_VERSION = 2; // Temporarily disabled until types regenerate
 
 const isRecord = (value: unknown): value is Record<string, any> =>
   typeof value === "object" && value !== null;
-
-function extractMediaUrl(payload: unknown): string | null {
-  if (!payload || typeof payload !== "object") return null;
-
-  const obj = payload as Record<string, unknown>;
-  for (const key of MEDIA_URL_KEYS) {
-    const val = obj[key];
-    if (typeof val === "string" && val.trim()) {
-      return val.trim();
-    }
-  }
-
-  for (const v of Object.values(obj)) {
-    if (typeof v === "object" && v !== null) {
-      const nested = extractMediaUrl(v);
-      if (nested) return nested;
-    }
-  }
-  return null;
-}
 
 export function ChatGenerator() {
   const { activeBrandId } = useBrandKit();
@@ -667,117 +631,6 @@ export function ChatGenerator() {
 
   const videoDuration = 12;
 
-  const handleGenerateImage = useCallback(async () => {
-    if (!prompt.trim() && !uploadedSource) {
-      showToast({
-        title: "Prompt requis",
-        description: "Veuillez entrer un prompt ou uploader un média",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
-    setGeneratedAsset(null);
-
-    try {
-      // ✅ Phase A: Get session token for authentication
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-
-      const targetFunction = uploadedSource
-        ? "alfie-generate-ai-image"
-        : "alfie-render-image";
-
-      const payload: Record<string, unknown> = {
-        prompt: prompt || "transform this",
-        aspectRatio,
-        brand_id: activeBrandId ?? null, // ✅ Phase A: Pass brand_id
-      };
-
-      if (uploadedSource) {
-        payload.sourceUrl = uploadedSource.url;
-      } else {
-        const size = IMAGE_SIZE_MAP[aspectRatio];
-        payload.width = size.width;
-        payload.height = size.height;
-      }
-
-      // ✅ Phase A: Include Authorization header if token is available
-      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-
-      const { data, error } = await supabase.functions.invoke(targetFunction, {
-        body: payload,
-        headers,
-      });
-
-      if (error) throw error;
-
-      const responseRecord = isRecord(data) ? data : null;
-      const isStructuredResponse =
-        responseRecord && ("ok" in responseRecord || "data" in responseRecord);
-
-      if (isStructuredResponse) {
-        if ("ok" in responseRecord && responseRecord.ok === false) {
-          const structuredError =
-            typeof responseRecord.error === "string"
-              ? responseRecord.error
-              : isRecord(responseRecord.data) && typeof responseRecord.data.error === "string"
-                ? responseRecord.data.error
-                : "Erreur de génération";
-          throw new Error(structuredError);
-        }
-
-        const nestedData = isRecord(responseRecord.data)
-          ? (responseRecord.data as Record<string, unknown>)
-          : null;
-        const responseOrderId =
-          (typeof nestedData?.orderId === "string" && nestedData.orderId) ||
-          (typeof responseRecord.orderId === "string" ? responseRecord.orderId : null);
-
-        if (!responseOrderId) {
-          throw new Error("no orderId in response");
-        }
-
-        await refetchAll();
-        if (responseOrderId !== orderId) {
-          navigate(`/studio?order=${responseOrderId}`);
-        }
-
-        showToast({
-          title: "Génération lancée",
-          description: "Ton visuel arrive dans le Studio dans quelques instants.",
-        });
-        return;
-      }
-
-      const imageUrl = extractMediaUrl(data);
-      if (!imageUrl) throw new Error("no orderId in response");
-
-      setGeneratedAsset({ url: imageUrl, type: "image" });
-      showToast({ title: "Image générée !", description: "Prête à télécharger" });
-    } catch (err: unknown) {
-      console.error("[Studio] image generation error:", err);
-      const message = err instanceof Error ? err.message : "Une erreur est survenue";
-      showToast({
-        title: "Erreur de génération",
-        description: message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [
-    prompt,
-    uploadedSource,
-    aspectRatio,
-    activeBrandId,
-    showToast,
-    refetchAll,
-    orderId,
-    navigate,
-  ]);
-
   const handleGenerateVideo = useCallback(async () => {
     try {
       setIsSubmitting(true);
@@ -830,12 +683,136 @@ export function ChatGenerator() {
     }
   }, [activeBrandId, aspectRatio, navigate, prompt, uploadedSource, videoDuration]);
 
-  const handleGenerate = useCallback(() => {
-    if (contentType === "image") {
-      return handleGenerateImage();
+  const handleGenerate = useCallback(async () => {
+    if (contentType === "video") {
+      await handleGenerateVideo();
+      return;
     }
-    return handleGenerateVideo();
-  }, [contentType, handleGenerateImage, handleGenerateVideo]);
+
+    if (!activeBrandId) {
+      showToast({
+        variant: "destructive",
+        title: "Marque manquante",
+        description: "Sélectionne d'abord une marque avant de lancer une génération.",
+      });
+      return;
+    }
+
+    const promptText = (prompt || "").trim();
+    if (!promptText) {
+      showToast({
+        variant: "destructive",
+        title: "Brief incomplet",
+        description: "Ajoute un prompt avant de lancer la génération.",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    setGeneratedAsset(null);
+
+    try {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError) {
+        console.error("[Studio] generate-image auth error:", authError);
+        throw authError;
+      }
+
+      if (!user) {
+        const message = "Tu dois être connecté pour lancer une génération.";
+        console.error("[Studio] generate-image: no authenticated user");
+        showToast({
+          variant: "destructive",
+          title: "Erreur de génération",
+          description: message,
+        });
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke("generate-image", {
+        body: {
+          prompt: promptText,
+          format: "instagram_post",
+          brandId: activeBrandId,
+          userId: user.id,
+          ratio: aspectRatio,
+          metadata: {
+            ratio: aspectRatio,
+            source: "studio-chat",
+            contentType,
+            aspectRatio,
+            uploadedSource: uploadedSource
+              ? { type: uploadedSource.type, url: uploadedSource.url }
+              : undefined,
+            requestedAt: new Date().toISOString(),
+          },
+        },
+      });
+
+      if (error) {
+        console.error("[Studio] generate-image error:", error);
+        const message =
+          (error as any)?.message ?? "Erreur de génération (Edge Function).";
+        showToast({
+          variant: "destructive",
+          title: "Erreur de génération",
+          description: message,
+        });
+        return;
+      }
+
+      if (!data?.orderId) {
+        console.error("[Studio] generate-image: no orderId in data", data);
+        showToast({
+          variant: "destructive",
+          title: "Erreur de génération",
+          description: "Aucun orderId renvoyé par le serveur.",
+        });
+        return;
+      }
+
+      await refetchAll();
+      if (data.orderId !== orderId) {
+        navigate(`/studio?order=${data.orderId}`);
+      }
+
+      showToast({
+        variant: "success",
+        title: "Génération lancée",
+        description:
+          data?.message ?? "Ton visuel arrive dans le Studio dans quelques instants.",
+      });
+    } catch (invokeError) {
+      console.error("[Studio] generate-image exception:", invokeError);
+      const message =
+        invokeError instanceof Error
+          ? invokeError.message
+          : "Exception inconnue lors de l'appel à la fonction edge.";
+      showToast({
+        variant: "destructive",
+        title: "Erreur de génération",
+        description: message,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [
+    contentType,
+    handleGenerateVideo,
+    activeBrandId,
+    showToast,
+    prompt,
+    supabase,
+    aspectRatio,
+    uploadedSource,
+    refetchAll,
+    orderId,
+    navigate,
+  ]);
 
   const handleDownload = useCallback(async () => {
     if (!generatedAsset) return;
