@@ -35,6 +35,8 @@ export interface PlannedBrief {
 
 type AlfieChatMode = 'widget' | 'studio';
 
+type AlfieChatMode = 'widget' | 'studio';
+
 type AlfieChatProps = {
   variant?: 'page' | 'widget';
   onClose?: () => void;
@@ -81,6 +83,12 @@ const WIDGET_WELCOME_MESSAGE: Message = {
 const STUDIO_PATH = '/studio';
 
 function detectIntent(prompt: string): AlfieIntent {
+const STUDIO_REDIRECT_MESSAGE =
+  "On va faire ça dans le Studio pour que tu aies les bons réglages de marque, ratios, quotas, etc. Clique sur « Ouvrir le Studio » pour lancer la génération.";
+
+const STUDIO_PATH = '/studio';
+
+function detectIntent(prompt: string): Intent {
   const lower = prompt.toLowerCase();
 
   if (/(carrousel|carousel|slides|diapos?)/.test(lower)) {
@@ -388,6 +396,7 @@ function buildId() {
 }
 
 export function AlfieChat({ variant = 'page', onClose, mode = 'studio', initialBrief }: AlfieChatProps) {
+export function AlfieChat({ variant = 'page', onClose, mode = 'studio' }: AlfieChatProps) {
   const { activeBrandId } = useBrandKit();
   const navigate = useNavigate();
 
@@ -892,6 +901,20 @@ export function AlfieChat({ variant = 'page', onClose, mode = 'studio', initialB
       setShowStudioCta,
       hasSuggestedStudio
     ]
+  const replyAsAssistant = useCallback(
+    async (intent: Intent) => {
+      const needsStudio = intent === 'image' || intent === 'video' || intent === 'carousel';
+
+      addMessage({
+        role: 'assistant',
+        type: 'text',
+        content: needsStudio ? STUDIO_REDIRECT_MESSAGE : "Je suis là pour t'aider à préparer ta prochaine création. Décris-moi ce que tu veux et on le fera ensemble dans le Studio !",
+        cta: needsStudio ? 'open-studio' : undefined
+      });
+
+      setShowStudioCta(mode === 'widget' && needsStudio);
+    },
+    [addMessage, mode]
   );
 
   const handleSend = useCallback(async () => {
@@ -902,6 +925,7 @@ export function AlfieChat({ variant = 'page', onClose, mode = 'studio', initialB
     const prompt = input.trim();
     setInput('');
     setIsLoading(true);
+    setShowStudioCta(false);
 
     addMessage({
       role: 'user',
@@ -931,6 +955,17 @@ export function AlfieChat({ variant = 'page', onClose, mode = 'studio', initialB
         }
       } else {
         handleWidgetConversation(intent, prompt);
+        if (intent === 'image') {
+          await generateImage(prompt, aspectRatio);
+        } else if (intent === 'video') {
+          const woofCost = detectVideoCost(prompt);
+          await generateVideo(prompt, aspectRatio, woofCost);
+        } else {
+          const count = detectCarouselCount(prompt);
+          await generateCarousel(prompt, count, aspectRatio);
+        }
+      } else {
+        await replyAsAssistant(intent);
       }
     } finally {
       setIsLoading(false);
@@ -945,6 +980,7 @@ export function AlfieChat({ variant = 'page', onClose, mode = 'studio', initialB
     mode,
     handleWidgetConversation,
     studioBrief
+    replyAsAssistant
   ]);
 
   const layoutClasses = useMemo(() => {
@@ -1041,6 +1077,7 @@ export function AlfieChat({ variant = 'page', onClose, mode = 'studio', initialB
             type="button"
           >
             Ouvrir le Studio et préparer ça
+            Ouvrir le Studio
           </button>
         </div>
       ) : null}

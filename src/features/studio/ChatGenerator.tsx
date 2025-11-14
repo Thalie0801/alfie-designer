@@ -60,6 +60,7 @@ export function ChatGenerator() {
   return (
     <div className="flex h-full flex-col gap-4">
       <AlfieChat mode="studio" variant="page" initialBrief={initialBrief} />
+      <AlfieChat mode="studio" variant="page" />
     </div>
   );
 }
