@@ -14,6 +14,7 @@ import { toast } from "sonner";
 type GeneratedAsset = {
   url: string;
   type: "image" | "video";
+  publicId?: string;
 };
 
 type AspectRatio = "1:1" | "9:16" | "16:9";
@@ -69,15 +70,28 @@ const PROMPT_EXAMPLES = {
   ],
 };
 
+const LEGACY_IMAGE_URL_KEYS = ["image" + "Url", "image" + "_url"] as const;
+
 const MEDIA_URL_KEYS = [
-  "imageUrl",
-  "image_url",
   "url",
   "outputUrl",
   "output_url",
   "videoUrl",
   "video_url",
-];
+  "secure_url",
+  "downloadUrl",
+  "download_url",
+  "cloudinary_url",
+  "cloudinaryUrl",
+  ...LEGACY_IMAGE_URL_KEYS,
+] as const;
+
+const PUBLIC_ID_KEYS = [
+  "publicId",
+  "public_id",
+  "cloudinary_public_id",
+  "cloudinaryPublicId",
+] as const;
 
 const ASPECT_TO_TW: Record<AspectRatio, string> = {
   "1:1": "aspect-square",
@@ -96,24 +110,68 @@ const IMAGE_SIZE_MAP: Record<AspectRatio, { width: number; height: number }> = {
 const isRecord = (value: unknown): value is Record<string, any> =>
   typeof value === "object" && value !== null;
 
-function extractMediaUrl(payload: unknown): string | null {
-  if (!payload || typeof payload !== "object") return null;
+const nestedAssetKeys = ["asset", "image", "media", "result", "data", "output"] as const;
 
-  const obj = payload as Record<string, unknown>;
+type AssetDetails = { url?: string; publicId?: string };
+
+function extractAssetDetails(payload: unknown): AssetDetails {
+  if (!payload) return {};
+
+  if (typeof payload === "string") {
+    const trimmed = payload.trim();
+    return trimmed.startsWith("http") ? { url: trimmed } : {};
+  }
+
+  if (Array.isArray(payload)) {
+    for (const entry of payload) {
+      const candidate = extractAssetDetails(entry);
+      if (candidate.url) return candidate;
+    }
+    return {};
+  }
+
+  if (typeof payload !== "object") return {};
+
+  const record = payload as Record<string, unknown>;
+  let url: string | undefined;
   for (const key of MEDIA_URL_KEYS) {
-    const val = obj[key];
-    if (typeof val === "string" && val.trim()) {
-      return val.trim();
+    const value = record[key];
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed) {
+        url = trimmed;
+        break;
+      }
     }
   }
 
-  for (const v of Object.values(obj)) {
-    if (typeof v === "object" && v !== null) {
-      const nested = extractMediaUrl(v);
-      if (nested) return nested;
+  let publicId: string | undefined;
+  for (const key of PUBLIC_ID_KEYS) {
+    const value = record[key];
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed) {
+        publicId = trimmed;
+        break;
+      }
     }
   }
-  return null;
+
+  const nestedSources: unknown[] = [];
+  for (const key of nestedAssetKeys) {
+    if (key in record) nestedSources.push(record[key]);
+  }
+
+  if (!url || !publicId) {
+    for (const value of [...nestedSources, ...Object.values(record)]) {
+      const nested = extractAssetDetails(value);
+      if (!url && nested.url) url = nested.url;
+      if (!publicId && nested.publicId) publicId = nested.publicId;
+      if (url && publicId) break;
+    }
+  }
+
+  return { url, publicId };
 }
 
 export function ChatGenerator() {
@@ -751,10 +809,10 @@ export function ChatGenerator() {
         return;
       }
 
-      const imageUrl = extractMediaUrl(data);
-      if (!imageUrl) throw new Error("no orderId in response");
+      const asset = extractAssetDetails(data);
+      if (!asset.url) throw new Error("no orderId in response");
 
-      setGeneratedAsset({ url: imageUrl, type: "image" });
+      setGeneratedAsset({ url: asset.url, type: "image", publicId: asset.publicId });
       showToast({ title: "Image générée !", description: "Prête à télécharger" });
     } catch (err: unknown) {
       console.error("[Studio] image generation error:", err);

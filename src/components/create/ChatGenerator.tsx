@@ -15,6 +15,7 @@ type GeneratedAsset = {
   url: string;
   prompt: string;
   format: AspectRatio;
+  publicId?: string;
 };
 
 type AspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4" | "4:5";
@@ -25,6 +26,8 @@ type UploadedSource = {
   url: string;
   name: string;
 };
+
+const LEGACY_IMAGE_URL_KEYS = ["image" + "Url", "image" + "_url"] as const;
 
 const MEDIA_URL_KEYS = [
   "videoUrl",
@@ -41,7 +44,23 @@ const MEDIA_URL_KEYS = [
   "file_url",
   "assetUrl",
   "asset_url",
+  "secure_url",
+  "cloudinary_url",
+  "cloudinaryUrl",
+  ...LEGACY_IMAGE_URL_KEYS,
 ] as const;
+
+const PUBLIC_ID_KEYS = [
+  "publicId",
+  "public_id",
+  "cloudinary_public_id",
+  "cloudinaryPublicId",
+] as const;
+
+type AssetDetails = {
+  url?: string;
+  publicId?: string;
+};
 
 const STATUS_URL_KEYS = [
   "statusUrl",
@@ -76,35 +95,98 @@ const IMAGE_SIZE_MAP: Record<AspectRatio, string> = {
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 
-const extractMediaUrl = (payload: unknown): string | null => {
-  if (!payload) return null;
+const nestedAssetKeys = [
+  "asset",
+  "image",
+  "media",
+  "result",
+  "data",
+  "output",
+] as const;
+
+const extractAssetDetails = (payload: unknown): AssetDetails => {
+  if (!payload) return {};
 
   if (typeof payload === "string") {
-    const s = payload.trim();
-    return s.startsWith("http") ? s : null;
+    const trimmed = payload.trim();
+    return trimmed.startsWith("http") ? { url: trimmed } : {};
   }
+
   if (Array.isArray(payload)) {
     for (const item of payload) {
-      const found = extractMediaUrl(item);
-      if (found) return found;
+      const candidate = extractAssetDetails(item);
+      if (candidate.url) {
+        return candidate;
+      }
     }
-    return null;
+    return {};
   }
-  if (isRecord(payload)) {
-    for (const key of MEDIA_URL_KEYS) {
-      const found = extractMediaUrl(payload[key]);
-      if (found) return found;
-    }
-    if ("data" in payload) {
-      const found = extractMediaUrl(payload["data"]);
-      if (found) return found;
-    }
-    if ("result" in payload) {
-      const found = extractMediaUrl(payload["result"]);
-      if (found) return found;
+
+  if (!isRecord(payload)) {
+    return {};
+  }
+
+  const record = payload as Record<string, unknown>;
+  let url: string | undefined;
+  for (const key of MEDIA_URL_KEYS) {
+    const value = record[key];
+    if (typeof value === "string") {
+      const candidate = value.trim();
+      if (candidate) {
+        url = candidate;
+        break;
+      }
     }
   }
-  return null;
+
+  let publicId: string | undefined;
+  for (const key of PUBLIC_ID_KEYS) {
+    const value = record[key];
+    if (typeof value === "string") {
+      const candidate = value.trim();
+      if (candidate) {
+        publicId = candidate;
+        break;
+      }
+    }
+  }
+
+  const nestedSources: unknown[] = [];
+  for (const key of nestedAssetKeys) {
+    if (key in record) {
+      nestedSources.push(record[key]);
+    }
+  }
+
+  if (!url || !publicId) {
+    for (const value of [...nestedSources, ...Object.values(record)]) {
+      const nested = extractAssetDetails(value);
+      if (!url && nested.url) {
+        url = nested.url;
+      }
+      if (!publicId && nested.publicId) {
+        publicId = nested.publicId;
+      }
+      if (url && publicId) break;
+    }
+  }
+
+  return { url, publicId };
+};
+
+const findFirstAsset = (...sources: unknown[]): AssetDetails => {
+  for (const source of sources) {
+    const candidate = extractAssetDetails(source);
+    if (candidate.url) {
+      return candidate;
+    }
+  }
+  return {};
+};
+
+const extractMediaUrl = (payload: unknown): string | null => {
+  const { url } = extractAssetDetails(payload);
+  return url ?? null;
 };
 
 const extractStatusUrls = (payload: unknown): string[] => {
@@ -363,10 +445,24 @@ export function ChatGenerator() {
             },
           });
           if (error) throw error;
-          if (!data?.imageUrl) throw new Error("Aucune image générée");
+          const asset = findFirstAsset(
+            data?.image,
+            data?.asset,
+            data?.result,
+            data?.output,
+            (data as any)?.imageAsset,
+            (data as any)?.media,
+            data,
+          );
+          if (!asset.url) throw new Error("Aucune image générée");
 
-          const url = data.imageUrl as string;
-          setGeneratedAsset({ type: "image", url, prompt: prompt || "Image transformation", format: aspectRatio });
+          setGeneratedAsset({
+            type: "image",
+            url: asset.url,
+            publicId: asset.publicId,
+            prompt: prompt || "Image transformation",
+            format: aspectRatio,
+          });
 
           if (brandKit?.id) {
             await supabase.from("media_generations").insert({
@@ -375,9 +471,9 @@ export function ChatGenerator() {
               type: "image",
               prompt: prompt || "Image transformation",
               input_url: uploadedSource.url,
-              output_url: url,
+              output_url: asset.url,
               status: "completed",
-              metadata: { aspectRatio, sourceType: "image" },
+              metadata: { aspectRatio, sourceType: "image", publicId: asset.publicId },
             } as any);
           }
 
@@ -394,10 +490,19 @@ export function ChatGenerator() {
           });
           if (error) throw error;
 
-          const imageUrl = data?.data?.image_urls?.[0];
-          if (!data?.ok || !imageUrl) throw new Error(data?.error || "Aucune image générée");
+          const asset = findFirstAsset(
+            data?.data?.image,
+            data?.data?.images,
+            data?.data?.image_assets,
+            data?.data?.imageUrls,
+            data?.data?.image_urls,
+            data?.result,
+            data?.image,
+            data,
+          );
+          if (!data?.ok || !asset.url) throw new Error(data?.error || "Aucune image générée");
 
-          setGeneratedAsset({ type: "image", url: imageUrl, prompt, format: aspectRatio });
+          setGeneratedAsset({ type: "image", url: asset.url, publicId: asset.publicId, prompt, format: aspectRatio });
           toast.success("Image générée avec succès ! ✨");
         }
       } else {
@@ -408,7 +513,13 @@ export function ChatGenerator() {
           signal: abortRef.current.signal,
         });
 
-        setGeneratedAsset({ type: "video", url: videoUrl, prompt: prompt || "Vidéo générée", format: aspectRatio });
+        setGeneratedAsset({
+          type: "video",
+          url: videoUrl,
+          prompt: prompt || "Vidéo générée",
+          format: aspectRatio,
+          publicId: undefined,
+        });
 
         if (brandKit?.id) {
           await supabase.from("media_generations").insert({

@@ -8,7 +8,8 @@ import { Fragment, ReactNode, useMemo } from "react";
 interface ChatBubbleProps {
   role: "user" | "assistant";
   content: string;
-  imageUrl?: string;
+  url?: string;
+  publicId?: string;
   videoUrl?: string;
   timestamp?: string;
   onDownloadImage?: () => void;
@@ -154,7 +155,8 @@ function renderContentSafe(content: string): ReactNode {
 export function ChatBubble({
   role,
   content,
-  imageUrl,
+  url,
+  publicId,
   videoUrl,
   timestamp,
   onDownloadImage,
@@ -194,7 +196,10 @@ export function ChatBubble({
         : "✨ Génération image";
 
   return (
-    <div className={cn("flex gap-2 sm:gap-3 group", isUser ? "justify-end" : "justify-start")}>
+    <div
+      className={cn("flex gap-2 sm:gap-3 group", isUser ? "justify-end" : "justify-start")}
+      data-public-id={publicId ?? undefined}
+    >
       {role === "assistant" && (
         <Avatar className="h-8 w-8 sm:h-9 sm:w-9 shrink-0">
           <AvatarImage src={`${alfieMain}?v=2`} alt="Alfie" />
@@ -226,10 +231,10 @@ export function ChatBubble({
           </div>
         ) : (
           <div className="space-y-2 sm:space-y-3">
-            {imageUrl && (
+            {url && (
               <MediaCard
                 type="image"
-                url={imageUrl}
+                url={url}
                 alt={content || "Image générée par Alfie"}
                 caption={content}
                 onDownload={onDownloadImage}
@@ -244,7 +249,7 @@ export function ChatBubble({
                 onDownload={onDownloadVideo}
               />
             )}
-            {!imageUrl && !videoUrl && (
+            {!url && !videoUrl && (
               <div className={bubbleClasses}>
                 <div className="whitespace-pre-wrap leading-relaxed text-sm sm:text-base break-words">
                   {renderContentSafe(content)}
