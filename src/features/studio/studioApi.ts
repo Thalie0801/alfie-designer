@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabaseClient";
 import { getAuthHeader } from "@/lib/auth";
 
 export type AspectRatio = "1:1" | "9:16" | "16:9";
@@ -150,6 +151,7 @@ export async function generateCarousel(
   params: BaseParams & { slides: number },
 ): Promise<string> {
   return generateSingle({ ...params, type: "carousel", quantity: params.slides });
+  return generateSingle({ ...params, type: "carousel", quantity: 1, slides: params.slides });
 }
 
 export async function generateVideo(
@@ -174,11 +176,25 @@ async function generateSingle(body: Record<string, any>): Promise<string> {
     if (!res.ok || !data?.ok || !data?.resourceId) {
       console.error("[studio-generate] invalid response", data);
       throw new Error(data?.error || "Pas de resourceId retourné");
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.ok || !data?.resourceId) {
+      console.error("[studioApi] studio-generate error", {
+        status: res.status,
+        data,
+      });
+      const details =
+        typeof data?.error === "string"
+          ? data.error
+          : typeof data?.details === "string"
+            ? data.details
+            : `Erreur serveur (${res.status})`;
+      throw new Error(details);
     }
 
     return data.resourceId as string;
   } catch (error) {
     console.error("[studio-generate] request failed", error);
+    console.error("[studioApi] studio-generate request failed", error);
     throw error instanceof Error
       ? error
       : new Error("Impossible de lancer la génération");
