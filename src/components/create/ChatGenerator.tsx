@@ -24,6 +24,8 @@ type UploadedSource = {
   type: ContentType;
   url: string;
   name: string;
+  bucket?: string;
+  path?: string;
 };
 
 const MEDIA_URL_KEYS = [
@@ -206,7 +208,9 @@ async function generateVideoWithFfmpeg({ prompt, aspectRatio, source, signal }: 
   const body: Record<string, unknown> = {
     prompt: trimmedPrompt || "Creative social video",
     aspectRatio,
-    source: source ? { type: source.type, url: source.url, name: source.name } : null,
+    source: source
+      ? { type: source.type, url: source.url, name: source.name, bucket: source.bucket, path: source.path }
+      : null,
   };
 
   let responseData: unknown = null;
@@ -294,12 +298,18 @@ export function ChatGenerator() {
         return;
       }
 
-      const { signedUrl: uploadedSourceUrl } = await uploadToChatBucket(file, supabase, user.id);
+      const {
+        signedUrl: uploadedSourceUrl,
+        bucket: storageBucket,
+        path: storagePath,
+      } = await uploadToChatBucket(file, supabase, user.id);
 
       const src: UploadedSource = {
         type: isVideo ? ("video" as const) : ("image" as const),
         url: uploadedSourceUrl,
         name: file.name,
+        bucket: storageBucket,
+        path: storagePath,
       };
       setUploadedSource(src);
 

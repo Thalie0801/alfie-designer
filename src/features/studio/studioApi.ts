@@ -18,6 +18,8 @@ export type CreateMediaOrderInput = {
   durationSec?: number;
   sourceUrl?: string | null;
   sourceType?: "image" | "video" | null;
+  sourceBucket?: string | null;
+  sourcePath?: string | null;
 };
 
 export type CreateMediaOrderResult = {
@@ -47,6 +49,8 @@ export async function createMediaOrder(
 
     if (input.sourceUrl) {
       payload.sourceUrl = input.sourceUrl;
+      if (input.sourceBucket) payload.sourceBucket = input.sourceBucket;
+      if (input.sourcePath) payload.sourcePath = input.sourcePath;
     } else if (input.aspectRatio) {
       const size = IMAGE_SIZE_MAP[input.aspectRatio];
       if (size) {
@@ -111,6 +115,8 @@ export async function createMediaOrder(
         durationSec: input.durationSec,
         uploadedSourceUrl: input.sourceUrl ?? null,
         uploadedSourceType: input.sourceType ?? null,
+        uploadedSourceBucket: input.sourceBucket ?? null,
+        uploadedSourcePath: input.sourcePath ?? null,
       },
     });
 

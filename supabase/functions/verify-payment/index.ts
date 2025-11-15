@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { VerifyPaymentSchema, validateInput } from "../_shared/validation.ts";
+import { enforceRateLimit } from "../_shared/rate-limit.ts";
 
 const ALLOWED_ORIGINS = [
   'https://alfie-designer.lovable.app',
@@ -78,6 +79,28 @@ serve(async (req) => {
     }
     
     const { session_id } = validation.data;
+
+    const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0]?.trim() || "unknown";
+    const clientId = session_id ? `${ip}:${session_id}` : ip;
+    try {
+      await enforceRateLimit({
+        supabase: supabaseClient,
+        endpoint: "verify-payment",
+        clientId,
+        limitPerMinute: 5,
+      });
+    } catch (rateError) {
+      if (rateError instanceof Error && rateError.message === "RATE_LIMIT_EXCEEDED") {
+        return new Response(
+          JSON.stringify({ code: "RATE_LIMIT", message: "Too many verification attempts" }),
+          {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 429,
+          },
+        );
+      }
+      throw rateError;
+    }
     
     // Check if payment session already processed (prevent replay attacks)
     const { data: existingSession, error: checkError } = await supabaseClient

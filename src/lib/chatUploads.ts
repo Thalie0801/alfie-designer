@@ -18,5 +18,5 @@ export async function uploadToChatBucket(
     throw signed.error ?? new Error("createSignedUrl failed");
   }
 
-  return { signedUrl: signed.data.signedUrl, path: filePath };
+  return { signedUrl: signed.data.signedUrl, path: filePath, bucket: "chat-uploads" as const };
 }

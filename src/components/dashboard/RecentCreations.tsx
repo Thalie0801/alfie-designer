@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
+import { getSignedMediaUrl } from "@/lib/storageUrls";
 import { useAuth } from "@/hooks/useAuth";
 import { Image as ImageIcon, Video as VideoIcon, Clock, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -62,13 +63,27 @@ export function RecentCreations() {
       try {
         const { data, error } = await supabase
           .from("media_generations")
-          .select("id, type, output_url, thumbnail_url, created_at, prompt")
+          .select("id, type, output_url, thumbnail_url, created_at, prompt, storage_bucket, storage_path")
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
           .limit(6);
 
         if (error) throw error;
-        if (!cancelled && mountedRef.current) setCreations((data as Creation[]) || []);
+        if (!cancelled && mountedRef.current) {
+          const enriched = await Promise.all(
+            (data as (Creation & { storage_bucket?: string | null; storage_path?: string | null })[] | null)?.map(
+              async (item) => ({
+                ...item,
+                output_url:
+                  (await getSignedMediaUrl(item.storage_bucket, item.storage_path, item.output_url)) || item.output_url,
+                thumbnail_url:
+                  (await getSignedMediaUrl(item.storage_bucket, item.storage_path, item.thumbnail_url || item.output_url)) ||
+                  item.thumbnail_url,
+              }),
+            ) ?? [],
+          );
+          setCreations(enriched as Creation[]);
+        }
       } catch (e: any) {
         if (!cancelled && mountedRef.current) {
           setErrorMsg("Impossible de charger les créations récentes.");
@@ -87,14 +102,26 @@ export function RecentCreations() {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "media_generations", filter: `user_id=eq.${user.id}` },
-        (payload) => {
-          const row = payload.new as any as Creation;
-          // injecte en tête et garde 6 éléments max
+        async (payload) => {
+          const row = payload.new as any as Creation & {
+            storage_bucket?: string | null;
+            storage_path?: string | null;
+          };
+          const signedOutput = await getSignedMediaUrl(row.storage_bucket, row.storage_path, row.output_url);
+          const signedThumb = await getSignedMediaUrl(
+            row.storage_bucket,
+            row.storage_path,
+            row.thumbnail_url || row.output_url,
+          );
+          const enrichedRow: Creation = {
+            ...row,
+            output_url: signedOutput || row.output_url,
+            thumbnail_url: signedThumb || row.thumbnail_url,
+          };
           setCreations((prev) => {
             const curr = prev ?? [];
-            // évite doublons
-            if (curr.some((c) => c.id === row.id)) return curr;
-            return [row, ...curr].slice(0, 6);
+            if (curr.some((c) => c.id === enrichedRow.id)) return curr;
+            return [enrichedRow, ...curr].slice(0, 6);
           });
         },
       )

@@ -78,6 +78,8 @@ type UploadedSource = {
   previewUrl: string;
   type: "image" | "video";
   name: string;
+  bucket?: string;
+  path?: string;
 };
 
 // =====================
@@ -486,7 +488,11 @@ export function AlfieChat() {
       if (authError) throw authError;
       if (!user) throw new Error("Authentification requise");
 
-      const { signedUrl } = await uploadToChatBucket(file, supabase, user.id);
+      const {
+        signedUrl,
+        bucket: storageBucket,
+        path: storagePath,
+      } = await uploadToChatBucket(file, supabase, user.id);
 
       const previewUrl = URL.createObjectURL(file);
       clearUploadedSource();
@@ -495,6 +501,8 @@ export function AlfieChat() {
         previewUrl,
         type: isVideo ? "video" : "image",
         name: file.name,
+        bucket: storageBucket,
+        path: storagePath,
       });
 
       toast.success(isVideo ? "Vidéo importée ! Décris ce que tu veux en faire." : "Image importée ! Décris ce que tu veux en faire.");
@@ -591,7 +599,14 @@ export function AlfieChat() {
       content: trimmed || (uploadedSource ? "(média uniquement)" : "(message vide)"),
       type: (uploadedSource?.type as Message["type"]) || "text",
       assetUrl: uploadedSource ? uploadedSource.previewUrl || uploadedSource.url : undefined,
-      metadata: uploadedSource ? { name: uploadedSource.name, signedUrl: uploadedSource.url } : undefined,
+      metadata: uploadedSource
+        ? {
+            name: uploadedSource.name,
+            signedUrl: uploadedSource.url,
+            bucket: uploadedSource.bucket,
+            path: uploadedSource.path,
+          }
+        : undefined,
     });
 
     const skipDirect = Boolean(options?.forceTool || options?.intentOverride || uploadedSource);
@@ -719,6 +734,8 @@ export function AlfieChat() {
           forceTool?: "generate_video" | "generate_image" | "render_carousel";
           uploadedSourceUrl?: string;
           uploadedSourceType?: UploadedSource["type"];
+          uploadedSourceBucket?: string;
+          uploadedSourcePath?: string;
           prompt?: string;
           slides?: any[];
         } = {
@@ -749,6 +766,8 @@ export function AlfieChat() {
         if (uploadedSource) {
           requestPayload.uploadedSourceUrl = uploadedSource.url;
           requestPayload.uploadedSourceType = uploadedSource.type;
+          if (uploadedSource.bucket) requestPayload.uploadedSourceBucket = uploadedSource.bucket;
+          if (uploadedSource.path) requestPayload.uploadedSourcePath = uploadedSource.path;
         }
 
         const { data, error } = await supabase.functions.invoke("alfie-orchestrator", {

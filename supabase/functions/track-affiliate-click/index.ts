@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { enforceRateLimit } from "../_shared/rate-limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -46,6 +47,24 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
+
+    const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0]?.trim() || "unknown";
+    try {
+      await enforceRateLimit({
+        supabase: supabaseAdmin,
+        endpoint: "track-affiliate-click",
+        clientId: ip,
+        limitPerMinute: 20,
+      });
+    } catch (rateError) {
+      if (rateError instanceof Error && rateError.message === "RATE_LIMIT_EXCEEDED") {
+        return new Response(JSON.stringify({ ok: false, error: "Rate limit exceeded" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 429,
+        });
+      }
+      throw rateError;
+    }
 
     const click_id = crypto.randomUUID();
 

@@ -1213,6 +1213,8 @@ export type Database = {
           metadata: Json | null
           order_id: string | null
           order_item_id: string | null
+          storage_bucket: string | null
+          storage_path: string | null
           slide_index: number | null
           tags: string[] | null
           text_json: Json | null
@@ -1232,6 +1234,8 @@ export type Database = {
           metadata?: Json | null
           order_id?: string | null
           order_item_id?: string | null
+          storage_bucket?: string | null
+          storage_path?: string | null
           slide_index?: number | null
           tags?: string[] | null
           text_json?: Json | null
@@ -1251,6 +1255,8 @@ export type Database = {
           metadata?: Json | null
           order_id?: string | null
           order_item_id?: string | null
+          storage_bucket?: string | null
+          storage_path?: string | null
           slide_index?: number | null
           tags?: string[] | null
           text_json?: Json | null
@@ -1311,6 +1317,8 @@ export type Database = {
           prompt: string | null
           provider_id: string | null
           render_url: string | null
+          storage_bucket: string | null
+          storage_path: string | null
           status: string
           thumbnail_url: string | null
           type: string
@@ -1339,6 +1347,8 @@ export type Database = {
           prompt?: string | null
           provider_id?: string | null
           render_url?: string | null
+          storage_bucket?: string | null
+          storage_path?: string | null
           status?: string
           thumbnail_url?: string | null
           type: string
@@ -1367,6 +1377,8 @@ export type Database = {
           prompt?: string | null
           provider_id?: string | null
           render_url?: string | null
+          storage_bucket?: string | null
+          storage_path?: string | null
           status?: string
           thumbnail_url?: string | null
           type?: string

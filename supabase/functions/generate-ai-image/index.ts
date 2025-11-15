@@ -233,6 +233,8 @@ serve(async (req) => {
     }
 
     let finalUrl = generatedImageUrl;
+    let storageBucket: string | null = null;
+    let storagePath: string | null = null;
     try {
       if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
         const assetClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -269,17 +271,20 @@ serve(async (req) => {
         }
 
         if (binary) {
+          const bucket = 'media-generations';
           const filePath = `generated/${user.id}/${brandId}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
           const { error: uploadError } = await assetClient.storage
-            .from('media-generations')
+            .from(bucket)
             .upload(filePath, binary, {
               contentType,
               upsert: false,
             });
 
           if (!uploadError) {
+            storageBucket = bucket;
+            storagePath = filePath;
             const { data: publicUrl } = assetClient.storage
-              .from('media-generations')
+              .from(bucket)
               .getPublicUrl(filePath);
             if (publicUrl?.publicUrl) {
               finalUrl = publicUrl.publicUrl;
@@ -307,6 +312,8 @@ serve(async (req) => {
           prompt: prompt.substring(0, 500),
           output_url: finalUrl,
           thumbnail_url: finalUrl,
+          storage_bucket: storageBucket,
+          storage_path: storagePath,
           metadata: {
             aspectRatio,
             generatedAt: new Date().toISOString(),

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { getSignedMediaUrl } from '@/lib/storageUrls';
 
 const MEDIA_URL_KEYS = [
   'videoUrl',
@@ -185,7 +186,7 @@ export function useLibraryAssets(userId: string | undefined, type: 'images' | 'v
       // Output URL will be loaded individually when downloading
       const { data, error } = await supabase
         .from('media_generations')
-        .select('id, type, status, output_url, thumbnail_url, prompt, engine, woofs, created_at, expires_at, metadata, job_id, is_source_upload, brand_id, duration_seconds, file_size_bytes')
+        .select('id, type, status, output_url, thumbnail_url, prompt, engine, woofs, created_at, expires_at, metadata, job_id, is_source_upload, brand_id, duration_seconds, file_size_bytes, storage_bucket, storage_path')
         .eq('user_id', userId)
         .eq('type', assetType)
         .order('created_at', { ascending: false })
@@ -199,12 +200,27 @@ export function useLibraryAssets(userId: string | undefined, type: 'images' | 'v
       console.log(`[LibraryAssets] Loaded ${data?.length || 0} ${type}`);
       
       // Map data to include a placeholder output_url that will be loaded on demand
-      const mappedAssets = (data || []).map(asset => ({
-        ...asset,
-        output_url: asset.output_url || asset.thumbnail_url || '',
-        thumbnail_url: asset.thumbnail_url || undefined,
-      })) as LibraryAsset[];
-      
+      const mappedAssets = await Promise.all(
+        (data || []).map(async (asset) => {
+          const signedOutput = await getSignedMediaUrl(
+            (asset as any).storage_bucket,
+            (asset as any).storage_path,
+            asset.output_url,
+          );
+          const signedThumbnail = await getSignedMediaUrl(
+            (asset as any).storage_bucket,
+            (asset as any).storage_path,
+            asset.thumbnail_url ?? asset.output_url,
+          );
+
+          return {
+            ...asset,
+            output_url: signedOutput || asset.output_url || asset.thumbnail_url || '',
+            thumbnail_url: signedThumbnail || asset.thumbnail_url || undefined,
+          } as LibraryAsset;
+        }),
+      );
+
       setAssets(mappedAssets);
       setRetryCount(0); // Reset retry count on success
 

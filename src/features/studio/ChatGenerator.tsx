@@ -10,6 +10,7 @@ import { uploadToChatBucket } from "@/lib/chatUploads";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useBrandKit } from "@/hooks/useBrandKit";
 import { toast } from "sonner";
+import { getSignedMediaUrl } from "@/lib/storageUrls";
 
 type GeneratedAsset = {
   url: string;
@@ -23,6 +24,8 @@ type UploadedSource = {
   type: "image" | "video";
   url: string;
   name: string;
+  bucket?: string;
+  path?: string;
 };
 
 import type { Database } from "@/integrations/supabase/types";
@@ -238,7 +241,7 @@ export function ChatGenerator() {
             .in("order_id", orderIds),
           supabase
             .from("media_generations")
-            .select("id, type, status, output_url, thumbnail_url, metadata, created_at")
+            .select("id, type, status, output_url, thumbnail_url, metadata, created_at, storage_bucket, storage_path")
             .eq("user_id", userId)
             .eq("brand_id", activeBrandId)
             .in("type", ["video"])
@@ -319,7 +322,22 @@ export function ChatGenerator() {
           });
         }
 
-        for (const video of videosResp.data ?? []) {
+        const videoRows = await Promise.all(
+          (videosResp.data ?? []).map(async (video) => ({
+            ...video,
+            output_url:
+              (await getSignedMediaUrl(video.storage_bucket as string | null, video.storage_path as string | null, video.output_url)) ||
+              video.output_url,
+            thumbnail_url:
+              (await getSignedMediaUrl(
+                video.storage_bucket as string | null,
+                video.storage_path as string | null,
+                video.thumbnail_url || video.output_url,
+              )) || video.thumbnail_url,
+          })),
+        );
+
+        for (const video of videoRows) {
           if (video.type !== "video") continue;
           const meta = (isRecord(video.metadata) ? video.metadata : {}) as Record<string, any>;
           const linkedOrderId =
@@ -632,12 +650,18 @@ export function ChatGenerator() {
         if (authError) throw authError;
         if (!user) throw new Error("Utilisateur non authentifié");
 
-        const { signedUrl: uploadedSourceUrl } = await uploadToChatBucket(file, supabase, user.id);
+        const {
+          signedUrl: uploadedSourceUrl,
+          bucket: storageBucket,
+          path: storagePath,
+        } = await uploadToChatBucket(file, supabase, user.id);
 
         setUploadedSource({
           type: isImage ? "image" : "video",
           url: uploadedSourceUrl,
           name: file.name,
+          bucket: storageBucket,
+          path: storagePath,
         });
 
         showToast({
@@ -688,6 +712,8 @@ export function ChatGenerator() {
         brandId: activeBrandId ?? null,
         aspectRatio,
         sourceUrl: uploadedSource?.url ?? null,
+        sourceBucket: uploadedSource?.bucket ?? null,
+        sourcePath: uploadedSource?.path ?? null,
       };
 
       const { data, orderId: responseOrderId } = await createMediaOrder(request);
@@ -753,6 +779,8 @@ export function ChatGenerator() {
 
       const sourceUrl = uploadedSource?.url ?? null;
       const sourceType = uploadedSource?.type ?? null;
+      const sourceBucket = uploadedSource?.bucket ?? null;
+      const sourcePath = uploadedSource?.path ?? null;
 
       const request: CreateMediaOrderInput = {
         kind: "video",
@@ -762,6 +790,8 @@ export function ChatGenerator() {
         durationSec,
         sourceUrl,
         sourceType,
+        sourceBucket,
+        sourcePath,
       };
 
       const { orderId } = await createMediaOrder(request);
