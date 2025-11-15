@@ -1,23 +1,38 @@
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect, useState } from 'react';
+import { hasRole } from '@/lib/access';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requireAdmin?: boolean;
+  allowPending?: boolean;
 }
 
-export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRouteProps) {
-  const { user, isAdmin, loading, refreshProfile } = useAuth();
-  const location = useLocation();
+export function ProtectedRoute({
+  children,
+  requireAdmin = false,
+  allowPending = false,
+}: ProtectedRouteProps) {
+  const { user, isAdmin, isAuthorized, roles, loading, refreshProfile } = useAuth();
   const [checkingAdmin, setCheckingAdmin] = useState(false);
 
+  // ============================================================================
+  // LOGIQUE WHITELIST: Accès dashboard forcé pour comptes exceptionnels
+  // ============================================================================
+  const isWhitelisted = hasRole(roles, 'vip') || hasRole(roles, 'admin');
+
+  // Flags effectifs pour la navigation (whitelist ou autorisé normalement)
+  const effectiveIsAuthorized = isAuthorized || isWhitelisted;
+  const effectiveIsAdmin = isAdmin; // Admin déjà calculé dans useAuth
+  const hasAccess = effectiveIsAuthorized || allowPending;
+
   useEffect(() => {
-    if (requireAdmin && user && !isAdmin && !checkingAdmin) {
+    if (requireAdmin && user && !effectiveIsAdmin && !checkingAdmin) {
       setCheckingAdmin(true);
       refreshProfile().finally(() => setCheckingAdmin(false));
     }
-  }, [requireAdmin, user, isAdmin, checkingAdmin, refreshProfile]);
+  }, [requireAdmin, user, effectiveIsAdmin, checkingAdmin, refreshProfile]);
 
   if (loading || checkingAdmin) {
     return (
@@ -34,20 +49,31 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
     return <Navigate to="/auth" replace />;
   }
 
-  if (requireAdmin && !isAdmin) {
-    return <Navigate to="/app" replace />;
-  }
-
-  // Allow Studio plan users to access dashboard without restrictions
-  const hasStudioPlan = user?.email && [
-    'borderonpatricia7@gmail.com',
-    'Sandrine.guedra@gmail.com'
-  ].includes(user.email);
-
-  // If special testers hit /billing, redirect them to dashboard
-  if (hasStudioPlan && location.pathname === '/billing') {
+  // Priorité 1: Route admin requise
+  if (requireAdmin && !effectiveIsAdmin) {
+    console.debug('[ProtectedRoute] Admin required but user is not admin, redirecting to /dashboard');
     return <Navigate to="/dashboard" replace />;
   }
+
+  // Vérifier les accès généraux (abonnement/autorisation)
+  if (!hasAccess) {
+    console.debug('[ProtectedRoute] Access denied, redirecting to /onboarding/activate', {
+      email: user?.email,
+      effectiveIsAuthorized,
+      allowPending,
+      isWhitelisted,
+    });
+    return <Navigate to="/onboarding/activate" replace />;
+  }
+
+  // Note: On ne redirige JAMAIS vers /onboarding/activate ici pour les admins whitelistes
+  console.debug('[ProtectedRoute] Access granted', {
+    email: user?.email,
+    effectiveIsAdmin,
+    effectiveIsAuthorized,
+    allowPending,
+    isWhitelisted,
+  });
 
   return <>{children}</>;
 }

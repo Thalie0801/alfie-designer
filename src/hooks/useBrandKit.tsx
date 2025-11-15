@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { safeString } from '@/lib/safeRender';
 
 export interface BrandKit {
   id?: string;
@@ -12,6 +13,7 @@ export interface BrandKit {
     secondary?: string;
   };
   voice?: string;
+  niche?: string;
 }
 
 interface Brand {
@@ -27,7 +29,7 @@ interface Brand {
 }
 
 export function useBrandKit() {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [activeBrandId, setActiveBrandId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -54,9 +56,11 @@ export function useBrandKit() {
       // Transform null to undefined for TypeScript compatibility
       const transformedBrands = (brandsData || []).map(brand => ({
         ...brand,
+        name: safeString(brand.name),
         logo_url: brand.logo_url ?? undefined,
         voice: brand.voice ?? undefined,
-        canva_connected: brand.canva_connected ?? false
+        palette: Array.isArray(brand.palette) ? brand.palette : [],
+        canva_connected: Boolean(brand.canva_connected)
       }));
       setBrands(transformedBrands);
 
@@ -111,17 +115,18 @@ export function useBrandKit() {
     palette: Array.isArray(activeBrand.palette) ? activeBrand.palette : [],
     logo_url: activeBrand.logo_url,
     fonts: activeBrand.fonts,
-    voice: activeBrand.voice
+    voice: activeBrand.voice,
+    niche: (activeBrand as any).niche
   } : null;
 
   const canAddBrand = () => {
-    const quotaBrands = profile?.quota_brands || 0;
-    return brands.length < quotaBrands;
+    // Limiter à 1 seule marque
+    return brands.length < 1;
   };
 
   const remainingBrands = () => {
-    const quotaBrands = profile?.quota_brands || 0;
-    return Math.max(0, quotaBrands - brands.length);
+    // Toujours 1 marque maximum
+    return Math.max(0, 1 - brands.length);
   };
 
   return {
@@ -136,11 +141,11 @@ export function useBrandKit() {
     setActiveBrand,
     loadBrands,
     
-    // Quota management
+    // Quota management (limité à 1 marque)
     canAddBrand: canAddBrand(),
     remainingBrands: remainingBrands(),
     totalBrands: brands.length,
-    quotaBrands: profile?.quota_brands || 0,
+    quotaBrands: 1, // Limité à 1 marque
     
     loading,
     

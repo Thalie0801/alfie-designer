@@ -1,9 +1,10 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { userHasAccess } from "../_shared/accessControl.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
 };
 
 const jsonResponse = (data: unknown, init?: ResponseInit) =>
@@ -71,6 +72,12 @@ serve(async (req) => {
 
     console.log(`Video generation request from user: ${user.id}, email: ${user.email}`);
 
+    // Vérifier l'accès (Stripe OU granted_by_admin)
+    const hasAccess = await userHasAccess(req.headers.get("Authorization"));
+    if (!hasAccess) {
+      return jsonResponse({ error: 'Access denied' }, { status: 403 });
+    }
+
     const body = await req.json();
     const promptRaw = typeof body?.prompt === "string" ? body.prompt.trim() : "";
     const aspectRatio = typeof body?.aspectRatio === "string" && body.aspectRatio.trim()
@@ -78,6 +85,12 @@ serve(async (req) => {
       : "1:1";
 
     const source = typeof body?.source === "object" && body?.source !== null ? body.source : null;
+    const brandKit = typeof body?.brandKit === "object" && body?.brandKit !== null ? body.brandKit : null;
+    const slideIndex = typeof body?.slideIndex === "number" ? body.slideIndex : null;
+    const totalSlides = typeof body?.totalSlides === "number" ? body.totalSlides : null;
+    const duration = typeof body?.duration === "number" ? body.duration : null;
+    const fps = typeof body?.fps === "number" ? body.fps : null;
+    
     const payload: Record<string, unknown> = {
       aspectRatio,
     };
@@ -85,6 +98,9 @@ serve(async (req) => {
     if (promptRaw) {
       payload.prompt = promptRaw;
     }
+    
+    if (duration) payload.duration = duration;
+    if (fps) payload.fps = fps;
 
     const sourceType = typeof source?.type === "string" ? source.type : null;
     const sourceUrl = typeof source?.url === "string" ? source.url : null;
@@ -165,6 +181,42 @@ serve(async (req) => {
       });
     }
 
+    // Sauvegarder en bibliothèque (Phase 4)
+    if (parsed && typeof parsed === "object" && "videoUrl" in parsed) {
+      const videoUrl = (parsed as any).videoUrl || (parsed as any).url;
+      
+      if (videoUrl && typeof videoUrl === "string") {
+        const brandId = typeof brandKit?.id === "string" ? brandKit.id : null;
+        
+        await supabase
+          .from('media_generations')
+          .insert({
+            user_id: user.id,
+            brand_id: brandId,
+            type: 'video',
+            engine: 'ffmpeg-backend',
+            status: 'completed',
+            prompt: (payload.prompt as string)?.substring(0, 500) || "",
+            output_url: videoUrl,
+            thumbnail_url: videoUrl,
+            woofs: 2,
+            duration_seconds: duration,
+            metadata: {
+              aspectRatio: payload.aspectRatio,
+              fps: fps,
+              brandName: brandKit?.name,
+              slideIndex,
+              totalSlides,
+              generatedAt: new Date().toISOString()
+            }
+          })
+          .select()
+          .single();
+        
+        console.log(`Video saved to library for user ${user.id}`);
+      }
+    }
+    
     if (parsed && typeof parsed === "object") {
       return jsonResponse(parsed);
     }

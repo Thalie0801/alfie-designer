@@ -1,232 +1,229 @@
 import { useEffect, useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { ExternalLink, Trash2, Palette, Sparkles, MessageSquare } from 'lucide-react';
-import { BrandDialog } from '@/components/BrandDialog';
-import { toast } from 'sonner';
+import { Sparkles, MessageSquare, Award } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { NewsWidget } from '@/components/NewsWidget';
+import { FeatureRequestDialog } from '@/components/FeatureRequestDialog';
+import { AccessGuard } from '@/components/AccessGuard';
+import { AlertBanner } from '@/components/dashboard/AlertBanner';
+import { ActiveBrandCard } from '@/components/dashboard/ActiveBrandCard';
+import { QuickActions } from '@/components/dashboard/QuickActions';
+import { ActivityCard } from '@/components/dashboard/ActivityCard';
+import { RecentCreations } from '@/components/dashboard/RecentCreations';
+import { ProfileProgress } from '@/components/dashboard/ProfileProgress';
+import { useAffiliateStatus } from '@/hooks/useAffiliateStatus';
+import { useBrandKit } from '@/hooks/useBrandKit';
+import { TourProvider, HelpLauncher } from '@/components/tour/InteractiveTour';
+import { DashboardTourAutoStart } from '@/components/tour/DashboardTourAutoStart';
+import { BrandPaymentSuccess } from '@/components/BrandPaymentSuccess';
 import { BrandManager } from '@/components/BrandManager';
-import { BrandQuotaDisplay } from '@/components/BrandQuotaDisplay';
-import { NewsFeed } from '@/components/NewsFeed';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
+import { callEdge } from '@/lib/edgeClient';
+
+interface ImageQuotaSummary {
+  used: number;
+  total: number;
+  plan?: string | null;
+}
 
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [brands, setBrands] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { affiliate } = useAffiliateStatus();
+  const { activeBrandId } = useBrandKit();
+  const [imageQuota, setImageQuota] = useState<ImageQuotaSummary | null>(null);
+  const [quotaLoading, setQuotaLoading] = useState(false);
+  const [quotaError, setQuotaError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadData();
-  }, [user]);
+    let cancelled = false;
 
-  const loadData = async () => {
-    if (!user) return;
-
-    try {
-      const { data: brandsData } = await supabase
-        .from('brands')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      setBrands(brandsData || []);
-    } catch (error) {
-      console.error('Error loading dashboard:', error);
-    } finally {
-      setLoading(false);
+    if (!activeBrandId) {
+      setImageQuota(null);
+      setQuotaError(null);
+      setQuotaLoading(false);
+      return;
     }
-  };
 
-  const handleDeleteBrand = async (brandId: string) => {
-    try {
-      const { error } = await supabase
-        .from('brands')
-        .delete()
-        .eq('id', brandId)
-        .eq('user_id', user!.id);
+    setQuotaLoading(true);
+    setQuotaError(null);
 
-      if (error) throw error;
+    callEdge<{ visuals_used?: number; visuals_quota?: number; plan?: string }>(
+      'get-quota',
+      { brand_id: activeBrandId },
+      { silent: true }
+    )
+      .then((response) => {
+        if (cancelled) return;
+        if (response.ok && response.data) {
+          const { visuals_used = 0, visuals_quota = 0, plan = null } = response.data;
+          setImageQuota({ used: visuals_used, total: visuals_quota, plan });
+        } else if (response.ok) {
+          setImageQuota({ used: 0, total: 0, plan: response.data?.plan ?? null });
+        } else {
+          setImageQuota(null);
+          setQuotaError('Quotas indisponibles');
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setImageQuota(null);
+        setQuotaError('Quotas indisponibles');
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setQuotaLoading(false);
+        }
+      });
 
-      toast.success('Marque supprimée');
-      loadData();
-    } catch (error: any) {
-      console.error('Error deleting brand:', error);
-      toast.error('Erreur lors de la suppression');
-    }
-  };
+    return () => {
+      cancelled = true;
+    };
+  }, [activeBrandId]);
+
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-            Dashboard
-          </h1>
-          <p className="text-muted-foreground">
-            Retrouvez vos créations et gérez vos marques
-          </p>
+    <AccessGuard>
+      <TourProvider options={{ userEmail: user?.email }}>
+        <BrandPaymentSuccess />
+        <DashboardTourAutoStart />
+        
+        <div className="space-y-6 lg:space-y-8">
+          {/* Header */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 
+                  data-tour-id="nav-dashboard"
+                  className="text-3xl lg:text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent"
+                >
+                  Bienvenue sur votre Dashboard
+                </h1>
+              {affiliate && (
+                <Badge className="bg-gradient-to-r from-purple-500 to-pink-500 text-white gap-1.5 px-3 py-1">
+                  <Award className="h-4 w-4" />
+                  Ambassadeur {affiliate.affiliate_status === 'leader' ? '· Leader' : affiliate.affiliate_status === 'mentor' ? '· Mentor' : ''}
+                </Badge>
+              )}
+            </div>
+            <p className="text-base text-muted-foreground max-w-2xl">
+              Gérez vos marques, générez du contenu créatif avec Alfie et suivez vos quotas
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <HelpLauncher />
+            <div data-tour-id="news">
+              <NewsWidget />
+            </div>
+            <div data-tour-id="suggest">
+              <FeatureRequestDialog />
+            </div>
+          </div>
         </div>
-        <Button 
-          disabled 
-          className="gap-2 gradient-hero text-white shadow-medium opacity-50 cursor-not-allowed"
-          title="En attente de la réponse de l'API Canva"
-        >
-          <ExternalLink className="h-4 w-4" />
-          Connecter Canva
-        </Button>
-      </div>
 
-      {/* Alfie Designer Card */}
-      <Card className="border-primary/30 shadow-strong bg-gradient-subtle">
-        <CardHeader className="bg-gradient-to-br from-primary/10 to-secondary/10">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="bg-gradient-to-br from-primary to-secondary p-3 rounded-xl shadow-glow">
-                <Sparkles className="h-6 w-6 text-white" />
+        {/* Alert Banner */}
+        <AlertBanner />
+
+        {/* Alfie Designer Hero Card */}
+        <Card className="border-none shadow-strong overflow-hidden relative group">
+          <div className="absolute inset-0 gradient-hero opacity-10"></div>
+          <CardContent className="relative p-8">
+            <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
+              <div className="flex items-center gap-6">
+                <div className="relative">
+                  <div className="absolute inset-0 gradient-hero blur-xl opacity-50 animate-pulse-soft"></div>
+                  <div className="relative gradient-hero p-4 rounded-2xl shadow-glow">
+                    <Sparkles className="h-10 w-10 text-white" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-2xl lg:text-3xl font-bold">Alfie Designer</h2>
+                  <p className="text-muted-foreground text-lg">Votre assistant créatif IA nouvelle génération</p>
+                </div>
               </div>
-              <div>
-                <CardTitle className="text-xl">Alfie Designer</CardTitle>
-                <CardDescription>Ton assistant créatif IA</CardDescription>
+              <Button 
+                data-tour-id="btn-create"
+                onClick={() => navigate('/app')}
+                size="lg"
+                className="gap-3 gradient-hero text-white shadow-strong hover:shadow-glow transition-all px-8 py-6 text-base font-semibold"
+              >
+                <MessageSquare className="h-5 w-5" />
+                Commencer à créer
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-dashed border-primary/20 bg-muted/20">
+          <CardContent className="flex flex-col gap-2 p-5 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Suivi des quotas visuels</p>
+              <p className="text-lg font-semibold">
+                {quotaLoading
+                  ? 'Images utilisées : chargement…'
+                  : `Images utilisées : ${imageQuota?.used ?? 0} / ${
+                      imageQuota && imageQuota.total > 0 ? imageQuota.total : '∞'
+                    } (${imageQuota?.plan ? `plan ${imageQuota.plan}` : 'plan actuel'})`}
+              </p>
+              {quotaError && !quotaLoading ? (
+                <p className="text-sm text-destructive">{quotaError}</p>
+              ) : null}
+            </div>
+            {imageQuota && imageQuota.total > 0 && !quotaLoading && !quotaError ? (
+              <Badge variant="outline" className="whitespace-nowrap">
+                Restant : {Math.max(0, imageQuota.total - imageQuota.used)}
+              </Badge>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        {/* Quick Actions */}
+        <div data-tour-id="quick-actions">
+          <QuickActions />
+        </div>
+
+        {/* Main Grid - Active Brand + Activity */}
+        <div className="grid lg:grid-cols-2 gap-6">
+          <ActiveBrandCard />
+          <div data-tour-id="quotas">
+            <ActivityCard activeBrandId={activeBrandId} />
+          </div>
+        </div>
+
+        {/* Recent Creations */}
+        <RecentCreations />
+
+        {/* Bottom Grid - Profile Progress + Pro Tip */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <ProfileProgress />
+          
+          <Card className="border-secondary/20 shadow-medium md:col-span-2 lg:col-span-2">
+            <CardContent className="p-6">
+              <div className="flex items-start gap-4">
+                <div className="p-3 rounded-xl bg-secondary/10 flex-shrink-0">
+                  <Sparkles className="h-6 w-6 text-secondary" />
+                </div>
+                <div className="space-y-2">
+                  <p className="font-semibold text-lg">💡 Conseil Pro</p>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Configurez vos Brand Kits avec votre palette de couleurs, typographie et voix de marque. 
+                    Alfie s'en servira pour générer du contenu parfaitement adapté à votre identité visuelle.
+                    Plus votre Brand Kit est complet, plus les créations seront personnalisées et cohérentes avec votre image de marque.
+                  </p>
+                </div>
               </div>
-            </div>
-            <Button 
-              onClick={() => navigate('/app')}
-              className="gap-2 bg-gradient-to-r from-primary to-secondary text-white hover:opacity-90"
-            >
-              <MessageSquare className="h-4 w-4" />
-              Ouvrir le chat
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-3 p-4 rounded-lg border-2 border-primary/20 bg-background/50 max-w-md">
-            <Palette className="h-8 w-8 text-secondary" />
-            <div>
-              <p className="text-2xl font-bold">{brands.length}</p>
-              <p className="text-sm text-muted-foreground">Brand Kits</p>
-            </div>
-          </div>
-          <div className="mt-4 p-4 rounded-lg bg-primary/5 border border-primary/10">
-            <p className="text-sm text-muted-foreground">
-              💡 <strong>Astuce :</strong> Discute avec Alfie pour générer des visuels IA ou adapter des templates Canva à ton Brand Kit. 
-              Les quotas (visuels, vidéos, Woofs) sont gérés par marque.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </div>
 
-      {/* Quotas de la marque active */}
-      <BrandQuotaDisplay />
-
-      {/* Brand Manager */}
-      <BrandManager />
-
-      {/* News Feed */}
-      <NewsFeed />
-
-      {/* Brands */}
-      <Card className="border-primary/20 shadow-medium">
-        <CardHeader className="bg-gradient-subtle">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Palette className="h-5 w-5 text-primary" />
-                Mes marques
-              </CardTitle>
-              <CardDescription>Gérez vos Brand Kits</CardDescription>
-            </div>
-            <BrandDialog onSuccess={loadData} />
-          </div>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              Chargement...
-            </p>
-          ) : brands.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              Aucune marque configurée. Cliquez sur "Ajouter" ci-dessus pour créer votre première marque.
-            </p>
-          ) : (
-            <div className="grid md:grid-cols-2 gap-4">
-              {brands.map((brand) => (
-                <Card key={brand.id} className="group hover:shadow-strong hover:border-primary/30 transition-all border-2">
-                  <CardHeader className="bg-gradient-subtle">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          {brand.logo_url && (
-                            <img 
-                              src={brand.logo_url} 
-                              alt={brand.name}
-                              className="w-8 h-8 object-contain rounded"
-                            />
-                          )}
-                          <CardTitle className="text-lg">{brand.name}</CardTitle>
-                        </div>
-                        <div className="space-y-2">
-                          <Badge 
-                            className={brand.canva_connected ? 'bg-green-500 hover:bg-green-600' : 'bg-orange-500 hover:bg-orange-600'}
-                          >
-                            {brand.canva_connected ? '✓ Canva connecté' : '○ Non connecté'}
-                          </Badge>
-                          {brand.voice && (
-                            <p className="text-sm text-muted-foreground line-clamp-2">
-                              {brand.voice}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <BrandDialog brand={brand} onSuccess={loadData} />
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Supprimer la marque ?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Cette action est irréversible. La marque "{brand.name}" sera définitivement supprimée.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Annuler</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDeleteBrand(brand.id)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              >
-                                Supprimer
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    </div>
-                  </CardHeader>
-                </Card>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-    </div>
+        {/* Brand Manager */}
+        <div data-tour-id="brand-kit">
+          <BrandManager />
+        </div>
+        </div>
+      </TourProvider>
+    </AccessGuard>
   );
 }
