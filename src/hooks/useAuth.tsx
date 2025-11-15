@@ -14,6 +14,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isAuthorized: boolean;
   hasActivePlan: boolean;
+  subscriptionExpired: boolean;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: any }>;
@@ -31,19 +32,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const authEnforcement = import.meta.env.VITE_AUTH_ENFORCEMENT;
-  const killSwitchDisabled =
-    typeof authEnforcement === 'string' && authEnforcement.toLowerCase() === 'off';
-
   const ensureActiveSubscription = async (currentUser: User | null) => {
     if (!currentUser?.email) {
       console.debug('[Auth] ensureActiveSubscription: no user email');
       return false;
-    }
-
-    if (killSwitchDisabled) {
-      console.debug('[Auth] ensureActiveSubscription: kill switch disabled, allowing access');
-      return true;
     }
 
     // Vérifier si l'utilisateur a un rôle VIP ou Admin via la DB
@@ -120,8 +112,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { data, error } = await supabase.functions.invoke('check-subscription');
       if (!error && data) {
+        const isExpired = data.current_period_end ? new Date(data.current_period_end) < new Date() : false;
         setSubscription({
-          status: data.subscribed ? 'active' : 'none',
+          status: isExpired ? 'expired' : (data.subscribed ? 'active' : 'none'),
           current_period_end: data.current_period_end ?? null,
         } as any);
       } else {
@@ -195,10 +188,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const userRoles = (rolesData || []).map(r => r.role);
     const isVipOrAdmin = userRoles.includes('vip') || userRoles.includes('admin');
 
-    if (killSwitchDisabled || isVipOrAdmin) {
-      console.debug('[Auth] signIn: bypass subscription check', { 
+    if (isVipOrAdmin) {
+      console.debug('[Auth] signIn: bypass subscription check (VIP/Admin)', { 
         email: userFromAuth.email, 
-        killSwitch: killSwitchDisabled, 
         roles: userRoles,
         isVipOrAdmin
       });
@@ -282,7 +274,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     roles,
     profile,
     subscription,
-    killSwitchDisabled,
   });
 
   // 3. Log complet avec toutes les infos
@@ -300,10 +291,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     )
   });
   const hasActivePlan = Boolean(
+    vipBypass ||
     computedAdmin ||
     profile?.granted_by_admin ||
     (subscription?.status ? ['active', 'trial', 'trialing'].includes(String(subscription.status).toLowerCase()) : false)
   );
+
+  const subscriptionExpired = subscription?.status === 'expired';
 
   const value = {
     user,
@@ -314,6 +308,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAdmin: computedAdmin,
     isAuthorized: computedIsAuthorized,
     hasActivePlan,
+    subscriptionExpired,
     loading,
     signIn,
     signUp,

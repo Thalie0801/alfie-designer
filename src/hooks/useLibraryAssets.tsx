@@ -185,7 +185,7 @@ export function useLibraryAssets(userId: string | undefined, type: 'images' | 'v
       // Output URL will be loaded individually when downloading
       const { data, error } = await supabase
         .from('media_generations')
-        .select('id, type, status, thumbnail_url, prompt, engine, woofs, created_at, expires_at, metadata, job_id, is_source_upload, brand_id, duration_seconds, file_size_bytes')
+        .select('id, type, status, output_url, thumbnail_url, prompt, engine, woofs, created_at, expires_at, metadata, job_id, is_source_upload, brand_id, duration_seconds, file_size_bytes')
         .eq('user_id', userId)
         .eq('type', assetType)
         .order('created_at', { ascending: false })
@@ -201,7 +201,8 @@ export function useLibraryAssets(userId: string | undefined, type: 'images' | 'v
       // Map data to include a placeholder output_url that will be loaded on demand
       const mappedAssets = (data || []).map(asset => ({
         ...asset,
-        output_url: asset.thumbnail_url || '', // Use thumbnail for preview, load full on download
+        output_url: asset.output_url || asset.thumbnail_url || '',
+        thumbnail_url: asset.thumbnail_url || undefined,
       })) as LibraryAsset[];
       
       setAssets(mappedAssets);
@@ -388,6 +389,24 @@ export function useLibraryAssets(userId: string | undefined, type: 'images' | 'v
         console.warn('[Download] No output_url found in DB');
         toast.info(asset.type === 'video' ? 'Vidéo encore en génération… réessayez dans quelques minutes.' : "Fichier indisponible");
         return;
+      }
+
+      const SUPABASE_STORAGE_MARKER = '/storage/v1/object/public/media-generations/';
+      if (outputUrl.includes(SUPABASE_STORAGE_MARKER)) {
+        const [, pathPart] = outputUrl.split(SUPABASE_STORAGE_MARKER);
+        if (pathPart) {
+          const { data: signed, error: signedError } = await supabase.storage
+            .from('media-generations')
+            .createSignedUrl(pathPart, 60 * 60);
+          if (!signedError && signed?.signedUrl) {
+            window.open(signed.signedUrl, '_blank');
+            toast.success('Téléchargement prêt');
+            return;
+          }
+          if (signedError) {
+            console.warn('[Download] Signed URL error:', signedError);
+          }
+        }
       }
 
       let blob: Blob;

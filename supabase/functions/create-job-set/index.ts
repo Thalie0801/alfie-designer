@@ -4,6 +4,7 @@ import { withIdempotency } from "../_shared/idempotency.ts";
 import { userHasAccess } from "../_shared/accessControl.ts";
 import { resolveBrandKit } from "../_shared/brandResolver.ts";
 import { generateMasterSeed } from "../_shared/seedGenerator.ts";
+import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from "../_shared/env.ts";
 
 function correctFrenchSpelling(text: string): string {
   const corrections: Record<string, string> = {
@@ -20,6 +21,41 @@ function correctFrenchSpelling(text: string): string {
     'connection': 'connexion',
     'addresse': 'adresse',
     'language': 'langage',
+    'reponse': 'réponse',
+    'systeme': 'système',
+    'probleme': 'problème',
+    'integrer': 'intégrer',
+    'optimiser': 'optimiser',
+    'ameliorer': 'améliorer',
+    'efficacite': 'efficacité',
+    'qualite': 'qualité',
+    'strategie': 'stratégie',
+    'marque': 'marque',
+    'publier': 'publier',
+    'creer': 'créer',
+    'generer': 'générer',
+    'personnaliser': 'personnaliser',
+    'analyser': 'analyser',
+    'objectif': 'objectif',
+    'opportunite': 'opportunité',
+    'fidelite': 'fidélité',
+    'notoriete': 'notoriété',
+    'croissance': 'croissance',
+    'innovant': 'innovant',
+    'authentique': 'authentique',
+    'performance': 'performance',
+    'coherence': 'cohérence',
+    'engagement': 'engagement',
+    'autonomie': 'autonomie',
+    'simplicite': 'simplicité',
+    'flexibilite': 'flexibilité',
+    'rentabilite': 'rentabilité',
+    'originalite': 'originalité',
+    'creativite': 'créativité',
+    'exclusivite': 'exclusivité',
+    'accessibilite': 'accessibilité',
+    'durabilite': 'durabilité',
+    'dynamique': 'dynamique',
   };
 
   let corrected = text;
@@ -36,6 +72,8 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  console.log('[create-job-set] v1.0.1 - Function invoked');
+  
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -48,8 +86,8 @@ serve(async (req) => {
     if (!idempotencyKey) throw new Error('Missing x-idempotency-key header');
 
     const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      SUPABASE_URL ?? "",
+      SUPABASE_SERVICE_ROLE_KEY ?? ""
     );
 
     const { data: { user }, error: userError } = await supabase.auth.getUser(
@@ -134,11 +172,13 @@ serve(async (req) => {
       };
 
       // 5. Appeler alfie-plan-carousel
-      const { data: plan, error: planErr } = await supabase.functions.invoke('alfie-plan-carousel', {
-        body: { prompt, brandKit: brandSnapshot, slideCount: normalizedCount }
+      const { data: planResponse, error: planErr } = await supabase.functions.invoke('alfie-plan-carousel', {
+        body: { prompt, brandKit: brandSnapshot, slideCount: normalizedCount },
+        headers: { Authorization: authHeader }
       });
 
-      if (planErr || !plan?.slides) {
+      if (planErr || !planResponse?.plan?.slides) {
+        console.error('[create-job-set] ❌ Planning failed:', planErr || 'No slides in response');
         // Refund quotas
         await supabase.rpc('refund_brand_quotas', {
           p_brand_id: brandId,
@@ -146,6 +186,8 @@ serve(async (req) => {
         });
         throw new Error('Carousel planning failed');
       }
+
+      const plan = planResponse.plan;
 
       // 6. Créer le job_set avec master_seed et constraints
       const { data: newJobSet, error: jobSetErr } = await supabase

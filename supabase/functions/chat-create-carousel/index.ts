@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY, env } from "../_shared/env.ts";
 import { generateMasterSeed } from "../_shared/seedGenerator.ts";
 
 const corsHeaders = {
@@ -35,14 +36,14 @@ serve(async (req) => {
 
     // Admin client for service operations
     const adminClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      SUPABASE_URL ?? "",
+      SUPABASE_SERVICE_ROLE_KEY ?? ""
     );
 
     // User client for auth
     const userClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
+      SUPABASE_URL ?? "",
+      SUPABASE_ANON_KEY ?? "",
       { global: { headers: { Authorization: authHeader } } }
     );
 
@@ -147,7 +148,7 @@ serve(async (req) => {
       console.log('[CreateCarousel] Monthly counters incremented successfully');
     }
 
-    // 3) Créer le job_set
+    // 3) Créer le job_set avec l'aspectRatio
     const { data: set, error: setErr } = await adminClient
       .from("job_sets")
       .insert({
@@ -157,7 +158,9 @@ serve(async (req) => {
         total: count,
         status: "queued",
         master_seed: generateMasterSeed(),
-        constraints: {},
+        constraints: {
+          aspectRatio: aspectRatio || '9:16', // ✅ Stocker l'aspect ratio demandé
+        },
       })
       .select()
       .single();
@@ -198,7 +201,7 @@ serve(async (req) => {
       console.log(`[CreateCarousel] Calling alfie-plan-carousel for structured content...`);
       
       const planResponse = await fetch(
-        `${Deno.env.get("SUPABASE_URL")}/functions/v1/alfie-plan-carousel`,
+        `${SUPABASE_URL}/functions/v1/alfie-plan-carousel`,
         {
           method: 'POST',
           headers: {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,17 +15,173 @@ interface BrandDialogProps {
   children?: React.ReactNode;
 }
 
+// Normalise la palette en tableau de chaînes hex, nettoie les guillemets/backslashes
+const mapPaletteToHexStrings = (palette: any): string[] => {
+  if (!palette) return [];
+  if (!Array.isArray(palette)) {
+    console.warn('Palette is not an array:', palette);
+    return [];
+  }
+  
+  const toHex = (s: any): string => {
+    if (typeof s !== 'string') {
+      console.warn('Palette item is not a string:', s);
+      return '#000000';
+    }
+    const cleaned = s.trim().replace(/["'\\]/g, "");
+    const hex = cleaned.startsWith("#") ? cleaned.slice(1) : cleaned;
+    if (/^[0-9A-Fa-f]{6}$/.test(hex)) return ("#" + hex).toUpperCase();
+    return "#000000";
+  };
+  
+  return palette.map((item) => {
+    if (typeof item === 'string') return toHex(item);
+    if (typeof item === 'object' && item?.color) return toHex(item.color);
+    return '#000000';
+  });
+};
+
 export function BrandDialog({ brand, onSuccess, children }: BrandDialogProps) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [quotaReached, setQuotaReached] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'pending' | 'saving' | 'saved'>('idle');
   const [formData, setFormData] = useState({
     name: brand?.name || '',
     logo_url: brand?.logo_url || '',
     voice: brand?.voice || '',
     font_primary: brand?.fonts?.primary || '',
-    font_secondary: brand?.fonts?.secondary || ''
+    font_secondary: brand?.fonts?.secondary || '',
+    colors: mapPaletteToHexStrings(brand?.palette)
   });
+
+  // ✅ Recharger le formulaire quand le dialog s'ouvre avec une marque existante
+  useEffect(() => {
+    if (open && brand) {
+      setFormData({
+        name: brand.name || '',
+        logo_url: brand.logo_url || '',
+        voice: brand.voice || '',
+        font_primary: brand.fonts?.primary || '',
+        font_secondary: brand.fonts?.secondary || '',
+        colors: mapPaletteToHexStrings(brand.palette)
+      });
+    }
+  }, [open, brand]);
+
+  // Validation des couleurs (format hex correct)
+  const invalidColors = useMemo(() => {
+    const hexRegex = /^#[0-9A-Fa-f]{6}$/;
+    return formData.colors
+      .map((color, index) => ({ color, index }))
+      .filter(({ color }) => color && !hexRegex.test(color));
+  }, [formData.colors]);
+
+  const handleAddColor = () => {
+    if (formData.colors.length < 5) {
+      setFormData({ ...formData, colors: [...formData.colors, '#000000'] });
+    }
+  };
+
+  const handleColorChange = (index: number, value: string) => {
+    // Nettoyer guillemets/backslashes et ajouter # automatiquement si 6 hex
+    const cleaned = value.trim().replace(/["'\\]/g, "");
+    const withHash = /^[0-9A-Fa-f]{6}$/.test(cleaned) ? "#" + cleaned : cleaned;
+    const newColors = [...formData.colors];
+    newColors[index] = withHash.toUpperCase();
+    setFormData({ ...formData, colors: newColors });
+  };
+
+  const handleRemoveColor = (index: number) => {
+    const newColors = formData.colors.filter((_: string, i: number) => i !== index);
+    setFormData({ ...formData, colors: newColors });
+  };
+
+  // Auto-save function
+  const autoSave = async () => {
+    if (!brand?.id || !user) return;
+    
+    // Validation before save
+    if (!formData.name.trim()) return;
+    const hexRegex = /^#[0-9A-Fa-f]{6}$/;
+    if (formData.colors.some(c => !hexRegex.test(c))) return;
+    
+    setSaveStatus('saving');
+    
+    try {
+      const { error } = await supabase
+        .from('brands')
+        .update({
+          name: formData.name,
+          logo_url: formData.logo_url || null,
+          voice: formData.voice || null,
+          palette: formData.colors,
+          fonts: {
+            primary: formData.font_primary || null,
+            secondary: formData.font_secondary || null
+          },
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', brand.id)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+      setSaveStatus('saved');
+      onSuccess();
+      
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch (error) {
+      console.error('Auto-save error:', error);
+      setSaveStatus('idle');
+    }
+  };
+
+  // Debounced auto-save effect
+  useEffect(() => {
+    if (!brand?.id) return;
+    
+    setSaveStatus('pending');
+    
+    const timer = setTimeout(() => {
+      autoSave();
+    }, 2000);
+    
+    return () => clearTimeout(timer);
+  }, [formData, brand?.id]);
+
+  // ✅ Vérifier le quota au chargement
+  useEffect(() => {
+    const checkQuota = async () => {
+      if (!user || brand) return; // Skip si édition
+      
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('quota_brands')
+        .eq('id', user.id)
+        .single();
+
+      const { count: currentBrands } = await supabase
+        .from('brands')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+
+      const maxAllowedBrands = profileData?.quota_brands || 1;
+      setQuotaReached((currentBrands || 0) >= maxAllowedBrands);
+    };
+    
+    checkQuota();
+  }, [user, brand, open]);
+
+  const handleOpen = () => {
+    if (quotaReached && !brand) {
+      toast.error('Limite de marques atteinte. Utilisez le bouton "Ajouter une marque + 39€"', {
+        duration: 5000
+      });
+      return;
+    }
+    setOpen(true);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,6 +189,15 @@ export function BrandDialog({ brand, onSuccess, children }: BrandDialogProps) {
 
     if (!formData.name.trim()) {
       toast.error('Le nom de la marque est requis');
+      return;
+    }
+
+    // ✅ Validation des couleurs hexadécimales avant sauvegarde
+    const hexRegex = /^#[0-9A-Fa-f]{6}$/;
+    const invalidColors = formData.colors.filter(color => !hexRegex.test(color));
+    
+    if (invalidColors.length > 0) {
+      toast.error('Certaines couleurs sont invalides. Utilisez le format #RRGGBB');
       return;
     }
 
@@ -46,6 +211,7 @@ export function BrandDialog({ brand, onSuccess, children }: BrandDialogProps) {
             name: formData.name,
             logo_url: formData.logo_url || null,
             voice: formData.voice || null,
+            palette: formData.colors,
             fonts: {
               primary: formData.font_primary || null,
               secondary: formData.font_secondary || null
@@ -58,16 +224,22 @@ export function BrandDialog({ brand, onSuccess, children }: BrandDialogProps) {
         if (error) throw error;
         toast.success('Marque mise à jour !');
       } else {
-        // CHECK QUOTA BEFORE CREATING - Max 5 brands
+        // CHECK QUOTA BEFORE CREATING - Vérifier quota_brands depuis profile
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('quota_brands')
+          .eq('id', user.id)
+          .single();
+
         const { count: currentBrands } = await supabase
           .from('brands')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', user.id);
 
-        const MAX_BRANDS = 5;
+        const maxAllowedBrands = profile?.quota_brands || 1;
         
-        if ((currentBrands || 0) >= MAX_BRANDS) {
-          toast.error(`Limite atteinte (${MAX_BRANDS} marques max). Contactez-nous pour ajouter une marque supplémentaire (39€/mois).`);
+        if ((currentBrands || 0) >= maxAllowedBrands) {
+          toast.error(`Vous avez atteint votre limite de ${maxAllowedBrands} marque(s). Pour ajouter une marque supplémentaire, utilisez le bouton "Ajouter une marque + 39€".`);
           setLoading(false);
           return;
         }
@@ -80,11 +252,11 @@ export function BrandDialog({ brand, onSuccess, children }: BrandDialogProps) {
             name: formData.name,
             logo_url: formData.logo_url || null,
             voice: formData.voice || null,
+            palette: formData.colors,
             fonts: {
               primary: formData.font_primary || null,
               secondary: formData.font_secondary || null
-            },
-            palette: []
+            }
           });
 
         if (error) throw error;
@@ -92,7 +264,7 @@ export function BrandDialog({ brand, onSuccess, children }: BrandDialogProps) {
       }
 
       setOpen(false);
-      setFormData({ name: '', logo_url: '', voice: '', font_primary: '', font_secondary: '' });
+      setFormData({ name: '', logo_url: '', voice: '', font_primary: '', font_secondary: '', colors: [] });
       onSuccess();
     } catch (error: any) {
       console.error('Error saving brand:', error);
@@ -104,7 +276,7 @@ export function BrandDialog({ brand, onSuccess, children }: BrandDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
+      <DialogTrigger asChild onClick={handleOpen}>
         {children ? children : brand ? (
           <Button variant="outline" size="sm">
             Modifier
@@ -116,18 +288,27 @@ export function BrandDialog({ brand, onSuccess, children }: BrandDialogProps) {
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[85vh] sm:max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>
-            {brand ? 'Modifier la marque' : 'Nouvelle marque'}
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle>
+              {brand ? 'Modifier la marque' : 'Nouvelle marque'}
+            </DialogTitle>
+            {brand && (
+              <div className="text-xs text-muted-foreground">
+                {saveStatus === 'pending' && '● Non sauvegardé'}
+                {saveStatus === 'saving' && '⏳ Sauvegarde...'}
+                {saveStatus === 'saved' && '✓ Sauvegardé'}
+              </div>
+            )}
+          </div>
           <DialogDescription>
             {brand
-              ? 'Modifiez les informations de votre marque'
+              ? 'Vos modifications sont sauvegardées automatiquement'
               : 'Créez une nouvelle marque pour vos visuels'}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 overflow-y-auto flex-1 px-1">
           <div className="space-y-2">
             <Label htmlFor="name">Nom de la marque *</Label>
             <Input
@@ -150,6 +331,60 @@ export function BrandDialog({ brand, onSuccess, children }: BrandDialogProps) {
             />
             <p className="text-xs text-muted-foreground">
               Lien vers votre logo (optionnel)
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label>Palette de couleurs</Label>
+              {formData.colors.length < 5 && (
+                <Button type="button" size="sm" variant="outline" onClick={handleAddColor}>
+                  + Ajouter
+                </Button>
+              )}
+            </div>
+            {formData.colors.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Aucune couleur définie</p>
+            ) : (
+              <div className="space-y-2">
+                {formData.colors.map((color: string, index: number) => {
+                  const isInvalid = invalidColors.some(ic => ic.index === index);
+                  return (
+                    <div key={index} className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={color.match(/^#[0-9A-Fa-f]{6}$/) ? color : '#000000'}
+                          onChange={(e) => handleColorChange(index, e.target.value)}
+                          className="h-10 w-16 rounded border cursor-pointer"
+                        />
+                        <Input
+                          value={color}
+                          onChange={(e) => handleColorChange(index, e.target.value)}
+                          placeholder="#000000"
+                          className={`flex-1 ${isInvalid ? 'border-destructive' : ''}`}
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleRemoveColor(index)}
+                        >
+                          ×
+                        </Button>
+                      </div>
+                      {isInvalid && (
+                        <p className="text-xs text-destructive pl-[72px]">
+                          Format attendu: #RRGGBB (ex: #FF0000)
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Définissez jusqu'à 5 couleurs principales de votre marque
             </p>
           </div>
 
@@ -191,18 +426,34 @@ export function BrandDialog({ brand, onSuccess, children }: BrandDialogProps) {
           </div>
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-              disabled={loading}
-            >
-              Annuler
-            </Button>
-            <Button type="submit" disabled={loading} className="gap-2">
-              <Save className="h-4 w-4" />
-              {loading ? 'Enregistrement...' : 'Enregistrer'}
-            </Button>
+            {!brand ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setOpen(false)}
+                  disabled={loading}
+                >
+                  Annuler
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={loading || invalidColors.length > 0} 
+                  className="gap-2"
+                >
+                  <Save className="h-4 w-4" />
+                  {loading ? 'Création...' : 'Créer'}
+                </Button>
+              </>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpen(false)}
+              >
+                Fermer
+              </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

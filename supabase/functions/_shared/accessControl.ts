@@ -1,12 +1,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, env } from "./env.ts";
 
 export async function userHasAccess(authHeader: string | null) {
-  const ENFORCE = (Deno.env.get("AUTH_ENFORCEMENT") ?? "on").toLowerCase() === "on";
+  const ENFORCE = (env("AUTH_ENFORCEMENT") ?? "on").toLowerCase() === "on";
   if (!ENFORCE) return true;
 
   const client = createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+    SUPABASE_URL ?? "",
+    SUPABASE_ANON_KEY ?? "",
     { global: { headers: { Authorization: authHeader ?? "" } } }
   );
 
@@ -23,8 +24,9 @@ export async function userHasAccess(authHeader: string | null) {
   const isVip = userRoles.includes('vip');
   const isAdmin = userRoles.includes('admin');
   
-  // Log diagnostic pour debug
-  console.log(`[AccessControl] Checking access for: ${user.email} | Roles: ${userRoles.join(',')} | isVip: ${isVip} | isAdmin: ${isAdmin}`);
+  // Anonymize user ID for security (first 8 chars only)
+  const userIdPrefix = user.id.substring(0, 8);
+  console.log(`[AccessControl] Check | UserID: ${userIdPrefix}... | Roles: ${userRoles.join(',')} | isVip: ${isVip} | isAdmin: ${isAdmin}`);
   
   if (isVip || isAdmin) {
     console.log(`[AccessControl] ✅ Access granted via ${isVip ? 'VIP' : 'ADMIN'} role from database`);

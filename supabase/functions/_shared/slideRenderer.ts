@@ -16,6 +16,19 @@ export interface SlideContent {
   kpis?: Array<{ label: string; delta: string }>;
 }
 
+const CONTROL = new RegExp('[\\x00-\\x1F\\x7F\\u00A0\\uFEFF]', 'g');
+
+/**
+ * Sanitize text by removing control characters, NBSP, BOM, and other invisible characters
+ * that can break Cloudinary overlays
+ */
+function sanitizeText(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(CONTROL, '') // Remove control chars, NBSP, BOM
+    .trim();
+}
+
 export async function renderSlideToSVG(
   slideContent: SlideContent,
   template: SlideTemplate,
@@ -23,26 +36,36 @@ export async function renderSlideToSVG(
 ): Promise<string> {
   const { width, height } = template.layout;
   
-  let svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">`;
+  let svg = `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">`;
   
   // Fond transparent (sera composité avec l'image IA)
-  svg += `<rect width="${width}" height="${height}" fill="transparent"/>`;
+  svg += `<rect width="${width}" height="${height}" fill="none"/>`;
+  
+  // Normalize font settings across all layers for consistency
+  // ✅ Use brand font or fallback to Inter
+  const rawFontFamily = brandSnapshot.fonts?.default || 'Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif';
   
   // Couche de texte (typo contrôlée, pas d'IA)
   for (const layer of template.textLayers) {
-    let text = getTextForLayer(layer, slideContent);
+    let text = sanitizeText(getTextForLayer(layer, slideContent));
     if (!text) continue;
     
-    // Utiliser les fonts du brand kit si disponibles
-    const fontFamily = brandSnapshot.fonts?.[layer.type] || layer.font;
+    // Use consistent font from brand kit
+    const fontFamily = String(rawFontFamily);
     let textColor = layer.color;
     
-    // Utiliser couleurs brand si disponibles
-    if (layer.type === 'title' && brandSnapshot.primary_color) {
+    // ✅ CRITICAL FIX: Valider la couleur et utiliser les couleurs du brand
+    const hexRegex = /^#[0-9A-Fa-f]{6}$/;
+    if (!hexRegex.test(textColor)) {
+      console.warn(`[slideRenderer] Invalid color "${textColor}" for layer ${layer.id}, using brand color`);
+      textColor = brandSnapshot.primary_color || '#000000';
+    }
+    
+    // Priorité : utiliser les couleurs du brand pour les éléments principaux
+    if (layer.id === 'title' && brandSnapshot.primary_color) {
       textColor = brandSnapshot.primary_color;
-    } else if (layer.type === 'cta' && brandSnapshot.accent_color) {
-      // CTA garde sa couleur de fond, texte blanc
-      textColor = '#FFFFFF';
+    } else if (layer.id === 'subtitle' && brandSnapshot.secondary_color) {
+      textColor = brandSnapshot.secondary_color;
     }
     
     // Vérifier contraste WCAG AA (4.5:1 minimum)
@@ -59,41 +82,48 @@ export async function renderSlideToSVG(
       const textWidth = estimateTextWidth(text, layer.size);
       const rectWidth = Math.min(textWidth + padding * 2, layer.maxWidth);
       const rectHeight = layer.size + padding * 2;
-      const rectX = layer.align === 'center' 
-        ? layer.position.x - rectWidth / 2 
-        : layer.position.x;
+      const rectX = (width - rectWidth) / 2;
       const rectY = layer.position.y - layer.size;
       
       svg += `<rect x="${rectX}" y="${rectY}" width="${rectWidth}" height="${rectHeight}" 
         fill="${ctaBgColor}" rx="12"/>`;
     }
     
-    // Word wrap + multi-lignes
-    const lines = wrapText(text, layer.maxWidth, layer.size);
+    // ✅ FIX: Réduire maxWidth pour éviter overflow (80% de la largeur d'image)
+    const safeMaxWidth = Math.min(layer.maxWidth, width * 0.8);
+    const lines = wrapText(text, safeMaxWidth, layer.size);
+    
     lines.slice(0, layer.maxLines).forEach((line, i) => {
       const y = layer.position.y + i * (layer.size * 1.2);
-      const x = layer.align === 'center' ? layer.position.x : layer.position.x;
+      const x = width / 2;
+      
+      // ✅ FIX: Contraste automatique (stroke blanc sur texte sombre, noir sur texte clair)
+      const textLum = relativeLuminance(textColor);
+      const strokeColor = textLum > 0.5 ? '#000000' : '#FFFFFF';
+      const strokeWidth = textLum > 0.5 ? 4 : 3;
       
       svg += `<text x="${x}" y="${y}"
         font-family="${fontFamily}" font-size="${layer.size}" font-weight="${layer.weight}"
-        fill="${textColor}" text-anchor="${layer.align === 'center' ? 'middle' : 'start'}">
+        fill="${textColor}" text-anchor="middle" 
+        stroke="${strokeColor}" stroke-opacity="0.4" stroke-width="${strokeWidth}" 
+        style="paint-order: stroke fill">
         ${escapeXml(line)}
       </text>`;
     });
   }
   
-  // Bullets si présents
+  // Bullets si présents (centrés)
   if (slideContent.bullets && slideContent.bullets.length > 0) {
     const bulletColor = brandSnapshot.primary_color || '#000000';
     slideContent.bullets.forEach((bullet, i) => {
       const y = 450 + i * 120;
-      // Cercle bullet
-      svg += `<circle cx="80" cy="${y}" r="8" fill="${bulletColor}"/>`;
-      // Texte du bullet
-      const bulletLines = wrapText(bullet, 880, 28);
+      const bulletLines = wrapText(bullet, Math.floor(width * 0.8), 28);
       bulletLines.slice(0, 2).forEach((line, lineIndex) => {
-        svg += `<text x="110" y="${y + lineIndex * 36 + 8}" 
-          font-family="Inter" font-size="28" font-weight="400" fill="#333333">
+        const lineY = y + lineIndex * 36 + 8;
+        const strokeColor = '#000000';
+        svg += `<text x="${width / 2}" y="${lineY}" 
+          font-family="Inter" font-size="28" font-weight="400" fill="#333333" text-anchor="middle"
+          stroke="${strokeColor}" stroke-opacity="0.25" stroke-width="2" style="paint-order: stroke fill">
           ${escapeXml(line)}
         </text>`;
       });
@@ -127,7 +157,23 @@ export async function renderSlideToSVG(
       href="${brandSnapshot.logo_url}" preserveAspectRatio="xMidYMid meet"/>`;
   }
   
+  // Close SVG
   svg += '</svg>';
+
+  // Validate SVG structure before returning
+  if (!svg.includes('</svg>') || !svg.startsWith('<svg')) {
+    console.error('[slideRenderer] Invalid SVG structure detected');
+    throw new Error('Generated SVG is malformed');
+  }
+
+  // Check for unclosed tags or common issues
+  const openTags = (svg.match(/<text[^>]*>/g) || []).length;
+  const closeTags = (svg.match(/<\/text>/g) || []).length;
+  if (openTags !== closeTags) {
+    console.error('[slideRenderer] Unbalanced text tags:', { openTags, closeTags });
+    throw new Error('SVG has unbalanced tags');
+  }
+
   return svg;
 }
 
@@ -227,5 +273,8 @@ function escapeXml(text: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
+    .replace(/'/g, '&apos;')
+    // Échapper tous les caractères non-ASCII pour Cloudinary
+    // Use \u0020-\u007E to exclude control characters (0x00-0x1F and 0x7F)
+    .replace(/[^\u0020-\u007E]/g, (char) => `&#${char.charCodeAt(0)};`);
 }
