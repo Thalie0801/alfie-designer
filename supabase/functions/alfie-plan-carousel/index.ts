@@ -1,339 +1,544 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { CarouselGlobals, SlideContent, CarouselPlan, DEFAULT_GLOBALS, CHAR_LIMITS } from "../_shared/carouselGlobals.ts";
-import { lintCarousel, generateCorrectionPrompt } from "../_shared/carouselLinter.ts";
+// functions/alfie-plan-carousel/index.ts
+// v2.1.0 — Planificateur de carrousel robuste (rétro-compat, validations, structured output)
 
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { LOVABLE_API_KEY } from "../_shared/env.ts";
+
+// ---------------------------
+// CORS
+// ---------------------------
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST,OPTIONS",
+  "Access-Control-Max-Age": "86400",
 };
 
-// ============= HELPERS DE PARSING ROBUSTES =============
+// ---------------------------
+// Types
+// ---------------------------
+type SlideType = "hero" | "problem" | "solution" | "impact" | "cta";
 
-function extractJsonBlock(s: string): string | null {
-  // Enlève les ```json ... ``` éventuels
-  const unFenced = s.replace(/```(?:json)?/gi, "```").replace(/```/g, "");
-  // Récupère le plus GRAND bloc {...} pour éviter les préfaces / épilogues
-  let depth = 0, start = -1, best: {i:number; j:number} | null = null;
-  for (let i=0; i<unFenced.length; i++){
-    const c = unFenced[i];
-    if (c === "{") { if (depth===0) start = i; depth++; }
-    else if (c === "}") { depth--; if (depth===0 && start>=0) { const cand={i:start,j:i+1}; if (!best || (cand.j-cand.i)>(best.j-best.i)) best=cand; } }
-  }
-  return best ? unFenced.slice(best.i, best.j) : null;
+interface BrandKit {
+  name?: string;
+  palette?: string[];
+  voice?: string;
+  niche?: string;
 }
 
-function stripTrailingCommas(jsonLike: string): string {
-  // Supprime les virgules traînantes dans objets/arrays
-  return jsonLike
-    .replace(/,\s*([}\]])/g, "$1")
-    .replace(/[\u201C\u201D]/g, '"') // guillemets typographiques → "
-    .replace(/[\u2018\u2019]/g, "'"); // apostrophes typographiques
+interface KPI {
+  label: string;
+  delta: string;
 }
 
-function tryParse(jsonStr: string): any {
-  try { return JSON.parse(jsonStr); } catch {}
-  // fallback JSON5 léger : autorise trailing commas déjà supprimées, et comments
-  try {
-    const cleaned = jsonStr
-      .replace(/\/\/.*$/gm, "")
-      .replace(/\/\*[\s\S]*?\*\//g, "");
-    return JSON.parse(cleaned);
-  } catch { return null; }
+interface SlideContent {
+  type: SlideType;
+  title: string;
+  subtitle?: string;
+  punchline?: string;
+  bullets?: string[];
+  cta?: string;
+  cta_primary?: string;
+  cta_secondary?: string;
+  note?: string;
+  badge?: string;
+  kpis?: KPI[];
 }
 
-interface PlanRequest {
-  prompt: string;
-  brandKit?: {
-    name?: string;
-    palette?: string[];
-    voice?: string;
-  };
-  slideCount: number;
+interface CarouselPlan {
+  style: string;
+  prompts: string[];
+  slides: SlideContent[];
 }
 
-// ============= AUTO-CORRECTION HELPER (hors scope pour réutilisation) =============
-function autoCorrectPlan(rawPlan: any, requestedSlideCount: number): CarouselPlan {
-  const clamp = (s?: string, min=0, max=120) =>
-    (typeof s === "string" ? s.trim().slice(0, max) : "").slice(min);
-  const arr = (a: any) => Array.isArray(a) ? a : [];
-  
-  // Si pas de slides valides, générer un fallback complet
-  const rawSlides = arr(rawPlan?.slides);
-  const hasValidSlides = rawSlides.length > 0 && rawSlides.some((s: any) => s?.title);
-  
-  if (!hasValidSlides) {
-    console.log('[AutoCorrect] No valid slides, generating complete fallback');
-    const fallbackGlobals = rawPlan?.globals || DEFAULT_GLOBALS;
-    return {
-      globals: fallbackGlobals,
-      slides: requestedSlideCount === 5 ? [
-        { type: 'hero', title: 'Créez des visuels cohérents', subtitle: 'L\'IA qui garde vos créations on-brand', punchline: 'Cohérence garantie', badge: 'Cohérence 95/100', cta_primary: fallbackGlobals.cta },
-        { type: 'problem', title: 'Le défi de la cohérence', bullets: ['Visuels incohérents', 'Validations manuelles', 'Marque diluée'] },
-        { type: 'solution', title: fallbackGlobals.promise, bullets: ['IA garde-fous', 'Variantes cohérentes', 'Workflows accélérés'] },
-        { type: 'impact', title: 'Résultats mesurables', kpis: [{ label: 'Cohérence', delta: '+92%' }, { label: 'Temps', delta: '-60%' }, { label: 'Production', delta: '×3' }] },
-        { type: 'cta', title: 'Prêt à essayer ?', subtitle: 'Rejoignez les équipes créatives', cta_primary: fallbackGlobals.cta, cta_secondary: 'En savoir plus', note: 'Accès anticipé disponible' }
-      ] : requestedSlideCount === 3 ? [
-        { type: 'hero', title: 'Visuels cohérents', subtitle: fallbackGlobals.promise, cta_primary: fallbackGlobals.cta },
-        { type: 'solution', title: 'Solution complète', bullets: ['Cohérence garantie', 'Créations rapides', 'Workflows simples'] },
-        { type: 'cta', title: fallbackGlobals.cta, cta_primary: fallbackGlobals.cta, note: 'Accès anticipé disponible' }
-      ] : Array(requestedSlideCount).fill(null).map((_, i) => ({
-        type: (i === 0 ? 'hero' : i === requestedSlideCount-1 ? 'cta' : 'solution') as 'hero' | 'cta' | 'solution',
-        title: i === 0 ? 'Créez avec cohérence' : `Slide ${i + 1}`,
-        subtitle: i === 0 ? fallbackGlobals.promise : ''
-      })),
-      captions: Array(Math.min(requestedSlideCount, 3)).fill('').map((_, i) => `Post ${i + 1} #coherence`)
-    };
-  }
-  
-  // Normalisation avec garde-fous
-  const slides = rawSlides.map((s: any, i: number) => {
-    const normalized: any = {
-      type: s?.type ?? (i===0 ? "hero" : i===rawSlides.length-1 ? "cta" : "solution"),
-      title: clamp(s?.title, 1, CHAR_LIMITS.title.max),
-      subtitle: clamp(s?.subtitle, 0, CHAR_LIMITS.subtitle.max),
-      punchline: clamp(s?.punchline, 0, CHAR_LIMITS.punchline.max),
-      bullets: arr(s?.bullets).map((b: any) => clamp(String(b), 0, CHAR_LIMITS.bullet.max)).slice(0, 6),
-      cta_primary: clamp(s?.cta ?? s?.cta_primary, 0, CHAR_LIMITS.cta.max),
-      cta_secondary: clamp(s?.cta_secondary, 0, CHAR_LIMITS.cta.max),
-      badge: clamp(s?.badge, 0, 30),
-      note: clamp(s?.note, 0, CHAR_LIMITS.note.max),
-    };
-    
-    // Fix KPIs: add units if missing
-    if (s?.kpis) {
-      normalized.kpis = arr(s.kpis).map((kpi: any) => ({
-        label: clamp(kpi?.label, 0, CHAR_LIMITS.kpi_label.max),
-        delta: (() => {
-          const d = clamp(kpi?.delta, 0, CHAR_LIMITS.kpi_delta.max);
-          return /[%×]|pts/.test(d) ? d : d + '%';
-        })()
-      }));
+interface InputBodyLegacy {
+  topic?: string;
+  numSlides?: number | string;
+  brandVoice?: string;
+  brandKit?: BrandKit;
+}
+
+interface InputBodyNew {
+  prompt?: string;
+  slideCount?: number;
+  brandKit?: BrandKit;
+  aspectRatio?: "1:1" | "4:5" | "9:16" | "16:9";
+  language?: "FR" | "EN";
+}
+
+// ---------------------------
+// Utils
+// ---------------------------
+const MODEL = "google/gemini-2.5-flash" as const;
+const MAX_SLIDES = 10;
+const MIN_SLIDES = 3;
+
+const json = (data: any, status = 200) =>
+  new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json", ...corsHeaders },
+  });
+
+const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
+const toInt = (v: any, d = 0) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : d;
+};
+
+const trimLen = (s: string | undefined, max: number) => (s ?? "").trim().slice(0, Math.max(0, max));
+
+const ensureHex = (c?: string) => ((c || "").match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i) ? c! : undefined);
+
+function first2Palette(palette?: string[]) {
+  const p = Array.isArray(palette) ? palette.filter(Boolean) : [];
+  const a = ensureHex(p[0]) ?? p[0] ?? "vibrant blue";
+  const b = ensureHex(p[1]) ?? p[1] ?? "warm orange";
+  return [a, b];
+}
+
+function forceNoTextPrompt(p: string) {
+  // ajoute des garde-fous pour empêcher la génération de texte intégré
+  return `${p.trim()}. No text, no typography, no letters, no logos, no watermark. Background/scene only.`;
+}
+
+function normalizeLanguage(code?: string): "FR" | "EN" {
+  if (!code) return "FR";
+  return code.toUpperCase() === "EN" ? "EN" : "FR";
+}
+
+function fixBullets(slide: SlideContent) {
+  if (!Array.isArray(slide.bullets)) slide.bullets = [];
+  slide.bullets = slide.bullets
+    .map((b) => b?.trim())
+    .filter(Boolean)
+    .map((b) => trimLen(b, 44));
+
+  // 3–4 bullets
+  if (slide.bullets.length < 3) {
+    while (slide.bullets.length < 3) {
+      slide.bullets.push(`${trimLen(slide.title, 24)} — point clé`);
     }
-    
-    // Force CTA consistency (R2)
-    if (normalized.type === 'hero' || normalized.type === 'cta') {
-      if (!normalized.cta_primary || normalized.cta_primary.length > CHAR_LIMITS.cta.max) {
-        normalized.cta_primary = rawPlan?.globals?.cta || DEFAULT_GLOBALS.cta;
+  } else if (slide.bullets.length > 4) {
+    slide.bullets = slide.bullets.slice(0, 4);
+  }
+}
+
+function distributeTypes(slides: SlideContent[]) {
+  // Si l'IA ne respecte pas la structure, on la force :
+  if (slides.length === 0) return slides;
+  slides[0].type = "hero";
+  if (slides.length >= 2) {
+    for (let i = 1; i < slides.length - 1; i++) {
+      if (slides[i].type !== "problem" && slides[i].type !== "solution") {
+        slides[i].type = i % 2 === 1 ? "problem" : "solution";
       }
     }
-    
-    return normalized;
+  }
+  slides[slides.length - 1].type = "cta";
+  return slides;
+}
+
+function applyHardValidations(plan: CarouselPlan, slideCount: number) {
+  // Ajuster counts prompts/slides
+  if (plan.prompts.length > slideCount) plan.prompts = plan.prompts.slice(0, slideCount);
+  while (plan.prompts.length < slideCount) {
+    plan.prompts.push("Minimalist gradient background with clean high-contrast center focus");
+  }
+
+  if (plan.slides.length > slideCount) plan.slides = plan.slides.slice(0, slideCount);
+  while (plan.slides.length < slideCount) {
+    plan.slides.push({
+      type: "cta",
+      title: "Découvre la suite",
+      cta_primary: "En savoir plus",
+    });
+  }
+
+  // Forcer structure & longueurs
+  plan.slides = distributeTypes(plan.slides).map((s, idx) => {
+    s.title = trimLen(s.title, 60); // + souple mais on valide plus bas pour les règles
+    s.subtitle = trimLen(s.subtitle, 120);
+    s.punchline = trimLen(s.punchline, 120);
+    s.note = trimLen(s.note, 140);
+    s.badge = trimLen(s.badge, 24);
+    s.cta_primary = s.cta_primary ? trimLen(s.cta_primary, 24) : s.cta_primary;
+    s.cta_secondary = s.cta_secondary ? trimLen(s.cta_secondary, 24) : s.cta_secondary;
+    s.cta = s.cta ? trimLen(s.cta, 24) : s.cta;
+
+    if (s.type === "problem" || s.type === "solution") {
+      fixBullets(s);
+    }
+    return s;
   });
-  
+
+  // Règles critiques
+  const errors: string[] = [];
+
+  plan.slides.forEach((slide, i) => {
+    const n = i + 1;
+    const titleLen = (slide.title || "").length;
+
+    if (slide.type === "hero") {
+      if (!slide.cta_primary) {
+        slide.cta_primary = "Découvrir";
+        errors.push(`Slide ${n}/hero → cta_primary manquant (fallback ajouté)`);
+      }
+      if (titleLen < 10 || titleLen > 40) {
+        slide.title = trimLen(slide.title || "Titre d'ouverture percutant", 40);
+      }
+    }
+
+    if (slide.type === "problem" || slide.type === "solution") {
+      if (!slide.bullets || slide.bullets.length < 3) {
+        fixBullets(slide);
+        errors.push(`Slide ${n}/${slide.type} → bullets < 3 (fallback complété)`);
+      }
+      if (titleLen < 10 || titleLen > 40) {
+        slide.title = trimLen(slide.title || "Point clé", 40);
+      }
+    }
+
+    if (slide.type === "cta") {
+      if (!slide.cta_primary) {
+        slide.cta_primary = "En savoir plus";
+        errors.push(`Slide ${n}/cta → cta_primary manquant (fallback ajouté)`);
+      }
+      if (titleLen < 10 || titleLen > 40) {
+        slide.title = trimLen(slide.title || "Passe à l'action", 40);
+      }
+    }
+  });
+
+  return { plan, errors };
+}
+
+function extractJSON(text: string) {
+  // supporte un retour dans un bloc ```json ... ```
+  const m = text.match(/```json\s*([\s\S]*?)```/i) || text.match(/```\s*([\s\S]*?)```/i);
+  return JSON.parse(m ? m[1] : text);
+}
+
+function buildSystemPrompt(params: {
+  slideCount: number;
+  primary: string;
+  secondary: string;
+  brand: BrandKit | undefined;
+  lang: "FR" | "EN";
+  aspectRatio?: "1:1" | "4:5" | "9:16" | "16:9";
+}) {
+  const { slideCount, primary, secondary, brand, lang, aspectRatio } = params;
+
+  const locale = lang === "FR";
+
+  const head = locale
+    ? `Tu es **Alfie**, expert carrousels social media. Ta mission : produire un *plan visuel* cohérent de ${slideCount} slides.`
+    : `You are **Alfie**, social media carousel expert. Your task: produce a *visual plan* for ${slideCount} cohesive slides.`;
+
+  const brandText = locale
+    ? `Contexte Marque:
+- Nom: ${brand?.name || "Non spécifié"}
+- Secteur: ${brand?.niche || "Général"}
+- Voix: ${brand?.voice || "Professionnelle et engageante"}
+- Couleurs: ${primary}, ${secondary}`
+    : `Brand context:
+- Name: ${brand?.name || "Not specified"}
+- Niche: ${brand?.niche || "General"}
+- Voice: ${brand?.voice || "Professional and engaging"}
+- Colors: ${primary}, ${secondary}`;
+
+  const ratioLine = aspectRatio
+    ? locale
+      ? `⚙️ Ratio visuel à respecter: ${aspectRatio}.`
+      : `⚙️ Respect aspect ratio: ${aspectRatio}.`
+    : "";
+
+  const styleReq = locale
+    ? `STYLE (appliqué à toutes les slides) — obligatoire:
+- Palette : ${primary} → ${secondary}
+- Mood : pro, énergique, clair
+- Composition : zones centrales à fort contraste, marges généreuses, rythme cohérent
+- ⚠️ Les prompts visuels ne doivent PAS contenir de texte (ni lettres, ni logo).`
+    : `STYLE (applies to all slides) — mandatory:
+- Palette: ${primary} → ${secondary}
+- Mood: professional, energetic, clear
+- Composition: high-contrast center areas, generous margins, coherent rhythm
+- ⚠️ Visual prompts MUST NOT include text (no letters, no logos).`;
+
+  const contentReq = locale
+    ? `CONTENU STRUCTURÉ — obligatoire:
+- Slide 1 (type='hero'):
+  - title (10–40 chars), cta_primary (5–20 chars, obligatoire), punchline/badge optionnels
+- Slides 2–${slideCount - 1} (type='problem' ou 'solution'):
+  - title (10–40 chars), bullets: 3–4 items (10–44 chars, actionnables)
+- Slide ${slideCount} (type='cta'):
+  - title (10–40 chars), cta_primary (obligatoire), subtitle/note optionnels`
+    : `STRUCTURED CONTENT — mandatory:
+- Slide 1 (type='hero'):
+  - title (10–40 chars), cta_primary (5–20 chars required), optional punchline/badge
+- Slides 2–${slideCount - 1} (type='problem' or 'solution'):
+  - title (10–40 chars), bullets: 3–4 items (10–44 chars, actionable)
+- Slide ${slideCount} (type='cta'):
+  - title (10–40 chars), cta_primary (required), optional subtitle/note`;
+
+  const promptReq = locale
+    ? `PROMPTS VISUELS — ${slideCount} entrées (une par slide):
+- 1: ouverture (hero), ${slideCount}: conclusion/CTA
+- 2..${slideCount - 1}: scènes à thème unique (arrière-plans/ambiances)
+- Toujours décrire **la scène visuelle seulement**. AUCUN TEXTE.`
+    : `VISUAL PROMPTS — ${slideCount} entries (one per slide):
+- 1: opening (hero), ${slideCount}: closing/CTA
+- 2..${slideCount - 1}: single-concept scenes (backgrounds/ambience)
+- Always describe **visual scene only**. NO TEXT.`;
+
+  const example = locale
+    ? `EXEMPLE STYLE:
+"Dégradés ${primary}→${secondary}, formes géométriques en accent, centre à fort contraste, minimalisme moderne, rythme régulier."
+
+EXEMPLE PROMPTS:
+[
+  "Gradient dynamique avec formes abstraites (ouverture)",
+  "Fond uni avec motif géométrique subtil",
+  "Dégradé minimaliste avec focus central",
+  "Scène énergique pour appel à l'action (fermeture)"
+]`
+    : `STYLE EXAMPLE:
+"${primary}→${secondary} gradients, geometric accent shapes, high-contrast center, modern minimalist, steady rhythm."
+
+PROMPTS EXAMPLE:
+[
+  "Dynamic gradient with abstract shapes (opening)",
+  "Clean solid background with subtle geometric pattern",
+  "Minimalist gradient with center focus",
+  "Energetic CTA mood background (closing)"
+]`;
+
+  const outputFormat = `Output JSON strictly:
+{
+  "style": "string",
+  "prompts": [ "${locale ? "scene description without text" : "scene description without text"}", ... ${slideCount} items ],
+  "slides": [
+    { "type": "hero", "title": "...", "cta_primary": "...", "punchline": "optional", "badge": "optional" },
+    { "type": "problem", "title": "...", "bullets": ["...", "...", "..."] },
+    ...,
+    { "type": "cta", "title": "...", "cta_primary": "...", "subtitle": "optional", "note": "optional" }
+  ]
+}`;
+
+  return `${head}
+
+${ratioLine}
+
+${brandText}
+
+${styleReq}
+
+${contentReq}
+
+${promptReq}
+
+${example}
+
+${outputFormat}
+`;
+}
+
+function responseSchema(slideCount: number) {
   return {
-    globals: rawPlan?.globals || DEFAULT_GLOBALS,
-    slides,
-    captions: arr(rawPlan?.captions).map((c: any) => clamp(String(c), 0, 200))
+    type: "object",
+    properties: {
+      style: { type: "string", description: "Global visual style for all slides" },
+      prompts: {
+        type: "array",
+        items: { type: "string" },
+        minItems: slideCount,
+        maxItems: slideCount,
+        description: `Array of ${slideCount} visual scene descriptions (no text overlay)`,
+      },
+      slides: {
+        type: "array",
+        minItems: slideCount,
+        maxItems: slideCount,
+        items: {
+          type: "object",
+          properties: {
+            type: { type: "string", enum: ["hero", "problem", "solution", "impact", "cta"] },
+            title: { type: "string" },
+            subtitle: { type: "string" },
+            punchline: { type: "string" },
+            bullets: { type: "array", items: { type: "string" } },
+            cta: { type: "string" },
+            cta_primary: { type: "string" },
+            cta_secondary: { type: "string" },
+            note: { type: "string" },
+            badge: { type: "string" },
+            kpis: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  label: { type: "string" },
+                  delta: { type: "string" },
+                },
+                required: ["label", "delta"],
+              },
+            },
+          },
+          required: ["type", "title"],
+        },
+        description: `Array of ${slideCount} structured slide content objects`,
+      },
+    },
+    required: ["style", "prompts", "slides"],
+    additionalProperties: false,
   };
 }
 
-Deno.serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') {
+// ---------------------------
+// Handler
+// ---------------------------
+serve(async (req) => {
+  console.log("[alfie-plan-carousel] v2.1.0 invoked");
+
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    const body = (await req.json()) as InputBodyNew & InputBodyLegacy;
+
+    // Compatibilité entrée
+    const rawPrompt = body.prompt || body.topic;
+    let slideCount = clamp(toInt(body.slideCount ?? body.numSlides ?? 5, 5), MIN_SLIDES, MAX_SLIDES);
+
+    const brandKit: BrandKit | undefined = body.brandKit || (body.brandVoice ? { voice: body.brandVoice } : undefined);
+
+    const lang = normalizeLanguage((body as any).language);
+    const aspectRatio = (body as any).aspectRatio as InputBodyNew["aspectRatio"] | undefined;
+
+    if (!rawPrompt) {
+      return json({ error: "Missing prompt/topic" }, 400);
     }
 
-    const { prompt, brandKit, slideCount }: PlanRequest = await req.json();
+    const [primary, secondary] = first2Palette(brandKit?.palette);
 
-    console.log('[Plan] Request:', { prompt, slideCount, brandName: brandKit?.name });
-
-    if (!prompt || slideCount < 1 || slideCount > 10) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid request: prompt required and slideCount must be 1-10' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
-    }
-
-    // Extraire ou construire les globals
-    const globals: CarouselGlobals = {
-      ...DEFAULT_GLOBALS,
-      audience: brandKit?.voice?.includes('professionnel') ? 'Directeurs Marketing & studios internes' : DEFAULT_GLOBALS.audience,
-    };
-
-    // Construire le contexte de marque
-    let brandContext = '';
-    if (brandKit) {
-      brandContext = `\nBrand Context:\n- Brand Name: ${brandKit.name || 'N/A'}\n- Colors: ${brandKit.palette?.join(', ') || 'N/A'}\n- Voice: ${brandKit.voice || 'professional'}`;
-    }
-
-    // Définir les types de slides en fonction du slideCount
-    const slideTypes = slideCount === 5 
-      ? ['hero', 'problem', 'solution', 'impact', 'cta']
-      : slideCount === 3
-      ? ['hero', 'solution', 'cta']
-      : Array(slideCount).fill('variant');
-
-    // Prompt système enrichi avec globals et limites de caractères
-    const systemPrompt = `You are a French carousel content planner with strict editorial guidelines.
-
-GLOBALS (MUST BE RESPECTED):
-- Audience: ${globals.audience}
-- Promesse centrale: ${globals.promise}
-- CTA canonique: ${globals.cta}
-- Terminologie obligatoire: ${globals.terminology.join(', ')}
-- Mots INTERDITS: ${globals.banned.join(', ')}
-
-CRITICAL FRENCH SPELLING RULES:
-- Use PERFECT French spelling with proper accents: é, è, ê, à, ç, ù, etc.
-- Common corrections: "puisence" → "puissance", "vidéos captatives" → "vidéos captivantes", "integration" → "intégration"
-
-CHARACTER LIMITS (STRICT):
-- title: 10-40 caractères
-- subtitle: 20-70 caractères
-- punchline: 20-60 caractères
-- bullet: 10-44 caractères
-- cta: 8-22 caractères
-- kpi_label: 5-22 caractères
-- kpi_delta: 2-8 caractères (avec unité %, pts, ou ×)
-
-RESPONSE FORMAT (JSON STRICT):
-{
-  "globals": {
-    "audience": "${globals.audience}",
-    "promise": "${globals.promise}",
-    "cta": "${globals.cta}",
-    "terminology": ${JSON.stringify(globals.terminology)},
-    "banned": ${JSON.stringify(globals.banned)}
-  },
-  "slides": [
-    ${slideTypes.map((type, i) => `{
-      "type": "${type}",
-      "title": "...",
-      ${type === 'hero' ? '"subtitle": "...", "punchline": "...", "badge": "Cohérence 92/100", "cta_primary": "' + globals.cta + '",' : ''}
-      ${type === 'problem' || type === 'solution' ? '"bullets": ["...", "...", "..."],' : ''}
-      ${type === 'impact' ? '"kpis": [{"label": "...", "delta": "-60%"}],' : ''}
-      ${type === 'cta' ? '"subtitle": "...", "cta_primary": "' + globals.cta + '", "cta_secondary": "...", "note": "...",' : ''}
-    }`).join(',\n    ')}
-  ],
-  "captions": ["Légende post 1...", "Légende post 2..."]
-}
-
-EDITORIAL RULES (R1-R8):
-R1: Réutiliser la promesse "${globals.promise}" en slide solution ou cta
-R2: CTA identique sur hero et cta = "${globals.cta}"
-R3: Utiliser ≥1 terme du glossaire par slide, 0 mot banni
-R4: Pas de !!, pas de MAJUSCULES intégrales
-R5: Unités cohérentes dans KPIs (%, pts, ×)
-R6: Respecter les limites de caractères
-R7: T2 (problème) → T3 (solution) → T4 (impact) cohérents
-R8: Pas d'hyperboles ("révolutionnaire", "incroyable")
-${brandContext}`;
-
-    let userMessage = `Create a ${slideCount}-slide carousel plan for:\n\n${prompt}\n\nRespect ALL globals, character limits, and editorial rules.`;
-
-    // Génération avec cycle de validation et correction
-    let plan: CarouselPlan | null = null;
-    let attempt = 0;
-    const maxAttempts = 3;
-
-    while (!plan && attempt < maxAttempts) {
-      attempt++;
-      console.log(`[Plan] Attempt ${attempt}/${maxAttempts}...`);
-
-      const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userMessage }
-          ],
-        }),
-      });
-
-      if (!aiResponse.ok) {
-        const errorText = await aiResponse.text();
-        console.error('Lovable AI error:', aiResponse.status, errorText);
-        throw new Error(`AI planning failed: ${aiResponse.status}`);
-      }
-
-      const aiData = await aiResponse.json();
-      const content = aiData.choices?.[0]?.message?.content;
-
-      if (!content) {
-        throw new Error('No content returned from AI');
-      }
-
-      // Extraction + parsing ROBUSTE
-      const chunk = extractJsonBlock(content) ?? content.trim();
-      const cleaned = stripTrailingCommas(chunk);
-      const parsedPlan = tryParse(cleaned);
-      
-      if (!parsedPlan) {
-        console.warn(`[Plan] Parse failed on attempt ${attempt}, will retry or fallback`);
-        continue;
-      }
-
-      // Valider avec le linter
-      const lintResult = lintCarousel(parsedPlan.globals || globals, parsedPlan.slides);
-
-      if (lintResult.valid) {
-        console.log(`[Plan] ✅ Validation passed!`);
-        console.log('[Plan] Generated plan:', JSON.stringify(parsedPlan, null, 2));
-        if (lintResult.warnings.length > 0) {
-          console.log(`[Plan] ⚠️ Warnings: ${lintResult.warnings.join(', ')}`);
-        }
-        plan = parsedPlan;
-      } else {
-        console.log(`[Plan] ❌ Validation failed:`, lintResult.errors);
-        
-        // Apply auto-correction RENFORCÉE
-        console.log(`[Plan] Applying reinforced auto-correction...`);
-        const autoCorrected = autoCorrectPlan(parsedPlan, slideCount);
-        const autoLintResult = lintCarousel(autoCorrected.globals || globals, autoCorrected.slides);
-        
-        if (autoLintResult.valid) {
-          console.log(`[Plan] ✅ Auto-correction successful!`);
-          plan = autoCorrected;
-        } else if (attempt < maxAttempts) {
-          console.log(`[Plan] Auto-correction insufficient, retrying with AI...`);
-          const correctionPrompt = generateCorrectionPrompt(lintResult.errors, parsedPlan);
-          userMessage = correctionPrompt;
-        }
-      }
-    }
-
-    if (!plan) {
-      // Dernier filet : renvoyer un fallback propre via autoCorrectPlan (200 OK, jamais 4xx)
-      console.log(`[Plan] All attempts failed, generating COMPLETE fallback via autoCorrect...`);
-      plan = autoCorrectPlan({}, slideCount);
-      console.log('[Plan] Fallback plan generated:', JSON.stringify(plan, null, 2));
-    }
-
-    console.log(`Successfully created validated plan for ${slideCount} slides`);
-
-    return new Response(JSON.stringify({ plan, fallback: !plan.slides?.[0]?.title }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    // --- System prompt
+    const systemPrompt = buildSystemPrompt({
+      slideCount,
+      primary,
+      secondary,
+      brand: brandKit,
+      lang,
+      aspectRatio,
     });
 
-  } catch (error: any) {
-    console.error('Error in alfie-plan-carousel:', error);
-    // Dernier filet : même en cas d'erreur fatale, renvoyer un fallback 200 OK
-    const { slideCount } = await req.json().catch(() => ({ slideCount: 5 }));
-    const fallbackPlan = autoCorrectPlan({}, slideCount || 5);
-    return new Response(
-      JSON.stringify({ plan: fallbackPlan, fallback: true, error: error.message }),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    );
+    if (!LOVABLE_API_KEY) {
+      console.error("[alfie-plan-carousel] ❌ Missing LOVABLE_API_KEY");
+      return json({ error: "LOVABLE_API_KEY not configured" }, 500);
+    }
+
+    // --- Appel IA avec structured output
+    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: rawPrompt },
+        ],
+        temperature: 0.5,
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "carousel_plan",
+            schema: responseSchema(slideCount),
+          },
+        },
+      }),
+    });
+
+    if (!aiRes.ok) {
+      const status = aiRes.status;
+      const errText = await aiRes.text().catch(() => "");
+      console.error("[alfie-plan-carousel] AI error:", status, errText);
+
+      if (status === 429) return json({ error: "Rate limits exceeded, please try again later." }, 429);
+      if (status === 402)
+        return json({ error: "Payment required, please add funds to your Lovable AI workspace." }, 402);
+      return json({ error: "AI gateway error", details: errText.slice(0, 3000) }, status);
+    }
+
+    const data = await aiRes.json();
+    const rawContent = data?.choices?.[0]?.message?.content;
+
+    if (!rawContent) {
+      return json({ error: "AI returned an empty response" }, 502);
+    }
+
+    let plan: CarouselPlan;
+    try {
+      plan = extractJSON(rawContent) as CarouselPlan;
+    } catch (e) {
+      console.warn("[alfie-plan-carousel] JSON parse fallback:", e);
+      // Fallback ultra minimal si jamais
+      plan = {
+        style: `Gradients ${primary}→${secondary}, modern minimalist, high-contrast center.`,
+        prompts: Array.from({ length: slideCount }, (_, i) =>
+          forceNoTextPrompt(
+            i === 0
+              ? "Dynamic gradient with abstract shapes (opening)"
+              : i === slideCount - 1
+                ? "Energetic background hinting at call-to-action (closing)"
+                : "Clean background with subtle geometric rhythm",
+          ),
+        ),
+        slides: [
+          { type: "hero" as SlideType, title: "Titre d'ouverture", cta_primary: "Découvrir" },
+          ...Array.from({ length: Math.max(0, slideCount - 2) }, (): SlideContent => ({
+            type: "problem" as SlideType,
+            title: "Point clé",
+            bullets: ["Bénéfice 1", "Bénéfice 2", "Bénéfice 3"],
+          })),
+          { type: "cta" as SlideType, title: "Passe à l'action", cta_primary: "En savoir plus" },
+        ],
+      };
+    }
+
+    // Sanitize prompts to enforce "no text"
+    plan.prompts = (plan.prompts || []).map(forceNoTextPrompt);
+
+    // Hard validations + structure + longueurs
+    const { plan: fixedPlan, errors } = applyHardValidations(plan, slideCount);
+
+    console.log("[alfie-plan-carousel] ✅ Plan generated:", {
+      slides: fixedPlan.slides.length,
+      prompts: fixedPlan.prompts.length,
+      errors,
+    });
+
+    return json({
+      style: trimLen(fixedPlan.style, 1200),
+      prompts: fixedPlan.prompts,
+      slides: fixedPlan.slides,
+      meta: {
+        slideCount,
+        aspectRatio: aspectRatio ?? null,
+        language: lang,
+        brand: {
+          name: brandKit?.name ?? null,
+          niche: brandKit?.niche ?? null,
+          voice: brandKit?.voice ?? null,
+          palette: brandKit?.palette ?? [],
+        },
+        notes: errors,
+        version: "v2.1.0",
+      },
+    });
+  } catch (err: any) {
+    console.error("[alfie-plan-carousel] 💥 Error:", err);
+    return json({ error: err?.message ?? "Internal error" }, 500);
   }
 });

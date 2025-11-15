@@ -265,6 +265,64 @@ export type Database = {
         }
         Relationships: []
       }
+      alfie_conversation_sessions: {
+        Row: {
+          brand_id: string | null
+          context_json: Json
+          conversation_state: string
+          created_at: string | null
+          id: string
+          messages: Json
+          order_id: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          brand_id?: string | null
+          context_json?: Json
+          conversation_state?: string
+          created_at?: string | null
+          id?: string
+          messages?: Json
+          order_id?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          brand_id?: string | null
+          context_json?: Json
+          conversation_state?: string
+          created_at?: string | null
+          id?: string
+          messages?: Json
+          order_id?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alfie_conversation_sessions_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alfie_conversation_sessions_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "v_brand_quota_current"
+            referencedColumns: ["brand_id"]
+          },
+          {
+            foreignKeyName: "alfie_conversation_sessions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       alfie_conversations: {
         Row: {
           created_at: string
@@ -483,6 +541,7 @@ export type Database = {
           is_addon: boolean | null
           logo_url: string | null
           name: string
+          niche: string | null
           palette: Json | null
           plan: string | null
           quota_images: number | null
@@ -508,6 +567,7 @@ export type Database = {
           is_addon?: boolean | null
           logo_url?: string | null
           name: string
+          niche?: string | null
           palette?: Json | null
           plan?: string | null
           quota_images?: number | null
@@ -533,6 +593,7 @@ export type Database = {
           is_addon?: boolean | null
           logo_url?: string | null
           name?: string
+          niche?: string | null
           palette?: Json | null
           plan?: string | null
           quota_images?: number | null
@@ -942,6 +1003,74 @@ export type Database = {
         }
         Relationships: []
       }
+      job_queue: {
+        Row: {
+          attempts: number
+          brand_id: string | null
+          created_at: string
+          error: string | null
+          id: string
+          idempotency_key: string | null
+          kind: string | null
+          max_attempts: number
+          max_retries: number
+          order_id: string | null
+          payload: Json
+          result: Json | null
+          retry_count: number
+          status: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          attempts?: number
+          brand_id?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          idempotency_key?: string | null
+          kind?: string | null
+          max_attempts?: number
+          max_retries?: number
+          order_id?: string | null
+          payload: Json
+          result?: Json | null
+          retry_count?: number
+          status?: string
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          attempts?: number
+          brand_id?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          idempotency_key?: string | null
+          kind?: string | null
+          max_attempts?: number
+          max_retries?: number
+          order_id?: string | null
+          payload?: Json
+          result?: Json | null
+          retry_count?: number
+          status?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_queue_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_sets: {
         Row: {
           brand_id: string
@@ -1067,6 +1196,95 @@ export type Database = {
             columns: ["job_set_id"]
             isOneToOne: false
             referencedRelation: "job_sets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      library_assets: {
+        Row: {
+          brand_id: string | null
+          campaign: string | null
+          carousel_id: string | null
+          cloudinary_public_id: string | null
+          cloudinary_url: string
+          created_at: string | null
+          format: string | null
+          id: string
+          metadata: Json | null
+          order_id: string | null
+          order_item_id: string | null
+          slide_index: number | null
+          tags: string[] | null
+          text_json: Json | null
+          type: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          brand_id?: string | null
+          campaign?: string | null
+          carousel_id?: string | null
+          cloudinary_public_id?: string | null
+          cloudinary_url: string
+          created_at?: string | null
+          format?: string | null
+          id?: string
+          metadata?: Json | null
+          order_id?: string | null
+          order_item_id?: string | null
+          slide_index?: number | null
+          tags?: string[] | null
+          text_json?: Json | null
+          type: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          brand_id?: string | null
+          campaign?: string | null
+          carousel_id?: string | null
+          cloudinary_public_id?: string | null
+          cloudinary_url?: string
+          created_at?: string | null
+          format?: string | null
+          id?: string
+          metadata?: Json | null
+          order_id?: string | null
+          order_item_id?: string | null
+          slide_index?: number | null
+          tags?: string[] | null
+          text_json?: Json | null
+          type?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "library_assets_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "library_assets_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "v_brand_quota_current"
+            referencedColumns: ["brand_id"]
+          },
+          {
+            foreignKeyName: "library_assets_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "library_assets_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
             referencedColumns: ["id"]
           },
         ]
@@ -1209,6 +1427,104 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      order_items: {
+        Row: {
+          brief_json: Json
+          created_at: string | null
+          error_message: string | null
+          id: string
+          order_id: string
+          sequence_number: number
+          status: string
+          text_json: Json | null
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          brief_json?: Json
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          order_id: string
+          sequence_number: number
+          status?: string
+          text_json?: Json | null
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          brief_json?: Json
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          order_id?: string
+          sequence_number?: number
+          status?: string
+          text_json?: Json | null
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          brand_id: string | null
+          brief_json: Json
+          campaign_name: string
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          status: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          brand_id?: string | null
+          brief_json?: Json
+          campaign_name: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          status?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          brand_id?: string | null
+          brief_json?: Json
+          campaign_name?: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          status?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "v_brand_quota_current"
+            referencedColumns: ["brand_id"]
+          },
+        ]
       }
       payment_sessions: {
         Row: {
@@ -1852,6 +2168,19 @@ export type Database = {
       }
     }
     Views: {
+      library_assets_view: {
+        Row: {
+          brand_id: string | null
+          created_at: string | null
+          id: string | null
+          metadata: Json | null
+          thumb_url: string | null
+          type: string | null
+          url: string | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
       v_brand_quota_current: {
         Row: {
           brand_id: string | null
@@ -1946,6 +2275,16 @@ export type Database = {
           woofs_needed: number
         }[]
       }
+      claim_next_job: {
+        Args: never
+        Returns: {
+          id: string
+          order_id: string
+          payload: Json
+          type: string
+          user_id: string
+        }[]
+      }
       consume_visuals: {
         Args: {
           brand_id_param: string
@@ -2018,6 +2357,12 @@ export type Database = {
         Returns: {
           reason: string
           success: boolean
+        }[]
+      }
+      reset_stuck_jobs: {
+        Args: { age_minutes?: number }
+        Returns: {
+          reset_count: number
         }[]
       }
       update_affiliate_status: {

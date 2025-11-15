@@ -1,0 +1,5 @@
+# Fonctions Supabase avec erreurs regex
+supabase/functions/
+
+# Fichiers avec erreurs pré-existantes
+src/lib/safeRender.ts
