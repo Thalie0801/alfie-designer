@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
+import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { uploadToChatBucket } from '@/lib/chatUploads';
@@ -52,6 +53,20 @@ const statusColors: Record<GeneratedAsset['status'], string> = {
   processing: 'bg-blue-100 text-blue-800',
   completed: 'bg-emerald-100 text-emerald-800',
   failed: 'bg-rose-100 text-rose-800',
+const statusConfig: Record<
+  GeneratedAsset['status'],
+  { label: string; variant: BadgeProps['variant']; className?: string }
+> = {
+  pending: { label: 'En attente', variant: 'outline', className: 'text-muted-foreground border-muted-foreground/40' },
+  processing: { label: 'En cours', variant: 'secondary' },
+  completed: { label: 'Terminé', variant: 'default' },
+  failed: { label: 'Échec', variant: 'destructive' },
+};
+
+const mediaTypeLabels: Record<GeneratedAsset['type'], string> = {
+  image: 'Image',
+  carousel: 'Carrousel',
+  video: 'Vidéo',
 };
 
 const mediaAccept: Record<'image' | 'video', string[]> = {
@@ -177,6 +192,9 @@ export function StudioV2({ activeBrandId }: StudioV2Props) {
       const mappedStatus = statusMap[row.status] ?? 'processing';
       const preview = row.thumbnail_url ?? row.render_url ?? row.output_url ?? undefined;
       const download = row.output_url ?? row.render_url ?? undefined;
+      const preview =
+        row.public_url ?? row.thumbnail_url ?? row.render_url ?? row.output_url ?? undefined;
+      const download = row.public_url ?? row.output_url ?? row.render_url ?? undefined;
       const typeFromRow =
         row.type === 'image' || row.type === 'carousel' || row.type === 'video'
           ? row.type
@@ -187,6 +205,7 @@ export function StudioV2({ activeBrandId }: StudioV2Props) {
         downloadUrl: download,
         meta: row.metadata ?? undefined,
         resourceId: row.id,
+        storage: row.storage ?? undefined,
         ...(typeFromRow ? { type: typeFromRow } : {}),
       });
     },
@@ -436,6 +455,11 @@ export function StudioV2({ activeBrandId }: StudioV2Props) {
             toast({
               title: 'Génération impossible',
               description: "Nous n'avons pas pu générer cet asset.",
+            const message =
+              error instanceof Error ? error.message : 'Une erreur inconnue est survenue.';
+            toast({
+              title: 'Génération impossible',
+              description: message,
               variant: 'destructive',
             });
           }
@@ -483,6 +507,10 @@ export function StudioV2({ activeBrandId }: StudioV2Props) {
                   )}
                 >
                   <div className="whitespace-pre-wrap text-left text-sm text-foreground">
+                      : 'bg-muted text-foreground',
+                  )}
+                >
+                  <div className="whitespace-pre-wrap text-left text-sm">
                     {message.content}
                   </div>
                   <div className="mt-2 text-xs text-muted-foreground flex items-center gap-2">
@@ -604,6 +632,10 @@ export function StudioV2({ activeBrandId }: StudioV2Props) {
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {assets.map((asset) => (
                 <article key={asset.id} className="border rounded-lg overflow-hidden bg-background flex flex-col">
+              {assets.map((asset) => {
+                const status = statusConfig[asset.status];
+                return (
+                  <article key={asset.id} className="border rounded-lg bg-card text-card-foreground overflow-hidden flex flex-col">
                   <div className="flex items-center justify-between px-3 py-2 border-b">
                     <div className="flex items-center gap-2">
                       <Checkbox
@@ -616,6 +648,16 @@ export function StudioV2({ activeBrandId }: StudioV2Props) {
                       </label>
                     </div>
                     <Badge className={cn('capitalize', statusColors[asset.status])}>{statusLabels[asset.status]}</Badge>
+                      <Badge variant="outline" className="capitalize">
+                        {mediaTypeLabels[asset.type] ?? asset.type}
+                      </Badge>
+                    </div>
+                    <Badge
+                      variant={status.variant}
+                      className={cn('capitalize', status.className)}
+                    >
+                      {status.label}
+                    </Badge>
                   </div>
                   <div className="p-3 space-y-3 flex-1 flex flex-col">
                     <div className="aspect-video bg-muted rounded-md overflow-hidden flex items-center justify-center">
@@ -660,6 +702,9 @@ export function StudioV2({ activeBrandId }: StudioV2Props) {
                   </div>
                 </article>
               ))}
+                  </article>
+                );
+              })}
             </div>
           )}
         </ScrollArea>
