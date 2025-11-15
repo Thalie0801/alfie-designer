@@ -68,8 +68,8 @@ serve(async (req) => {
     console.log(`[studio-generate] ${body.type} request from user ${user.id}`);
 
     // Route to appropriate generation function based on type
-    let resourceId: string;
-    let resourceType: "media" | "order";
+    let resourceId: string | null = null;
+    let resourceType: "media" | "order" = "media";
 
     if (body.type === "image") {
       // Call alfie-render-image directly
@@ -118,11 +118,20 @@ serve(async (req) => {
       }
 
       const result = await response.json();
-      resourceId = result.mediaId || result.id;
-      resourceType = "media";
+      const mediaId =
+        typeof result.mediaId === "string"
+          ? result.mediaId
+          : typeof result.id === "string"
+            ? result.id
+            : null;
 
-    } else {
-      // For carousel and video, use generate-media
+      if (!mediaId) {
+        throw new Error("alfie-render-image did not return a media identifier");
+      }
+
+      resourceId = mediaId;
+      resourceType = "media";
+    } else if (body.type === "carousel") {
       const response = await fetch(`${SUPABASE_URL}/functions/v1/generate-media`, {
         method: "POST",
         headers: {
@@ -157,8 +166,63 @@ serve(async (req) => {
       }
 
       const result = await response.json();
-      resourceId = result.orderId;
+      const orderId = typeof result.orderId === "string" ? result.orderId : null;
+
+      if (!orderId) {
+        throw new Error("generate-media did not return an orderId");
+      }
+
+      resourceId = orderId;
       resourceType = "order";
+    } else if (body.type === "video") {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/alfie-orchestrator`, {
+        method: "POST",
+        headers: {
+          Authorization: authHeader,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: body.prompt,
+          user_message: body.prompt,
+          brandId: body.brandId,
+          forceTool: "generate_video",
+          aspectRatio: body.aspectRatio,
+          durationSec: body.duration,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[studio-generate] alfie-orchestrator failed:", errorText);
+
+        if (response.status === 402) {
+          return new Response(
+            JSON.stringify({ error: "Insufficient quota or credits" }),
+            {
+              status: 402,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+          );
+        }
+
+        throw new Error(`alfie-orchestrator failed: ${response.status} ${errorText}`);
+      }
+
+      const result = await response.json();
+      const orderId = typeof result.orderId === "string" ? result.orderId : null;
+
+      if (!orderId) {
+        throw new Error("alfie-orchestrator did not return an orderId");
+      }
+
+      resourceId = orderId;
+      resourceType = "order";
+    } else {
+      throw new Error(`Unsupported type: ${body.type}`);
+    }
+
+    if (!resourceId) {
+      throw new Error("Missing resourceId from generation response");
     }
 
     return new Response(
@@ -175,7 +239,9 @@ serve(async (req) => {
     console.error("[studio-generate] Error:", error);
     return new Response(
       JSON.stringify({
-        error: error instanceof Error ? error.message : "Unknown error",
+        ok: false,
+        code: "GENERATION_FAILED",
+        message: error instanceof Error ? error.message : "Unknown error",
       }),
       {
         status: 500,
