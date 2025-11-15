@@ -201,6 +201,10 @@ Réponds uniquement en français.`;
 
     if (ideasArray.length > 0) {
       contextDetails.push(`• Idées déjà proposées : ${ideasArray.join(" | ")}`);
+
+    const brandVoice = brand?.voice;
+    if (typeof brandVoice === "string" && brandVoice.trim()) {
+      contextDetails.push(`• Voix de marque : ${brandVoice.trim()}`);
     }
 
     const userContext = contextDetails.length > 0 ? `\n\nContexte utilisateur :\n${contextDetails.join("\n")}` : "";

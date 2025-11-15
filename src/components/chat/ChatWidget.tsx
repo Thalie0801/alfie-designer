@@ -185,6 +185,34 @@ export default function ChatWidget() {
         matches.push(fallback.replace(/^[-•*+]\s*/, ""));
       }
     }
+  const buildNeedTopicReply = (): AssistantReply => {
+    const suggestions = [
+      "Carrousel 5 slides 4:5 Instagram : 3 erreurs en pub Meta pour PME",
+      "Visuel 1:1 LinkedIn : annonce webinar IA marketing",
+      "Vidéo 9:16 TikTok : astuces Canva pour solopreneurs",
+    ];
+
+    return {
+      role: "assistant" as const,
+      node: (
+        <div className="space-y-3">
+          <p className="text-sm">
+            Donne-moi un <strong>sujet précis</strong>. Exemples :
+          </p>
+          <div className="flex flex-wrap gap-2">{suggestions.map((s) => chip(s, () => setInput(s)))}</div>
+        </div>
+      ),
+    };
+  };
+
+  const buildLocalReply = (intent: ContentIntent, mergedBrief: Brief): AssistantReply => {
+    const format = mergedBrief.format ?? (intent.explicitMode ? intent.mode : "image");
+    const ratio = mergedBrief.ratio ?? intent.ratio;
+    const platform = mergedBrief.platform ?? intent.platform ?? undefined;
+    const tone = mergedBrief.tone ?? intent.tone ?? undefined;
+    const topic = mergedBrief.topic ?? intent.topic ?? "";
+    const cta = mergedBrief.cta ?? intent.cta ?? undefined;
+    const slides = mergedBrief.slides ?? intent.slides ?? 5;
 
     return matches;
   };
@@ -287,6 +315,7 @@ export default function ChatWidget() {
 
     if (collectedIdeas.length > 0) {
       registerIdeas(collectedIdeas);
+      body = variant;
     }
 
     return {
@@ -370,6 +399,7 @@ export default function ChatWidget() {
       const payload = (await res.json().catch(() => null)) as {
         data?: { message?: string };
       } | null;
+      const payload = (await res.json().catch(() => null)) as { data?: { message?: string } } | null;
       const aiMessage = typeof payload?.data?.message === "string" ? payload.data.message.trim() : "";
 
       if (!aiMessage) {
