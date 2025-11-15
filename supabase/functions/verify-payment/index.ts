@@ -2,6 +2,8 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { VerifyPaymentSchema, validateInput } from "../_shared/validation.ts";
+import { enforceRateLimit, extractClientIp } from "../_shared/rateLimit.ts";
+import { INTERNAL_FN_SECRET } from "../_shared/env.ts";
 
 const ALLOWED_ORIGINS = [
   'https://alfie-designer.lovable.app',
@@ -60,6 +62,19 @@ serve(async (req) => {
   );
 
   try {
+    const clientIp = extractClientIp(req);
+    try {
+      await enforceRateLimit(supabaseClient, clientIp, "verify-payment", 15);
+    } catch (rateLimitError) {
+      if (rateLimitError instanceof Error && rateLimitError.message === "RATE_LIMIT_EXCEEDED") {
+        return new Response(
+          JSON.stringify({ ok: false, error: "Rate limit exceeded" }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      throw rateLimitError;
+    }
+
     const body = await req.json();
     
     // Validate input with Zod
@@ -193,6 +208,9 @@ serve(async (req) => {
             plan: 'starter',
             brand_name: brandName,
           },
+          headers: INTERNAL_FN_SECRET
+            ? { 'x-internal-fn-secret': INTERNAL_FN_SECRET }
+            : undefined,
         });
       } catch (emailError) {
         console.error('Email sending error:', emailError);
@@ -370,6 +388,9 @@ serve(async (req) => {
         plan,
         session_id,
       },
+      headers: INTERNAL_FN_SECRET
+        ? { 'x-internal-fn-secret': INTERNAL_FN_SECRET }
+        : undefined,
     });
 
     return new Response(

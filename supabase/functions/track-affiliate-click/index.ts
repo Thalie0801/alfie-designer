@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { enforceRateLimit, extractClientIp } from "../_shared/rateLimit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,7 +18,7 @@ const parseBody = async (req: Request): Promise<Record<string, string>> => {
     const result: Record<string, string> = {};
     params.forEach((v, k) => (result[k] = v));
     return result;
-  } catch (_) {
+  } catch {
     return {};
   }
 };
@@ -28,6 +29,25 @@ serve(async (req) => {
   }
 
   try {
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
+
+    const clientIp = extractClientIp(req);
+    try {
+      await enforceRateLimit(supabaseAdmin, clientIp, "track-affiliate-click", 40);
+    } catch (rateLimitError) {
+      if (rateLimitError instanceof Error && rateLimitError.message === "RATE_LIMIT_EXCEEDED") {
+        return new Response(
+          JSON.stringify({ ok: false, error: "Rate limit exceeded" }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      throw rateLimitError;
+    }
+
     const body = await parseBody(req);
     const ref = body.ref || body.affiliate_id;
     const utm_source = body.utm_source || null;
@@ -40,12 +60,6 @@ serve(async (req) => {
         status: 400,
       });
     }
-
-    // Use service role to bypass RLS for server-side write
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-    );
 
     const click_id = crypto.randomUUID();
 

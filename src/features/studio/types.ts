@@ -19,7 +19,10 @@ export interface GeneratedAsset {
   downloadUrl?: string;
   inLibrary?: boolean;
   meta?: Record<string, any>;
-  storage?: string;
+  storageBucket?: string;
+  storagePath?: string;
+  thumbnailStorageBucket?: string;
+  thumbnailStoragePath?: string;
 }
 
 export interface StudioMessage {

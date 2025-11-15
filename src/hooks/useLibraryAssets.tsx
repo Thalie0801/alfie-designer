@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { getSignedUrlForStorageObject } from '@/lib/storageUrls';
 import { toast } from 'sonner';
 
 const MEDIA_URL_KEYS = [
@@ -146,6 +147,10 @@ export interface LibraryAsset {
   status?: string;
   metadata?: any;
   job_id?: string;
+  storage_bucket?: string | null;
+  storage_path?: string | null;
+  thumbnail_storage_bucket?: string | null;
+  thumbnail_storage_path?: string | null;
 }
 
 export function useLibraryAssets(userId: string | undefined, type: 'images' | 'videos') {
@@ -185,7 +190,7 @@ export function useLibraryAssets(userId: string | undefined, type: 'images' | 'v
       // Output URL will be loaded individually when downloading
       const { data, error } = await supabase
         .from('media_generations')
-        .select('id, type, status, output_url, thumbnail_url, prompt, engine, woofs, created_at, expires_at, metadata, job_id, is_source_upload, brand_id, duration_seconds, file_size_bytes')
+        .select('id, type, status, output_url, thumbnail_url, prompt, engine, woofs, created_at, expires_at, metadata, job_id, is_source_upload, brand_id, duration_seconds, file_size_bytes, storage_bucket, storage_path, thumbnail_storage_bucket, thumbnail_storage_path')
         .eq('user_id', userId)
         .eq('type', assetType)
         .order('created_at', { ascending: false })
@@ -201,12 +206,48 @@ export function useLibraryAssets(userId: string | undefined, type: 'images' | 'v
       // Map data to include a placeholder output_url that will be loaded on demand
       const mappedAssets = (data || []).map(asset => ({
         ...asset,
-        output_url: asset.output_url || asset.thumbnail_url || '',
+        output_url: asset.thumbnail_url || asset.output_url || '',
         thumbnail_url: asset.thumbnail_url || undefined,
+        storage_bucket: asset.storage_bucket ?? null,
+        storage_path: asset.storage_path ?? null,
+        thumbnail_storage_bucket: asset.thumbnail_storage_bucket ?? null,
+        thumbnail_storage_path: asset.thumbnail_storage_path ?? null,
       })) as LibraryAsset[];
-      
+
       setAssets(mappedAssets);
       setRetryCount(0); // Reset retry count on success
+
+      for (const asset of mappedAssets) {
+        if (asset.storage_bucket && asset.storage_path) {
+          getSignedUrlForStorageObject(asset.storage_bucket, asset.storage_path)
+            .then(url => {
+              if (!url) return;
+              setAssets(prev =>
+                prev.map(item =>
+                  item.id === asset.id
+                    ? { ...item, output_url: url, storage_bucket: asset.storage_bucket, storage_path: asset.storage_path }
+                    : item,
+                ),
+              );
+            })
+            .catch((error) => console.warn('[LibraryAssets] Signed URL error', error));
+        }
+
+        if (asset.thumbnail_storage_bucket && asset.thumbnail_storage_path) {
+          getSignedUrlForStorageObject(asset.thumbnail_storage_bucket, asset.thumbnail_storage_path)
+            .then(url => {
+              if (!url) return;
+              setAssets(prev =>
+                prev.map(item =>
+                  item.id === asset.id
+                    ? { ...item, thumbnail_url: url, thumbnail_storage_bucket: asset.thumbnail_storage_bucket, thumbnail_storage_path: asset.thumbnail_storage_path }
+                    : item,
+                ),
+              );
+            })
+            .catch((error) => console.warn('[LibraryAssets] Signed thumbnail error', error));
+        }
+      }
 
       // Vérifier et débloquer les vidéos "processing" (si prédiction connue)
       if (type === 'videos' && data && data.length > 0) {
@@ -369,44 +410,49 @@ export function useLibraryAssets(userId: string | undefined, type: 'images' | 'v
       // Load the full output_url from database (not in initial query to avoid heavy load)
       const { data: fullAsset, error } = await supabase
         .from('media_generations')
-        .select('output_url, type, status')
+        .select('output_url, type, status, storage_bucket, storage_path')
         .eq('id', assetId)
         .single();
-      
+
       console.log('[Download] DB query result:', { fullAsset, error });
-      
+
       if (error) {
         console.error('[Download] Error loading asset from DB:', error);
         throw error;
       }
       
       const outputUrl = fullAsset?.output_url;
-      
+      const storageBucket = fullAsset?.storage_bucket ?? asset.storage_bucket ?? null;
+      const storagePath = fullAsset?.storage_path ?? asset.storage_path ?? null;
+
       console.log('[Download] Output URL:', outputUrl ? `${outputUrl.substring(0, 100)}...` : 'null');
       console.log('[Download] Output URL type:', outputUrl?.startsWith('data:') ? 'base64' : outputUrl?.startsWith('http') ? 'http' : 'unknown');
-      
+
+      if (storageBucket && storagePath) {
+        const signedUrl = await getSignedUrlForStorageObject(storageBucket, storagePath);
+        if (signedUrl) {
+          setAssets(prev =>
+            prev.map(item =>
+              item.id === assetId
+                ? {
+                    ...item,
+                    output_url: signedUrl,
+                    storage_bucket: storageBucket,
+                    storage_path: storagePath,
+                  }
+                : item,
+            ),
+          );
+          window.open(signedUrl, '_blank');
+          toast.success('Téléchargement prêt');
+          return;
+        }
+      }
+
       if (!outputUrl) {
         console.warn('[Download] No output_url found in DB');
         toast.info(asset.type === 'video' ? 'Vidéo encore en génération… réessayez dans quelques minutes.' : "Fichier indisponible");
         return;
-      }
-
-      const SUPABASE_STORAGE_MARKER = '/storage/v1/object/public/media-generations/';
-      if (outputUrl.includes(SUPABASE_STORAGE_MARKER)) {
-        const [, pathPart] = outputUrl.split(SUPABASE_STORAGE_MARKER);
-        if (pathPart) {
-          const { data: signed, error: signedError } = await supabase.storage
-            .from('media-generations')
-            .createSignedUrl(pathPart, 60 * 60);
-          if (!signedError && signed?.signedUrl) {
-            window.open(signed.signedUrl, '_blank');
-            toast.success('Téléchargement prêt');
-            return;
-          }
-          if (signedError) {
-            console.warn('[Download] Signed URL error:', signedError);
-          }
-        }
       }
 
       let blob: Blob;

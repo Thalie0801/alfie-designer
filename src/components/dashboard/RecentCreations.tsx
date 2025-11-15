@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Image as ImageIcon, Video as VideoIcon, Clock, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { getSignedUrlForStorageObject } from "@/lib/storageUrls";
 
 type CreationType = "image" | "video";
 
@@ -18,6 +19,10 @@ interface Creation {
   thumbnail_url: string | null;
   created_at: string | null;
   prompt: string | null;
+  storage_bucket?: string | null;
+  storage_path?: string | null;
+  thumbnail_storage_bucket?: string | null;
+  thumbnail_storage_path?: string | null;
 }
 
 function timeAgo(dateISO?: string | null) {
@@ -62,13 +67,60 @@ export function RecentCreations() {
       try {
         const { data, error } = await supabase
           .from("media_generations")
-          .select("id, type, output_url, thumbnail_url, created_at, prompt")
+          .select("id, type, output_url, thumbnail_url, created_at, prompt, storage_bucket, storage_path, thumbnail_storage_bucket, thumbnail_storage_path")
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
           .limit(6);
 
         if (error) throw error;
-        if (!cancelled && mountedRef.current) setCreations((data as Creation[]) || []);
+        if (!cancelled && mountedRef.current) {
+          const mapped = (data || []).map((row) => ({
+            ...row,
+            output_url: row.thumbnail_url || row.output_url || "",
+            thumbnail_url: row.thumbnail_url || null,
+          })) as Creation[];
+          setCreations(mapped);
+
+          mapped.forEach((creation) => {
+            if (creation.storage_bucket && creation.storage_path) {
+              getSignedUrlForStorageObject(creation.storage_bucket, creation.storage_path)
+                .then((url) => {
+                  if (!url) return;
+                  setCreations((prev) =>
+                    prev?.map((item) =>
+                      item.id === creation.id
+                        ? { ...item, output_url: url, storage_bucket: creation.storage_bucket, storage_path: creation.storage_path }
+                        : item,
+                    ) ?? [],
+                  );
+                })
+                .catch((error) => console.warn('[RecentCreations] Signed URL error', error));
+            }
+
+            if (creation.thumbnail_storage_bucket && creation.thumbnail_storage_path) {
+              getSignedUrlForStorageObject(
+                creation.thumbnail_storage_bucket,
+                creation.thumbnail_storage_path,
+              )
+                .then((url) => {
+                  if (!url) return;
+                  setCreations((prev) =>
+                    prev?.map((item) =>
+                      item.id === creation.id
+                        ? {
+                            ...item,
+                            thumbnail_url: url,
+                            thumbnail_storage_bucket: creation.thumbnail_storage_bucket,
+                            thumbnail_storage_path: creation.thumbnail_storage_path,
+                          }
+                        : item,
+                    ) ?? [],
+                  );
+                })
+                .catch((error) => console.warn('[RecentCreations] Thumbnail signed URL error', error));
+            }
+          });
+        }
       } catch (e: any) {
         if (!cancelled && mountedRef.current) {
           setErrorMsg("Impossible de charger les créations récentes.");
@@ -88,14 +140,56 @@ export function RecentCreations() {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "media_generations", filter: `user_id=eq.${user.id}` },
         (payload) => {
-          const row = payload.new as any as Creation;
+          const rawRow = payload.new as any as Creation;
+          const row: Creation = {
+            ...rawRow,
+            output_url: rawRow.thumbnail_url || rawRow.output_url || "",
+            thumbnail_url: rawRow.thumbnail_url || null,
+          };
           // injecte en tête et garde 6 éléments max
           setCreations((prev) => {
             const curr = prev ?? [];
-            // évite doublons
             if (curr.some((c) => c.id === row.id)) return curr;
             return [row, ...curr].slice(0, 6);
           });
+
+          if (row.storage_bucket && row.storage_path) {
+            getSignedUrlForStorageObject(row.storage_bucket, row.storage_path)
+              .then((url) => {
+                if (!url) return;
+                setCreations((prev) =>
+                  prev?.map((item) =>
+                    item.id === row.id
+                      ? { ...item, output_url: url, storage_bucket: row.storage_bucket, storage_path: row.storage_path }
+                      : item,
+                  ) ?? [],
+                );
+              })
+              .catch((error) => console.warn('[RecentCreations] Realtime signed URL error', error));
+          }
+
+          if (row.thumbnail_storage_bucket && row.thumbnail_storage_path) {
+            getSignedUrlForStorageObject(
+              row.thumbnail_storage_bucket,
+              row.thumbnail_storage_path,
+            )
+              .then((url) => {
+                if (!url) return;
+                setCreations((prev) =>
+                  prev?.map((item) =>
+                    item.id === row.id
+                      ? {
+                          ...item,
+                          thumbnail_url: url,
+                          thumbnail_storage_bucket: row.thumbnail_storage_bucket,
+                          thumbnail_storage_path: row.thumbnail_storage_path,
+                        }
+                      : item,
+                  ) ?? [],
+                );
+              })
+              .catch((error) => console.warn('[RecentCreations] Realtime thumbnail signed URL error', error));
+          }
         },
       )
       .subscribe();

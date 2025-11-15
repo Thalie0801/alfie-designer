@@ -1,5 +1,6 @@
 project_id = "itsjonazifiiikozengd"
 
+# Scheduled internal worker authenticated with INTERNAL_FN_SECRET
 [functions.alfie-job-worker]
 verify_jwt = false
 schedule = "*/10 * * * * *"
@@ -14,12 +15,14 @@ verify_jwt = true
 [functions.alfie-chat]
 verify_jwt = true
 
+# Internal image orchestrator (requires x-internal-fn-secret)
 [functions.alfie-generate-ai-image]
 verify_jwt = false
 
 [functions.alfie-plan-carousel]
 verify_jwt = true
 
+# Internal render helper (requires x-internal-fn-secret)
 [functions.alfie-render-carousel-slide]
 verify_jwt = false
 
@@ -41,27 +44,33 @@ verify_jwt = true
 [functions.create-checkout]
 verify_jwt = true
 
+# Public Stripe checkout callback (validated & rate limited)
 [functions.verify-payment]
 verify_jwt = false
 
+# Internal email dispatch (requires x-internal-fn-secret)
 [functions.send-confirmation-email]
 verify_jwt = false
 
 [functions.scrape-canva]
 verify_jwt = true
 
+# Scheduled Zapier-style scraper (INTERNAL_FN_SECRET required)
 [functions.auto-scrape-canva-templates]
 verify_jwt = false
 
 [functions.purchase-credit-pack]
 verify_jwt = true
 
+# Post-checkout credit verification (Stripe session gated)
 [functions.verify-credit-purchase]
 verify_jwt = false
 
+# Public affiliate pixel with enforceRateLimit()
 [functions.track-affiliate-click]
 verify_jwt = false
 
+# Public affiliate lookup with enforceRateLimit()
 [functions.get-affiliate-public]
 verify_jwt = false
 
@@ -86,9 +95,11 @@ verify_jwt = true
 [functions.generate-ai-image]
 verify_jwt = true
 
+# Scheduled cleanup job (called from Postgres cron)
 [functions.purge-expired-assets]
 verify_jwt = false
 
+# Monthly quota reset (triggered via cron/http_post)
 [functions.reset-monthly-quotas]
 verify_jwt = false
 
@@ -101,18 +112,22 @@ verify_jwt = true
 [functions.generate-sora-montage]
 verify_jwt = true
 
+# Background maintenance worker (INTERNAL_FN_SECRET enforced)
 [functions.cleanup-processing-videos]
 verify_jwt = false
 
+# Background maintenance worker (INTERNAL_FN_SECRET enforced)
 [functions.cleanup-inactive-users]
 verify_jwt = false
 
+# Stripe/Zapier style webhook (signature validation inside handler)
 [functions.video-webhook]
 verify_jwt = false
 
 [functions.create-studio-accounts]
 verify_jwt = true  # ✅ SECURITY FIX: Require authentication
 
+# Internal provisioning job (checked via INTERNAL_FN_SECRET)
 [functions.create-missing-studio-accounts]
 verify_jwt = false
 
@@ -134,15 +149,18 @@ verify_jwt = true
 [functions.alfie-refund-woofs]
 verify_jwt = true
 
+# Render pipeline callback (requires x-internal-fn-secret)
 [functions.alfie-render-image]
 verify_jwt = false
 
+# Render pipeline callback (requires x-internal-fn-secret)
 [functions.alfie-render-carousel-slide]
 verify_jwt = false
 
 [functions.alfie-score-coherence]
 verify_jwt = true
 
+# Render pipeline callback (requires x-internal-fn-secret)
 [functions.alfie-render-video]
 verify_jwt = false
 
@@ -152,6 +170,7 @@ verify_jwt = true
 [functions.alfie-video-extend]
 verify_jwt = true
 
+# Internal batch processor (requires INTERNAL_FN_SECRET header)
 [functions.process-batch-queue]
 verify_jwt = false
 
@@ -167,12 +186,14 @@ verify_jwt = true
 [functions.chat-create-carousel]
 verify_jwt = true
 
+# Internal job orchestrator (requires INTERNAL_FN_SECRET)
 [functions.process-job-worker]
 verify_jwt = false
 
 [functions.download-job-set-zip]
 verify_jwt = true
 
+# Scheduled maintenance worker (INTERNAL_FN_SECRET header)
 [functions.cleanup-stuck-jobs]
 verify_jwt = false
 schedule = "*/5 * * * *"

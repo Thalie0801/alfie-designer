@@ -18,7 +18,10 @@ export interface MediaGenerationRow {
   metadata: Record<string, any> | null;
   type: string | null;
   public_url?: string | null;
-  storage?: string | null;
+  storage_bucket?: string | null;
+  storage_path?: string | null;
+  thumbnail_storage_bucket?: string | null;
+  thumbnail_storage_path?: string | null;
 }
 
 export type MediaGenerationUpdateHandler = (row: MediaGenerationRow) => void;
@@ -35,8 +38,9 @@ export function useMediaGenerationsWatcher(
     const fetchInitial = async () => {
       const { data, error } = await supabase
         .from('media_generations')
-        .select('id, status, output_url, render_url, thumbnail_url, metadata, type')
-        .select('id, status, output_url, render_url, thumbnail_url, metadata, type, public_url, storage')
+        .select(
+          'id, status, output_url, render_url, thumbnail_url, metadata, type, public_url, storage_bucket, storage_path, thumbnail_storage_bucket, thumbnail_storage_path',
+        )
         .in('id', resourceIds);
 
       if (error) {
@@ -55,7 +59,10 @@ export function useMediaGenerationsWatcher(
           metadata: (row.metadata as Record<string, any> | null) ?? null,
           type: (row.type as string | null) ?? null,
           public_url: (row as MediaGenerationRow).public_url ?? null,
-          storage: (row as MediaGenerationRow).storage ?? null,
+          storage_bucket: (row as MediaGenerationRow).storage_bucket ?? null,
+          storage_path: (row as MediaGenerationRow).storage_path ?? null,
+          thumbnail_storage_bucket: (row as MediaGenerationRow).thumbnail_storage_bucket ?? null,
+          thumbnail_storage_path: (row as MediaGenerationRow).thumbnail_storage_path ?? null,
         });
       }
     };
@@ -82,12 +89,15 @@ export function useMediaGenerationsWatcher(
             status: (row.status as MediaGenerationStatus) ?? 'pending',
             output_url: row.output_url ?? null,
             render_url: row.render_url ?? null,
-            thumbnail_url: row.thumbnail_url ?? null,
-            metadata: (row.metadata as Record<string, any> | null) ?? null,
-            type: (row.type as string | null) ?? null,
-            public_url: (row as MediaGenerationRow).public_url ?? null,
-            storage: (row as MediaGenerationRow).storage ?? null,
-          });
+          thumbnail_url: row.thumbnail_url ?? null,
+          metadata: (row.metadata as Record<string, any> | null) ?? null,
+          type: (row.type as string | null) ?? null,
+          public_url: (row as MediaGenerationRow).public_url ?? null,
+          storage_bucket: (row as MediaGenerationRow).storage_bucket ?? null,
+          storage_path: (row as MediaGenerationRow).storage_path ?? null,
+          thumbnail_storage_bucket: (row as MediaGenerationRow).thumbnail_storage_bucket ?? null,
+          thumbnail_storage_path: (row as MediaGenerationRow).thumbnail_storage_path ?? null,
+        });
         },
       )
       .subscribe();

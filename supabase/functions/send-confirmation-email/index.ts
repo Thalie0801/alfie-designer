@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { INTERNAL_FN_SECRET } from "../_shared/env.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,6 +16,22 @@ const PLAN_NAMES = {
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  if (!INTERNAL_FN_SECRET) {
+    console.error("Missing INTERNAL_FN_SECRET for send-confirmation-email");
+    return new Response(JSON.stringify({ error: "Server misconfiguration" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const providedSecret = req.headers.get("x-internal-fn-secret");
+  if (providedSecret !== INTERNAL_FN_SECRET) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   try {

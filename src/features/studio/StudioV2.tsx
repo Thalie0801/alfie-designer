@@ -14,11 +14,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Badge } from '@/components/ui/badge';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { uploadToChatBucket } from '@/lib/chatUploads';
+import { getSignedUrlForStorageObject } from '@/lib/storageUrls';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -190,24 +190,67 @@ export function StudioV2({ activeBrandId }: StudioV2Props) {
         failed: 'failed',
       };
       const mappedStatus = statusMap[row.status] ?? 'processing';
-      const preview = row.thumbnail_url ?? row.render_url ?? row.output_url ?? undefined;
-      const download = row.output_url ?? row.render_url ?? undefined;
-      const preview =
+      const basePreview =
         row.public_url ?? row.thumbnail_url ?? row.render_url ?? row.output_url ?? undefined;
-      const download = row.public_url ?? row.output_url ?? row.render_url ?? undefined;
+      const baseDownload = row.public_url ?? row.output_url ?? row.render_url ?? undefined;
       const typeFromRow =
         row.type === 'image' || row.type === 'carousel' || row.type === 'video'
           ? row.type
           : undefined;
+
+      const storageBucket = row.storage_bucket ?? undefined;
+      const storagePath = row.storage_path ?? undefined;
+      const thumbnailStorageBucket =
+        row.thumbnail_storage_bucket ?? row.storage_bucket ?? undefined;
+      const thumbnailStoragePath = row.thumbnail_storage_path ?? undefined;
+
       updateAsset(row.id, {
         status: mappedStatus,
-        previewUrl: preview,
-        downloadUrl: download,
+        previewUrl: basePreview,
+        downloadUrl: baseDownload,
         meta: row.metadata ?? undefined,
         resourceId: row.id,
-        storage: row.storage ?? undefined,
+        storageBucket,
+        storagePath,
+        thumbnailStorageBucket,
+        thumbnailStoragePath,
         ...(typeFromRow ? { type: typeFromRow } : {}),
       });
+
+      const needsDownloadUrl = storageBucket && storagePath;
+      const needsPreviewUrl =
+        (!basePreview || basePreview.includes('/storage/v1/object/')) &&
+        thumbnailStorageBucket &&
+        (thumbnailStoragePath || (storageBucket && storagePath));
+
+      if (!needsDownloadUrl && !needsPreviewUrl) {
+        return;
+      }
+
+      void (async () => {
+        try {
+          const [signedDownload, signedPreview] = await Promise.all([
+            needsDownloadUrl
+              ? getSignedUrlForStorageObject(storageBucket!, storagePath!)
+              : Promise.resolve(null),
+            needsPreviewUrl
+              ? getSignedUrlForStorageObject(
+                  thumbnailStorageBucket!,
+                  thumbnailStoragePath ?? storagePath!,
+                )
+              : Promise.resolve(null),
+          ]);
+
+          if (signedDownload || signedPreview) {
+            updateAsset(row.id, {
+              ...(signedDownload ? { downloadUrl: signedDownload } : {}),
+              ...(signedPreview ? { previewUrl: signedPreview } : {}),
+            });
+          }
+        } catch (error) {
+          console.warn('[StudioV2] Failed to refresh signed URL', error);
+        }
+      })();
     },
     [updateAsset],
   );
@@ -215,13 +258,23 @@ export function StudioV2({ activeBrandId }: StudioV2Props) {
   useMediaGenerationsWatcher(resourceIds, handleGenerationUpdate);
 
   const handleDownload = useCallback((asset: GeneratedAsset) => {
-    if (!asset.downloadUrl) return;
-    const link = document.createElement('a');
-    link.href = asset.downloadUrl;
-    link.download = '';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    void (async () => {
+      let downloadUrl = asset.downloadUrl;
+      if (asset.storageBucket && asset.storagePath) {
+        downloadUrl =
+          (await getSignedUrlForStorageObject(asset.storageBucket, asset.storagePath)) ||
+          downloadUrl;
+      }
+
+      if (!downloadUrl) return;
+
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = '';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    })();
   }, []);
 
   const handleDownloadSelected = useCallback(() => {
@@ -232,7 +285,7 @@ export function StudioV2({ activeBrandId }: StudioV2Props) {
     }
 
     for (const asset of selected) {
-      if (asset.downloadUrl) {
+      if (asset.downloadUrl || (asset.storageBucket && asset.storagePath)) {
         handleDownload(asset);
       }
     }
@@ -265,7 +318,14 @@ export function StudioV2({ activeBrandId }: StudioV2Props) {
     async (assetId: string) => {
       const asset = assets.find((item) => item.id === assetId);
       if (!asset) return;
-      if (!asset.downloadUrl) {
+      let latestDownload = asset.downloadUrl;
+      if (asset.storageBucket && asset.storagePath) {
+        latestDownload =
+          (await getSignedUrlForStorageObject(asset.storageBucket, asset.storagePath)) ||
+          latestDownload;
+      }
+
+      if (!latestDownload) {
         toast({
           title: "Téléchargement indisponible",
           description: "L'asset doit être terminé avant de rejoindre la bibliothèque.",
@@ -284,7 +344,7 @@ export function StudioV2({ activeBrandId }: StudioV2Props) {
 
       try {
         const payload: Record<string, any> = {
-          cloudinary_url: asset.downloadUrl,
+          cloudinary_url: latestDownload,
           type: asset.type,
           user_id: user.id,
           brand_id: activeBrandId ?? undefined,

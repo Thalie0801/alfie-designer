@@ -233,6 +233,8 @@ serve(async (req) => {
     }
 
     let finalUrl = generatedImageUrl;
+    let storedStorageBucket: string | null = null;
+    let storedStoragePath: string | null = null;
     try {
       if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
         const assetClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -278,11 +280,13 @@ serve(async (req) => {
             });
 
           if (!uploadError) {
-            const { data: publicUrl } = assetClient.storage
+            storedStorageBucket = 'media-generations';
+            storedStoragePath = filePath;
+            const { data: signed } = await assetClient.storage
               .from('media-generations')
-              .getPublicUrl(filePath);
-            if (publicUrl?.publicUrl) {
-              finalUrl = publicUrl.publicUrl;
+              .createSignedUrl(filePath, 60 * 60);
+            if (signed?.signedUrl) {
+              finalUrl = signed.signedUrl;
             }
           } else {
             console.warn('Upload to media-generations failed', uploadError);
@@ -307,6 +311,10 @@ serve(async (req) => {
           prompt: prompt.substring(0, 500),
           output_url: finalUrl,
           thumbnail_url: finalUrl,
+          storage_bucket: storedStorageBucket,
+          storage_path: storedStoragePath,
+          thumbnail_storage_bucket: storedStorageBucket,
+          thumbnail_storage_path: storedStoragePath,
           metadata: {
             aspectRatio,
             generatedAt: new Date().toISOString(),

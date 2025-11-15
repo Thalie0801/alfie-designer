@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { enforceRateLimit, extractClientIp } from "../_shared/rateLimit.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,7 +16,7 @@ const parseBody = async (req: Request): Promise<Record<string, string>> => {
     const out: Record<string, string> = {};
     params.forEach((v, k) => (out[k] = v));
     return out;
-  } catch (_) {
+  } catch {
     // Support GET with query params as fallback
     const url = new URL(req.url);
     const out: Record<string, string> = {};
@@ -30,6 +31,25 @@ serve(async (req) => {
   }
 
   try {
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
+
+    const clientIp = extractClientIp(req);
+    try {
+      await enforceRateLimit(supabaseAdmin, clientIp, 'get-affiliate-public');
+    } catch (rateLimitError) {
+      if (rateLimitError instanceof Error && rateLimitError.message === 'RATE_LIMIT_EXCEEDED') {
+        return new Response(
+          JSON.stringify({ ok: false, error: 'Rate limit exceeded' }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+      throw rateLimitError;
+    }
+
     const payload = await parseBody(req);
     const ref = payload.ref || payload.affiliate_id;
 
@@ -39,11 +59,6 @@ serve(async (req) => {
         status: 400,
       });
     }
-
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
 
     const { data, error } = await supabaseAdmin
       .from('affiliates')
