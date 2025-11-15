@@ -358,12 +358,6 @@ serve(async (req) => {
 
       resourceId = orderId;
       resourceType = "order";
-    } else {
-      throw new Error(`Unsupported type: ${body.type}`);
-    }
-
-    if (!resourceId) {
-      throw new Error("Missing resourceId from generation response");
     }
 
     if (!resourceId) {
@@ -385,8 +379,6 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         ok: false,
-        code: "GENERATION_FAILED",
-        message: error instanceof Error ? error.message : "Unknown error",
         error: "GENERATION_FAILED",
         details: error instanceof Error ? error.message : String(error),
       }),
