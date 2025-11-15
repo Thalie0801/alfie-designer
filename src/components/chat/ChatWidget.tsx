@@ -18,6 +18,7 @@ export default function ChatWidget() {
   const [msgs, setMsgs] = useState<ChatMessage[]>([]);
   const [modeCoach, setModeCoach] = useState<CoachMode>("strategy");
   const [seed, setSeed] = useState(0);
+  const [previousIdeas, setPreviousIdeas] = useState<string[]>([]);
 
   const brief = useBrief();
   const { brandKit } = useBrandKit();
@@ -77,6 +78,223 @@ export default function ChatWidget() {
     </button>
   );
 
+  const assistantCard = (content: ReactNode) => (
+    <div className="space-y-2">
+      <div className="space-y-2 bg-white rounded-lg p-3 border" style={{ borderColor: BRAND.grayBorder }}>
+        {content}
+      </div>
+      <div className="pt-1">{primaryBtn("Pré-remplir Studio", prefillStudio)}</div>
+    </div>
+  );
+
+  const sanitizeBriefPatch = (patch: Partial<Brief>) => {
+    const next: Partial<Brief> = { ...patch };
+
+    if (typeof next.slides === "number") {
+      const clamped = Math.max(1, Math.min(10, Math.trunc(next.slides)));
+      next.slides = Number.isNaN(clamped) ? undefined : clamped;
+    }
+
+    for (const key of Object.keys(next) as (keyof Brief)[]) {
+      if (next[key] === undefined) {
+        delete next[key];
+      }
+    }
+
+    return next;
+  };
+
+  type ContentIntent = ReturnType<typeof detectContentIntent>;
+
+  const applyIntent = (raw: string) => {
+    const intent = detectContentIntent(raw);
+    const desiredFormat = (intent.explicitMode ? intent.mode : brief.state.format ?? intent.mode) as Brief["format"];
+    const patch: Partial<Brief> = {
+      platform: (intent.platform || brief.state.platform) as Brief["platform"],
+      format: desiredFormat,
+      ratio: intent.ratio ?? brief.state.ratio,
+      tone: intent.tone || brief.state.tone,
+      slides: intent.slides ?? brief.state.slides,
+      topic: intent.topic ?? brief.state.topic,
+      cta: intent.cta ?? brief.state.cta,
+      niche: intent.niche ?? brief.state.niche,
+    };
+
+    const sanitised = sanitizeBriefPatch(patch);
+    const mergedBrief = { ...brief.state, ...sanitised } as Brief;
+
+    brief.merge(sanitised);
+
+    return { intent, mergedBrief };
+  };
+
+  const registerIdeas = (ideas: string[]) => {
+    setPreviousIdeas((prev) => {
+      const next = [...prev];
+      const seen = new Set(prev);
+      for (const idea of ideas) {
+        const normalised = idea.trim().replace(/\s+/g, " ");
+        if (!normalised || seen.has(normalised)) continue;
+        seen.add(normalised);
+        next.push(normalised);
+      }
+      return next;
+    });
+  };
+
+  const extractIdeaLabels = (message: string): string[] => {
+    const lines = message
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    const matches: string[] = [];
+    const allowLine = (line: string) => {
+      const withoutBullet = line.replace(/^[-•*+]\s*/, "");
+      const lower = withoutBullet.toLowerCase();
+      if (/^type\s*:/i.test(withoutBullet)) return false;
+      if (/^plateforme\s*:/i.test(withoutBullet)) return false;
+      if (/^ratio\s*:/i.test(withoutBullet)) return false;
+      if (/^nombre d['’]éléments/i.test(lower)) return false;
+      if (/^cta\s*:/i.test(withoutBullet)) return false;
+      if (/^ton\s*:/i.test(withoutBullet)) return false;
+      if (/^slides?/i.test(lower)) return false;
+      return true;
+    };
+
+    for (const line of lines) {
+      if (!allowLine(line)) continue;
+      const cleaned = line.replace(/^[-•*+]\s*/, "");
+      if (/^(carrousel|carousel|vid[ée]o|image|visuel)/i.test(cleaned)) {
+        matches.push(cleaned);
+      } else if (/^th[eè]me\s*[:–-]/i.test(cleaned)) {
+        matches.push(cleaned);
+      } else if (/^hook\s*[:–-]/i.test(cleaned)) {
+        matches.push(cleaned);
+      } else if (/^id[ée]e?\s*\d*\s*[:–-]/i.test(cleaned)) {
+        matches.push(cleaned);
+      }
+      if (matches.length >= 3) break;
+    }
+
+    if (matches.length === 0) {
+      const fallback = lines.find(
+        (line) => allowLine(line) && !/^ok,? on change d['’]angle/i.test(line),
+      );
+      if (fallback) {
+        matches.push(fallback.replace(/^[-•*+]\s*/, ""));
+      }
+    }
+
+    return matches;
+  };
+
+  const buildNeedTopicReply = (): AssistantReply => {
+    const suggestions = [
+      "Carrousel 5 slides 4:5 Instagram : 3 erreurs en pub Meta pour PME",
+      "Visuel 1:1 LinkedIn : annonce webinar IA marketing",
+      "Vidéo 9:16 TikTok : astuces Canva pour solopreneurs",
+    ];
+
+    return {
+      role: "assistant" as const,
+      node: (
+        <div className="space-y-3">
+          <p className="text-sm">
+            Donne-moi un <strong>sujet précis</strong>. Exemples :
+          </p>
+          <div className="flex flex-wrap gap-2">{suggestions.map((s) => chip(s, () => setInput(s)))}</div>
+        </div>
+      ),
+    };
+  };
+
+  const buildLocalReply = (intent: ContentIntent, mergedBrief: Brief): AssistantReply => {
+    const format = mergedBrief.format ?? (intent.explicitMode ? intent.mode : "image");
+    const ratio = mergedBrief.ratio ?? intent.ratio;
+    const platform = mergedBrief.platform ?? intent.platform ?? undefined;
+    const tone = mergedBrief.tone ?? intent.tone ?? undefined;
+    const topic = mergedBrief.topic ?? intent.topic ?? "";
+    const cta = mergedBrief.cta ?? intent.cta ?? undefined;
+    const slides = mergedBrief.slides ?? intent.slides ?? 5;
+
+    const next = () => setSeed((v) => v + 1);
+
+    const formatLabel = format === "carousel" ? "Carrousel" : format === "video" ? "Vidéo" : "Visuel";
+
+    const header =
+      modeCoach === "strategy" ? (
+        <p>
+          <strong>{formatLabel}</strong> — ratio <strong>{ratio}</strong>
+          {platform ? (
+            <>
+              {" "}— <strong>{platform}</strong>
+            </>
+          ) : null}
+          {tone ? (
+            <>
+              {" "}— ton <strong>{tone}</strong>
+            </>
+          ) : null}
+          .
+        </p>
+      ) : modeCoach === "da" ? (
+        <p>
+          <strong>Direction créative</strong> pour &quot;{topic || "ton sujet"}&quot;
+        </p>
+      ) : (
+        <p>
+          <strong>Prêt à produire</strong> — je te pré-remplis Studio.
+        </p>
+      );
+
+    let body: ReactNode;
+    const collectedIdeas: string[] = [];
+
+    if (format === "carousel") {
+      const count = typeof slides === "number" ? slides : 5;
+      const plan = chooseCarouselOutline(count, seed);
+      next();
+      const title = topic ? `Carrousel — ${topic}` : `Carrousel — ${plan.title}`;
+      collectedIdeas.push(title);
+      body = (
+        <div className="space-y-2 text-sm">
+          <p>
+            Thème : <em>{topic || "Ton sujet"}</em>
+          </p>
+          <div>
+            <p className="font-medium">Structure suggérée : {plan.title}</p>
+            <ul className="list-disc ml-5">
+              {plan.slides.map((s, i) => (
+                <li key={i}>{s}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      );
+    } else {
+      const variant =
+        format === "video"
+          ? chooseVideoVariant({ topic: topic || undefined, cta }, seed)
+          : chooseImageVariant({ topic: topic || undefined, cta }, seed);
+      next();
+      const ideaLabel = format === "video" ? "Vidéo" : "Visuel";
+      if (topic) {
+        collectedIdeas.push(`${ideaLabel} — ${topic}`);
+      }
+      body = variant;
+    }
+
+    if (collectedIdeas.length > 0) {
+      registerIdeas(collectedIdeas);
+    }
+
+    return {
+      role: "assistant" as const,
+      node: assistantCard(<div className="space-y-2">{header}{body}</div>),
+    };
+  };
+
   function prefillStudio() {
     const data = JSON.stringify(brief.state);
     try {
@@ -114,128 +332,71 @@ export default function ChatWidget() {
     return null;
   }
 
-  const pushAssistant = (node: ReactNode) => {
-    setMsgs((m) => [...m, { role: "assistant", node }]);
-  };
+  async function replyContentWithAI(raw: string): Promise<AssistantReply> {
+    const { intent, mergedBrief } = applyIntent(raw);
 
-  const buildErrorReply = (message?: string): AssistantReply => ({
-    role: "assistant" as const,
-    node: (
-      <div className="space-y-2 bg-white rounded-lg p-3 border" style={{ borderColor: BRAND.grayBorder }}>
-        <p className="text-sm">{message ?? "Oups, je n'ai pas réussi à traiter ta demande. Réessaie plus tard."}</p>
-      </div>
-    ),
-  });
+    if (intent.needTopic && !mergedBrief.topic) {
+      return buildNeedTopicReply();
+    }
 
-  function replyContent(raw: string): AssistantReply {
-    const it = detectContentIntent(raw);
+    const contextPayload: Record<string, unknown> = {
+      mode: modeCoach,
+      brief: mergedBrief,
+    };
 
-    brief.merge({
-      platform: (it.platform || brief.state.platform) as Brief["platform"],
-      format: it.mode,
-      ratio: it.ratio,
-      tone: it.tone || brief.state.tone,
-      slides: it.slides ?? brief.state.slides,
-      topic: it.topic || brief.state.topic,
-      cta: it.cta || brief.state.cta,
-    });
+    if (mergedBrief.format) contextPayload.contentType = mergedBrief.format;
+    if (mergedBrief.platform) contextPayload.platform = mergedBrief.platform;
+    if (brandKit) contextPayload.brandKit = brandKit;
+    if (mergedBrief.niche || brandKit?.niche) {
+      contextPayload.niche = mergedBrief.niche || brandKit?.niche;
+    }
 
-    if (!it.topic) {
-      const suggestions = [
-        "Carrousel 5 slides 4:5 Instagram : 3 erreurs en pub Meta pour PME",
-        "Visuel 1:1 LinkedIn : annonce webinar IA marketing",
-        "Vidéo 9:16 TikTok : astuces Canva pour solopreneurs",
-      ];
+    try {
+      const res = await fetch("/functions/v1/chat-ai-assistant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: raw,
+          context: contextPayload,
+          previousIdeas,
+        }),
+      });
+
+      if (!res.ok) {
+        console.error("chat-ai-assistant: provider error", res.status, await res.text().catch(() => ""));
+        return buildLocalReply(intent, mergedBrief);
+      }
+
+      const payload = (await res.json().catch(() => null)) as {
+        data?: { message?: string };
+      } | null;
+      const aiMessage = typeof payload?.data?.message === "string" ? payload.data.message.trim() : "";
+
+      if (!aiMessage) {
+        return buildLocalReply(intent, mergedBrief);
+      }
+
+      registerIdeas(extractIdeaLabels(aiMessage));
+
+      const blocks = aiMessage
+        .split(/\n{2,}/)
+        .map((block) => block.trim())
+        .filter((block) => block.length > 0);
+
+      const paragraphs = blocks.map((block, index) => (
+        <p key={index} className="text-sm whitespace-pre-line">
+          {block}
+        </p>
+      ));
+
       return {
         role: "assistant" as const,
-        node: (
-          <div className="space-y-3">
-            <p className="text-sm">
-              Donne-moi un <strong>sujet précis</strong>. Exemples :
-            </p>
-            <div className="flex flex-wrap gap-2">{suggestions.map((s) => chip(s, () => setInput(s)))}</div>
-          </div>
-        ),
+        node: assistantCard(<div className="space-y-2">{paragraphs}</div>),
       };
+    } catch (error) {
+      console.error("chat-ai-assistant: unexpected error", error);
+      return buildLocalReply(intent, mergedBrief);
     }
-
-    const next = () => setSeed((v) => v + 1);
-    const header =
-      modeCoach === "strategy" ? (
-        <p>
-          <strong>{it.mode === "carousel" ? "Carrousel" : it.mode === "video" ? "Vidéo" : "Visuel"}</strong> — ratio{" "}
-          <strong>{it.ratio}</strong>
-          {it.platform ? (
-            <>
-              {" "}
-              — <strong>{it.platform}</strong>
-            </>
-          ) : null}
-          {it.tone ? (
-            <>
-              {" "}
-              — ton <strong>{it.tone}</strong>
-            </>
-          ) : null}
-          .
-        </p>
-      ) : modeCoach === "da" ? (
-        <p>
-          <strong>Direction créative</strong> pour &quot;{it.topic}&quot;
-        </p>
-      ) : (
-        <p>
-          <strong>Prêt à produire</strong> — je te pré-remplis Studio.
-        </p>
-      );
-
-    let body: ReactNode = null;
-
-    if (it.mode === "carousel") {
-      const slides = it.slides ?? 5;
-      const plan = chooseCarouselOutline(slides, seed);
-      next();
-      body = (
-        <>
-          <p className="text-sm">
-            Thème : <em>{it.topic}</em>
-          </p>
-          <div className="text-sm">
-            <p className="font-medium">Structure suggérée : {plan.title}</p>
-            <ul className="list-disc ml-5">
-              {plan.slides.map((s, i) => (
-                <li key={i}>{s}</li>
-              ))}
-            </ul>
-          </div>
-        </>
-      );
-    } else {
-      const v =
-        it.mode === "video"
-          ? chooseVideoVariant({ topic: it.topic ?? undefined, cta: it.cta ?? undefined }, seed)
-          : chooseImageVariant({ topic: it.topic ?? undefined, cta: it.cta ?? undefined }, seed);
-      next();
-      body = v;
-    }
-
-    return {
-      role: "assistant" as const,
-      node: (
-        <div className="space-y-2">
-          {header}
-          {body}
-          <div className="pt-1">{primaryBtn("Pré-remplir Studio", prefillStudio)}</div>
-        </div>
-      ),
-    };
-  }
-
-  async function replyContentWithAI(raw: string): Promise<AssistantReply> {
-    // Version sans appel externe à Supabase / OpenAI.
-    // On se contente de parser l'intention (images / carrousels / vidéos)
-    // puis de répondre avec la logique locale existante.
-    return replyContent(raw);
   }
 
   async function makeReply(raw: string): Promise<AssistantReply | null> {
