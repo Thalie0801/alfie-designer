@@ -9,11 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, Activity, ArrowLeft, Sparkles, Plus, ExternalLink, Trash2, Edit2, Search, RefreshCw, TrendingUp } from 'lucide-react';
+import { Users, Activity, ArrowLeft, Sparkles, Plus, ExternalLink, Trash2, Edit2, Search, RefreshCw, TrendingUp, UserCheck, UserX, Award, Unlock } from 'lucide-react';
 import { toast } from 'sonner';
 import { NewsManager } from '@/components/NewsManager';
 import { VideoDiagnostic } from '@/components/VideoDiagnostic';
-import { getAuthHeader } from '@/lib/auth';
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -22,16 +21,14 @@ export default function Admin() {
   const [conversions, setConversions] = useState<any[]>([]);
   const [payouts, setPayouts] = useState<any[]>([]);
   const [designs, setDesigns] = useState<any[]>([]);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [scraping, setScraping] = useState(false);
-  const [autoScraping, setAutoScraping] = useState(false);
-  const [newUrl, setNewUrl] = useState('');
-  const [category, setCategory] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [editingUser, setEditingUser] = useState<any>(null);
   const [editingDesign, setEditingDesign] = useState<any>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [designDialogOpen, setDesignDialogOpen] = useState(false);
+  const [resettingJobs, setResettingJobs] = useState(false);
 
   useEffect(() => {
     loadAdminData();
@@ -39,7 +36,7 @@ export default function Admin() {
 
   const loadAdminData = async () => {
     try {
-      const [usersRes, affiliatesRes, conversionsRes, payoutsRes, designsRes] = await Promise.all([
+      const [usersRes, affiliatesRes, conversionsRes, payoutsRes, designsRes, suggestionsRes] = await Promise.all([
         supabase.from('profiles').select('*').order('created_at', { ascending: false }),
         supabase.from('affiliates').select('*').order('created_at', { ascending: false }),
         supabase
@@ -52,7 +49,12 @@ export default function Admin() {
           .select('*')
           .order('created_at', { ascending: false })
           .limit(50),
-        supabase.from('canva_designs').select('*').order('created_at', { ascending: false })
+        supabase.from('canva_designs').select('*').order('created_at', { ascending: false }),
+        supabase
+          .from('contact_requests')
+          .select('*')
+          .ilike('message', '[SUGGESTION DE FONCTIONNALITÉ]%')
+          .order('created_at', { ascending: false })
       ]);
 
       setUsers(usersRes.data || []);
@@ -60,6 +62,7 @@ export default function Admin() {
       setConversions(conversionsRes.data || []);
       setPayouts(payoutsRes.data || []);
       setDesigns(designsRes.data || []);
+      setSuggestions(suggestionsRes.data || []);
     } catch (error) {
       console.error('Error loading admin data:', error);
       toast.error('Erreur lors du chargement des données');
@@ -68,46 +71,6 @@ export default function Admin() {
     }
   };
 
-  const handleScrape = async () => {
-    const raw = newUrl.trim();
-    if (!raw) {
-      toast.error('URL requise', { description: 'Veuillez entrer une URL Canva' });
-      return;
-    }
-
-    // Normaliser et valider l'URL
-    let normalized = raw;
-    if (normalized.startsWith('www.')) {
-      normalized = 'https://' + normalized;
-    }
-    if (!normalized.includes('canva.com')) {
-      toast.error('URL invalide', { description: 'Veuillez coller une URL Canva valide (canva.com)' });
-      return;
-    }
-
-    setScraping(true);
-    try {
-      const { error } = await supabase.functions.invoke('scrape-canva', {
-        body: { url: normalized, category },
-        headers: await getAuthHeader(),
-      });
-
-      if (error) throw error;
-
-      toast.success('Design ajouté', { description: 'Le design a été ajouté au catalogue' });
-      setNewUrl('');
-      setCategory('');
-      loadAdminData();
-    } catch (error: any) {
-      console.error('Scraping error:', error);
-      const description = (error?.message || '').includes('Valid Canva URL required')
-        ? 'URL Canva invalide. Merci de coller une URL complète canva.com.'
-        : 'Impossible de scraper ce design';
-      toast.error('Erreur', { description });
-    } finally {
-      setScraping(false);
-    }
-  };
 
   const handleDeleteDesign = async (id: string) => {
     try {
@@ -132,6 +95,7 @@ export default function Admin() {
           plan: editingUser.plan,
           quota_brands: editingUser.quota_brands,
           quota_visuals_per_month: editingUser.quota_visuals_per_month,
+          granted_by_admin: editingUser.granted_by_admin,
         })
         .eq('id', editingUser.id);
 
@@ -172,29 +136,108 @@ export default function Admin() {
     }
   };
 
-  const handleAutoScrape = async () => {
-    setAutoScraping(true);
+  const handleToggleAffiliateStatus = async (affiliateId: string, nextStatus: 'active' | 'inactive') => {
     try {
-      toast.info('Scraping automatique lancé...', { 
-        description: 'Cela peut prendre quelques minutes' 
-      });
+      const { error } = await supabase
+        .from('affiliates')
+        .update({ status: nextStatus })
+        .eq('id', affiliateId);
 
-      const { data, error } = await supabase.functions.invoke('auto-scrape-canva-templates', {
-        headers: await getAuthHeader(),
+      if (error) throw error;
+
+      toast.success(
+        nextStatus === 'active' ? 'Affilié réactivé' : 'Affilié désactivé'
+      );
+      loadAdminData();
+    } catch (error) {
+      console.error('Affiliate status update error:', error);
+      toast.error('Impossible de mettre à jour le statut de l\'affilié');
+    }
+  };
+
+  const handleRemoveAffiliate = async (affiliateId: string) => {
+    if (!confirm('⚠️ Confirmer la suppression complète de cet utilisateur ? (profil, affilié, compte) Cette action est irréversible.')) {
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-delete-user', {
+        body: { targetUserId: affiliateId }
       });
 
       if (error) throw error;
 
-      toast.success('Scraping terminé !', {
-        description: `${data.added} designs ajoutés, ${data.skipped} déjà existants`
-      });
+      toast.success(data.message || 'Utilisateur supprimé complètement');
+      loadAdminData();
+    } catch (error: any) {
+      console.error('User deletion error:', error);
+      toast.error(error.message || 'Erreur lors de la suppression de l\'utilisateur');
+    }
+  };
 
+  const parseSuggestion = (message: string) => {
+    const titleMatch = message.match(/Titre:\s*(.+?)(?:\n|$)/);
+    const descMatch = message.match(/Description:\s*\n(.+)/s);
+    return {
+      title: titleMatch?.[1]?.trim() || 'Sans titre',
+      description: descMatch?.[1]?.trim() || message
+    };
+  };
+
+  const handleUpdateSuggestionStatus = async (id: string, newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from('contact_requests')
+        .update({ status: newStatus })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast.success('Statut mis à jour');
       loadAdminData();
     } catch (error) {
-      console.error('Auto-scraping error:', error);
-      toast.error('Erreur lors du scraping automatique');
+      console.error('Update suggestion status error:', error);
+      toast.error('Erreur lors de la mise à jour');
+    }
+  };
+
+  const handleDeleteSuggestion = async (id: string) => {
+    if (!confirm('Supprimer cette suggestion ?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('contact_requests')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast.success('Suggestion supprimée');
+      loadAdminData();
+    } catch (error) {
+      console.error('Delete suggestion error:', error);
+      toast.error('Erreur lors de la suppression');
+    }
+  };
+
+  const handleResetStuckJobs = async () => {
+    if (!confirm('Débloquer tous les jobs bloqués depuis plus de 5 minutes ?')) return;
+    
+    setResettingJobs(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-reset-stuck-jobs', {
+        body: {}
+      });
+
+      if (error) throw error;
+
+      toast.success(data.message || 'Jobs débloqués avec succès');
+      console.log('[ADMIN] Reset result:', data);
+    } catch (error: any) {
+      console.error('Reset stuck jobs error:', error);
+      toast.error(error.message || 'Erreur lors du déblocage des jobs');
     } finally {
-      setAutoScraping(false);
+      setResettingJobs(false);
     }
   };
 
@@ -237,10 +280,33 @@ export default function Admin() {
             Gérez les utilisateurs, affiliés et paiements
           </p>
         </div>
-        <Button variant="outline" onClick={() => navigate('/app')} className="gap-2">
-          <ArrowLeft className="h-4 w-4" />
-          Retour Client
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button 
+            onClick={handleResetStuckJobs} 
+            variant="outline" 
+            className="gap-2 border-orange-500 text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950"
+            disabled={resettingJobs}
+          >
+            <Unlock className="h-4 w-4" />
+            {resettingJobs ? 'Déblocage...' : 'Débloquer jobs'}
+          </Button>
+          <Button onClick={() => navigate('/admin/reset-password')} variant="outline" className="gap-2">
+            <UserCheck className="h-4 w-4" />
+            Reset mot de passe
+          </Button>
+          <Button onClick={() => navigate('/admin/ambassadors')} variant="outline" className="gap-2">
+            <Award className="h-4 w-4" />
+            Gérer Ambassadeurs
+          </Button>
+          <Button onClick={() => navigate('/admin/create-customer')} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Créer un client
+          </Button>
+          <Button variant="outline" onClick={() => navigate('/app')} className="gap-2">
+            <ArrowLeft className="h-4 w-4" />
+            Retour Client
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -308,6 +374,14 @@ export default function Admin() {
           <TabsTrigger value="conversions">Conversions</TabsTrigger>
           <TabsTrigger value="payouts">Payouts</TabsTrigger>
           <TabsTrigger value="catalog">Catalogue Canva</TabsTrigger>
+          <TabsTrigger value="suggestions">
+            Suggestions
+            {suggestions.filter(s => s.status === 'pending').length > 0 && (
+              <Badge className="ml-2" variant="destructive">
+                {suggestions.filter(s => s.status === 'pending').length}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="news">Actualités</TabsTrigger>
           <TabsTrigger value="diagnostic">Diagnostic</TabsTrigger>
         </TabsList>
@@ -359,6 +433,16 @@ export default function Admin() {
                           <Badge className={getPlanBadgeColor(user.plan)} variant="secondary">
                             {user.plan || 'none'}
                           </Badge>
+                          {user.granted_by_admin && (
+                            <Badge variant="outline" className="border-green-500 text-green-700 dark:text-green-300">
+                              ✓ Accès manuel
+                            </Badge>
+                          )}
+                          {user.stripe_subscription_id && (
+                            <Badge variant="outline" className="border-blue-500 text-blue-700 dark:text-blue-300">
+                              Stripe
+                            </Badge>
+                          )}
                         </div>
                         <p className="text-sm text-muted-foreground">{user.email}</p>
                         <div className="flex gap-4 mt-1 text-xs text-muted-foreground">
@@ -410,15 +494,44 @@ export default function Admin() {
                         <p className="font-medium">{affiliate.name}</p>
                         <p className="text-sm text-muted-foreground">{affiliate.email}</p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={affiliate.status === 'active' ? 'default' : 'secondary'}>
-                          {affiliate.status}
-                        </Badge>
-                        {affiliate.payout_method && (
-                          <span className="text-sm text-muted-foreground">
-                            {affiliate.payout_method}
-                          </span>
-                        )}
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          <Badge variant={affiliate.status === 'active' ? 'default' : 'secondary'}>
+                            {affiliate.status}
+                          </Badge>
+                          {affiliate.payout_method && (
+                            <span className="text-sm text-muted-foreground">
+                              {affiliate.payout_method}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              handleToggleAffiliateStatus(
+                                affiliate.id,
+                                affiliate.status === 'active' ? 'inactive' : 'active'
+                              )
+                            }
+                          >
+                            {affiliate.status === 'active' ? (
+                              <UserX className="h-4 w-4 mr-2" />
+                            ) : (
+                              <UserCheck className="h-4 w-4 mr-2" />
+                            )}
+                            {affiliate.status === 'active' ? 'Désactiver' : 'Activer'}
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleRemoveAffiliate(affiliate.id)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Purger
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -513,89 +626,6 @@ export default function Admin() {
 
         {/* Catalog Tab */}
         <TabsContent value="catalog" className="space-y-4">
-          {/* Auto-scraping Card */}
-          <Card className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950 dark:to-pink-950 border-2 border-purple-200 dark:border-purple-800">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-purple-600" />
-                Scraping Automatique
-              </CardTitle>
-              <CardDescription>
-                Le système scrape automatiquement des templates Canva toutes les 6 heures.
-                Vous pouvez aussi lancer un scraping manuel immédiatement.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-3">
-                <Button 
-                  onClick={handleAutoScrape} 
-                  disabled={autoScraping}
-                  className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
-                >
-                  {autoScraping ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      Scraping en cours...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-4 w-4 mr-2" />
-                      Lancer le scraping maintenant
-                    </>
-                  )}
-                </Button>
-                <div className="text-sm text-muted-foreground">
-                  Prochain scraping automatique dans ~{Math.floor(Math.random() * 6) + 1}h
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-strong border-2 border-primary/20">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Plus className="h-5 w-5" />
-                Ajouter un design manuellement
-              </CardTitle>
-              <CardDescription>
-                Ou ajoutez un design Canva spécifique via son URL
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col gap-4">
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="URL Canva (https://www.canva.com/design/...)"
-                    value={newUrl}
-                    onChange={(e) => setNewUrl(e.target.value)}
-                    className="flex-1"
-                  />
-                  <Select value={category} onValueChange={setCategory}>
-                    <SelectTrigger className="w-[200px]">
-                      <SelectValue placeholder="Niche / Catégorie" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="e-commerce">E-commerce</SelectItem>
-                      <SelectItem value="coaching">Coaching</SelectItem>
-                      <SelectItem value="immobilier">Immobilier</SelectItem>
-                      <SelectItem value="restauration">Restauration</SelectItem>
-                      <SelectItem value="mode">Mode & Beauté</SelectItem>
-                      <SelectItem value="tech">Tech & SaaS</SelectItem>
-                      <SelectItem value="sport">Sport & Fitness</SelectItem>
-                      <SelectItem value="sante">Santé & Bien-être</SelectItem>
-                      <SelectItem value="education">Éducation</SelectItem>
-                      <SelectItem value="general">Général</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button onClick={handleScrape} disabled={scraping}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    {scraping ? 'Ajout...' : 'Ajouter'}
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
           <Card>
             <CardHeader>
               <CardTitle>Designs du catalogue ({designs.length})</CardTitle>
@@ -677,6 +707,107 @@ export default function Admin() {
           </Card>
         </TabsContent>
 
+        {/* Suggestions Tab */}
+        <TabsContent value="suggestions" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Suggestions de fonctionnalités</CardTitle>
+                  <CardDescription>Idées et demandes des utilisateurs</CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={loadAdminData}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <p className="text-center text-muted-foreground py-4">Chargement...</p>
+              ) : suggestions.length === 0 ? (
+                <div className="text-center py-12">
+                  <Sparkles className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Aucune suggestion</h3>
+                  <p className="text-muted-foreground">
+                    Les suggestions apparaîtront ici
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {suggestions.map((suggestion) => {
+                    const parsed = parseSuggestion(suggestion.message);
+                    return (
+                      <Card key={suggestion.id} className="p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-semibold text-lg">{parsed.title}</h4>
+                              <Badge variant={
+                                suggestion.status === 'pending' ? 'default' :
+                                suggestion.status === 'reviewed' ? 'secondary' :
+                                'outline'
+                              }>
+                                {suggestion.status === 'pending' ? '⏳ En attente' :
+                                 suggestion.status === 'reviewed' ? '✓ Vu' :
+                                 suggestion.status === 'implemented' ? '✅ Implémenté' :
+                                 suggestion.status}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                              {parsed.description}
+                            </p>
+                            <div className="flex items-center gap-4 text-xs text-muted-foreground pt-2">
+                              <span>📧 {suggestion.email || 'Email non fourni'}</span>
+                              <span>📅 {new Date(suggestion.created_at).toLocaleDateString('fr-FR', {
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}</span>
+                            </div>
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            {suggestion.status === 'pending' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleUpdateSuggestionStatus(suggestion.id, 'reviewed')}
+                              >
+                                Marquer vu
+                              </Button>
+                            )}
+                            {suggestion.status === 'reviewed' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleUpdateSuggestionStatus(suggestion.id, 'implemented')}
+                              >
+                                Marquer fait
+                              </Button>
+                            )}
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleDeleteSuggestion(suggestion.id)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* News Tab */}
         <TabsContent value="news" className="space-y-4">
           <NewsManager />
@@ -733,6 +864,21 @@ export default function Admin() {
                   type="number"
                   value={editingUser.quota_visuals_per_month || 0}
                   onChange={(e) => setEditingUser({ ...editingUser, quota_visuals_per_month: parseInt(e.target.value) })}
+                />
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t">
+                <div>
+                  <Label htmlFor="grantAccess">Accès manuel (sans Stripe)</Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Accorder l'accès complet sans abonnement Stripe
+                  </p>
+                </div>
+                <input
+                  id="grantAccess"
+                  type="checkbox"
+                  checked={editingUser.granted_by_admin || false}
+                  onChange={(e) => setEditingUser({ ...editingUser, granted_by_admin: e.target.checked })}
+                  className="h-4 w-4 rounded border-gray-300"
                 />
               </div>
             </div>

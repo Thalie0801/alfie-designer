@@ -122,8 +122,14 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html {
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -182,5 +188,53 @@ All colors MUST be HSL.
   @keyframes pulse-soft {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.7; }
+  }
+
+  /* Tour target highlight effect */
+  @keyframes tour-pulse {
+    0%, 100% {
+      box-shadow: 0 0 0 0 hsl(var(--primary) / 0.6),
+                  0 0 20px hsl(var(--primary) / 0.3);
+      outline: 3px solid hsl(var(--primary) / 0.5);
+      outline-offset: 4px;
+    }
+    50% {
+      box-shadow: 0 0 0 20px hsl(var(--primary) / 0),
+                  0 0 40px hsl(var(--primary) / 0);
+      outline: 3px solid hsl(var(--primary) / 0);
+      outline-offset: 12px;
+    }
+  }
+
+  .tour-target-highlight {
+    animation: tour-pulse 2s ease-in-out infinite;
+    position: relative;
+    z-index: 10001 !important;
+    border-radius: 8px;
+  }
+
+  /* Force sidebar items to appear above overlay during tour */
+  [data-sidebar-id].tour-target-highlight {
+    z-index: 10001 !important;
+  }
+
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Touch target minimum (accessibility) */
+  .touch-target {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Touch manipulation for better mobile interaction */
+  .touch-manipulation {
+    touch-action: manipulation;
   }
 }

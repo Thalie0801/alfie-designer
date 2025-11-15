@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
-import { toast } from 'sonner';
 
 // Quotas mensuels par plan
 const MONTHLY_QUOTAS = {
@@ -27,15 +26,6 @@ export function useAlfieOptimizations() {
   // Génère un hash simple du prompt pour le cache
   const hashPrompt = (prompt: string, type: string): string => {
     return `${type}:${prompt.toLowerCase().trim().replace(/\s+/g, ' ')}`;
-  };
-
-  // Vérifie si le quota est atteint
-  const checkQuota = (): boolean => {
-    if (requestsThisMonth >= quota) {
-      toast.error(`Quota Alfie atteint (${quota} requêtes/mois). Passe à un plan supérieur ! 🐾`);
-      return false;
-    }
-    return true;
   };
 
   // Recherche dans le cache
@@ -110,7 +100,6 @@ export function useAlfieOptimizations() {
   };
 
   return {
-    checkQuota,
     getCachedResponse,
     setCachedResponse,
     incrementRequests,

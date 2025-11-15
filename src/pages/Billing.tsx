@@ -1,14 +1,14 @@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Check, AlertCircle, Settings } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Check, Settings, Sparkles, Award } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useStripeCheckout } from '@/hooks/useStripeCheckout';
 import { useCustomerPortal } from '@/hooks/useCustomerPortal';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
-import { useState } from 'react';
+import { useEffect } from 'react';
+import { cn } from '@/lib/utils';
 
 const plans = [
   {
@@ -93,13 +93,19 @@ const plans = [
 ];
 
 export default function Billing() {
-  const { profile, user, refreshProfile } = useAuth();
+  const { profile, user, refreshProfile, isAdmin, loading: authLoading } = useAuth();
   const { createCheckout, loading } = useStripeCheckout();
   const { openCustomerPortal, loading: portalLoading } = useCustomerPortal();
-  const [activating, setActivating] = useState(false);
   const currentPlan = profile?.plan || null;
-  const hasActivePlan = currentPlan && currentPlan !== 'none';
+  const hasActivePlan = Boolean(profile?.status === 'active' || profile?.granted_by_admin);
+  const isAmbassador = profile?.granted_by_admin;
   const hasStripeSubscription = profile?.stripe_subscription_id;
+
+  // Ensure fresh profile on page load (avoids stale plan state)
+  useEffect(() => {
+    refreshProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSelectPlan = async (plan: typeof plans[0]) => {
     if (plan.isEnterprise) {
@@ -115,40 +121,21 @@ export default function Billing() {
     await createCheckout(plan.key as 'starter' | 'pro' | 'studio' | 'enterprise');
   };
 
-  const handleActivateFreeStudio = async () => {
-    if (!user) return;
-    
-    setActivating(true);
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          plan: 'studio',
-          quota_brands: 1,
-          quota_visuals_per_month: 1000,
-          quota_videos: 100
-        })
-        .eq('id', user.id);
-
-      if (error) throw error;
-
-      toast.success('Plan Studio activé gratuitement !');
-      await refreshProfile();
-    } catch (error) {
-      console.error('Error activating free studio:', error);
-      toast.error('Erreur lors de l\'activation du plan');
-    } finally {
-      setActivating(false);
-    }
-  };
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex items-center justify-between">
+        <Button variant="outline" size="sm" onClick={() => (window.location.href = '/app')}>
+          ← Retour
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => (window.location.href = '/dashboard')}>
+          Aller au dashboard
+        </Button>
+      </div>
       <div>
-        <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+        <h1 className="text-2xl sm:text-3xl font-bold mb-2 bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
           Abonnement
         </h1>
-        <p className="text-muted-foreground">
+        <p className="text-sm sm:text-base text-muted-foreground">
           Gérez votre plan et votre facturation
         </p>
         {user?.email && (
@@ -158,31 +145,36 @@ export default function Billing() {
         )}
       </div>
 
-      {user?.email === 'nathaliestaelens@gmail.com' && currentPlan !== 'studio' && (
-        <Alert className="border-green-500/50 bg-green-50 dark:bg-green-900/20">
-          <AlertDescription className="flex items-center justify-between">
-            <span className="text-green-700 dark:text-green-300">
-              Activez le plan Studio gratuitement pour tester l'application
-            </span>
-            <Button
-              onClick={handleActivateFreeStudio}
-              disabled={activating}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              {activating ? 'Activation...' : 'Activer Studio (gratuit)'}
-            </Button>
+      {!authLoading && isAdmin && (
+        <Alert className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
+          <Sparkles className="h-4 w-4 text-green-600" />
+          <AlertTitle className="text-green-800">Accès Administrateur</AlertTitle>
+          <AlertDescription className="text-green-700">
+            Vous avez un accès administrateur avec toutes les fonctionnalités.
           </AlertDescription>
         </Alert>
       )}
 
-      {!hasActivePlan && (
-        <Alert className="border-orange-500/50 bg-orange-50 dark:bg-orange-900/20">
-          <AlertCircle className="h-4 w-4 text-orange-600" />
-          <AlertDescription className="text-orange-700 dark:text-orange-300">
-            Vous n'avez pas de plan actif. Choisissez un plan ci-dessous pour accéder à Alfie Designer.
+      {!authLoading && !isAdmin && isAmbassador && (
+        <Alert className="bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200">
+          <Award className="h-4 w-4 text-purple-600" />
+          <AlertTitle className="text-purple-800">🎖️ Accès Ambassadeur</AlertTitle>
+          <AlertDescription className="text-purple-700">
+            Vous disposez d'un accès {currentPlan?.toUpperCase()} Ambassadeur.
           </AlertDescription>
         </Alert>
       )}
+
+      {!isAdmin && !isAmbassador && currentPlan && currentPlan !== 'none' && (
+        <Alert className="bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200">
+          <Sparkles className="h-4 w-4 text-blue-600" />
+          <AlertTitle className="text-blue-800">Plan actuel : {currentPlan.toUpperCase()}</AlertTitle>
+          <AlertDescription className="text-blue-700">
+            Votre abonnement est actif. Gérez votre abonnement ci-dessous.
+          </AlertDescription>
+        </Alert>
+      )}
+
 
       {/* Current Plan */}
       {hasActivePlan && (
@@ -233,7 +225,7 @@ export default function Billing() {
       )}
 
       {/* Plans */}
-      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {plans.map((plan) => {
           const planColors = {
             'Starter': 'from-orange-500 to-red-500',
@@ -247,8 +239,18 @@ export default function Billing() {
           return (
             <Card
               key={plan.name}
-              className={`hover:scale-105 transition-transform ${plan.popular ? 'border-primary border-2 shadow-strong' : 'shadow-medium'}`}
+              className={cn(
+                "relative hover:scale-105 transition-all",
+                plan.popular && "border-primary border-2 shadow-strong",
+                isCurrentPlan && "border-primary shadow-lg scale-105",
+                !plan.popular && !isCurrentPlan && "shadow-medium"
+              )}
             >
+              {isCurrentPlan && (
+                <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary">
+                  Votre plan actuel
+                </Badge>
+              )}
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className={`bg-gradient-to-r ${planColors} bg-clip-text text-transparent`}>

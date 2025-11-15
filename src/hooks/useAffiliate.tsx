@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { getAuthHeader } from '@/lib/auth';
 
 const AFFILIATE_STORAGE_KEY = 'alfie_ref';
 const AFFILIATE_EXPIRY_DAYS = 365;
@@ -71,7 +70,6 @@ export function useAffiliate() {
     try {
       const { data, error } = await supabase.functions.invoke('get-affiliate-public', {
         body: { ref },
-        headers: await getAuthHeader(),
       });
 
       if (error || !data) {
@@ -82,13 +80,12 @@ export function useAffiliate() {
       const name = (data as any).name as string;
       setAffiliateName(name);
 
-      // Show toast only once per ref
+      // Show simple toast only once per ref
       const toastShown = localStorage.getItem(AFFILIATE_TOAST_SHOWN);
       if (toastShown !== ref) {
         toast({
-          title: `🎉 ${name} vous invite !`,
-          description: "Profitez d'Alfie Designer recommandé par quelqu'un de confiance.",
-          duration: 10000,
+          description: `Vous êtes invité·e par ${name}`,
+          duration: 5000,
         });
         localStorage.setItem(AFFILIATE_TOAST_SHOWN, ref);
       }
@@ -129,7 +126,6 @@ export function useAffiliate() {
           utm_medium,
           utm_campaign,
         },
-        headers: await getAuthHeader(),
       });
     } catch (error) {
       console.error('Failed to track affiliate click:', error);
