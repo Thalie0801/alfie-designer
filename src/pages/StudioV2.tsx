@@ -13,6 +13,8 @@ export default function StudioV2Page() {
           <p className="text-muted-foreground max-w-2xl">
             Génère images, carrousels et vidéos avec l'assistant créatif Alfie. Combine plusieurs formats
             dans une même requête et retrouve-les en un clin d'œil dans ta bibliothèque.
+            Génère images, carrousels et vidéos avec une interface inspirée de Meta AI. Combine plusieurs
+            formats dans une même requête et retrouve-les en un clin d'œil dans ta bibliothèque Alfie.
           </p>
         </div>
         <div className="w-full max-w-xs">
