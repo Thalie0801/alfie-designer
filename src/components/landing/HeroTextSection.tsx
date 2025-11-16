@@ -22,6 +22,10 @@ export function HeroTextSection() {
             <span className="bg-gradient-to-r from-alfie-mint via-alfie-lilac to-alfie-pink bg-clip-text text-transparent">
               professionnels
             </span>{" "}
+            Crée des designs
+            <span className="bg-gradient-to-r from-alfie-mint via-alfie-lilac to-alfie-pink bg-clip-text text-transparent">
+              professionnels
+            </span>
             en quelques secondes
           </h1>
           <p className="mx-auto max-w-2xl text-base text-slate-600 sm:text-lg">
