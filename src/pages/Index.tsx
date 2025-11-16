@@ -2,21 +2,13 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Check,
-  Sparkles,
-  Palette,
-  Film,
-  BarChart3,
-  Layers,
-  Share2,
-  ChevronRight,
-  ArrowRight,
-  Zap,
-  Globe,
-  Shield,
-} from "lucide-react";
+import { LandingHeader } from "@/components/LandingHeader";
+import { HeroTextSection } from "@/components/landing/HeroTextSection";
+import { PriceCard } from "@/components/landing/PriceCard";
+import { Sparkles, Palette, Film, BarChart3, Layers, Share2, Zap, Globe, Shield } from "lucide-react";
 import { useStripeCheckout } from "@/hooks/useStripeCheckout";
+
+const alfieHeroVideo = "/videos/hero-background.mp4";
 
 export default function AlfieLanding() {
   const [isAnnual, setIsAnnual] = useState(false);
@@ -38,108 +30,34 @@ export default function AlfieLanding() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Navbar */}
-      <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-background/80 border-b border-border/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-primary via-secondary to-accent flex items-center justify-center shadow-lg">
-              <Sparkles className="h-5 w-5 text-white" />
-            </div>
-            <span className="font-bold text-xl">Alfie Designer</span>
-          </div>
-          <Button 
-            size="lg" 
-            className="group"
-            onClick={() => (window.location.href = "/dashboard")}
-          >
-            Ouvrir l'app
-            <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
-          </Button>
-        </div>
-      </header>
+      <LandingHeader />
 
-      {/* Hero Section with Video Background */}
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-        {/* Video Background */}
-        <div className="absolute inset-0 z-0">
-          <video
-            autoPlay
-            loop
-            muted
-            playsInline
-            className="absolute inset-0 w-full h-full object-cover"
-          >
-            <source src="/videos/hero-background.mp4" type="video/mp4" />
-          </video>
-          <div className="absolute inset-0 bg-gradient-to-b from-background/95 via-background/80 to-background/95" />
-          <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-accent/5" />
-        </div>
-
-        {/* Hero Content */}
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-32 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-card/50 backdrop-blur-md border border-border/50 mb-8 animate-fade-in">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium">Agent IA de Création Visuelle</span>
-          </div>
-
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold leading-tight tracking-tight mb-6 animate-fade-in">
-            Crée des designs{" "}
-            <span className="bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
-              professionnels
-            </span>
-            <br />
-            en quelques secondes
-          </h1>
-
-          <p className="text-xl sm:text-2xl text-muted-foreground max-w-3xl mx-auto mb-12 animate-fade-in leading-relaxed">
-            Alfie génère tes visuels Instagram, carrousels et reels directement dans Canva.
-            Pas de design, juste tes idées.
-          </p>
-
-          <div className="flex flex-wrap gap-4 justify-center items-center animate-fade-in">
-            <Button 
-              size="lg" 
-              className="h-14 px-8 text-lg shadow-xl hover:shadow-2xl hover:scale-105 transition-all"
-              onClick={() => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" })}
-            >
-              Commencer maintenant
-              <Sparkles className="ml-2 h-5 w-5" />
-            </Button>
-            <Button 
-              size="lg" 
-              variant="outline"
-              className="h-14 px-8 text-lg backdrop-blur-md bg-card/50 hover:bg-card/80 transition-all"
-              onClick={() => (window.location.href = "/demo")}
-            >
-              Voir la démo
-              <ChevronRight className="ml-2 h-5 w-5" />
-            </Button>
-          </div>
-
-          {/* Feature Pills */}
-          <div className="flex flex-wrap gap-3 justify-center mt-16">
-            {[
-              { icon: Zap, label: "IA ultra-rapide" },
-              { icon: Palette, label: "Design personnalisé" },
-              { icon: Globe, label: "Intégration Canva" },
-            ].map((feature, idx) => (
-              <div 
-                key={idx}
-                className="flex items-center gap-2 px-4 py-2 rounded-full bg-card/30 backdrop-blur-md border border-border/30 text-sm"
-              >
-                <feature.icon className="h-4 w-4 text-primary" />
-                <span>{feature.label}</span>
-              </div>
-            ))}
+      {/* SECTION 1 : vidéo immersive */}
+      <section className="relative h-screen overflow-hidden">
+        <video
+          src={alfieHeroVideo}
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/35" />
+        <div className="pointer-events-none absolute bottom-10 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2 text-white/80">
+          <span className="text-xs md:text-sm">Fais défiler pour découvrir Alfie</span>
+          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/60 text-base animate-bounce">
+            ↓
           </div>
         </div>
       </section>
+
+      <HeroTextSection />
 
       {/* How it Works */}
       <section className="py-24 px-4 sm:px-6 bg-muted/30">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <Badge className="mb-4" variant="secondary">
+            <Badge className="mb-4 border border-alfie-mint/40 bg-alfie-mintSoft text-slate-700" variant="secondary">
               Simple et rapide
             </Badge>
             <h2 className="text-4xl sm:text-5xl font-bold mb-4">
@@ -177,7 +95,7 @@ export default function AlfieLanding() {
                     <div className="text-5xl font-bold text-muted-foreground/20">
                       {item.step}
                     </div>
-                    <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-primary via-secondary to-accent flex items-center justify-center shadow-lg">
+                    <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-alfie-mint via-alfie-lilac to-alfie-pink flex items-center justify-center shadow-lg">
                       <item.icon className="h-6 w-6 text-white" />
                     </div>
                   </div>
@@ -196,7 +114,7 @@ export default function AlfieLanding() {
       <section className="py-24 px-4 sm:px-6">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <Badge className="mb-4" variant="secondary">
+            <Badge className="mb-4 border border-alfie-mint/40 bg-alfie-mintSoft text-slate-700" variant="secondary">
               Fonctionnalités
             </Badge>
             <h2 className="text-4xl sm:text-5xl font-bold mb-4">
@@ -240,9 +158,9 @@ export default function AlfieLanding() {
                 description: "Télécharge en ZIP ou pousse direct dans Canva",
               },
             ].map((feature, idx) => (
-              <Card key={idx} className="border-border/50 bg-card/50 backdrop-blur-sm hover:border-primary/50 hover:shadow-lg transition-all group">
+              <Card key={idx} className="border-border/50 bg-card/50 backdrop-blur-sm hover:border-alfie-mint/60 hover:shadow-lg transition-all group">
                 <CardHeader>
-                  <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-alfie-mint/20 via-alfie-lilac/20 to-alfie-pink/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                     <feature.icon className="h-6 w-6 text-primary" />
                   </div>
                   <CardTitle className="text-xl">{feature.title}</CardTitle>
@@ -258,7 +176,7 @@ export default function AlfieLanding() {
       <section id="pricing" className="py-24 px-4 sm:px-6 bg-muted/30">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <Badge className="mb-4" variant="secondary">
+            <Badge className="mb-4 border border-alfie-mint/40 bg-alfie-mintSoft text-slate-700" variant="secondary">
               Tarifs
             </Badge>
             <h2 className="text-4xl sm:text-5xl font-bold mb-4">
@@ -272,7 +190,7 @@ export default function AlfieLanding() {
               <button
                 onClick={() => setIsAnnual(false)}
                 className={`px-6 py-2 rounded-full transition-all ${
-                  !isAnnual ? "bg-primary text-white shadow-md" : "text-muted-foreground hover:text-foreground"
+                  !isAnnual ? "bg-alfie-mint text-slate-900 shadow-md" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 Mensuel
@@ -280,7 +198,7 @@ export default function AlfieLanding() {
               <button
                 onClick={() => setIsAnnual(true)}
                 className={`px-6 py-2 rounded-full transition-all ${
-                  isAnnual ? "bg-primary text-white shadow-md" : "text-muted-foreground hover:text-foreground"
+                  isAnnual ? "bg-alfie-mint text-slate-900 shadow-md" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 Annuel
@@ -356,7 +274,7 @@ export default function AlfieLanding() {
       {/* CTA Final */}
       <section className="py-24 px-4 sm:px-6">
         <div className="max-w-4xl mx-auto text-center">
-          <div className="p-12 rounded-3xl bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/10 border border-border/50 backdrop-blur-sm">
+          <div className="p-12 rounded-3xl bg-gradient-to-br from-alfie-mint/15 via-alfie-lilac/15 to-alfie-pink/20 border border-border/50 backdrop-blur-sm">
             <h2 className="text-4xl sm:text-5xl font-bold mb-6">
               Prêt à créer du contenu qui cartonne ?
             </h2>
@@ -381,7 +299,7 @@ export default function AlfieLanding() {
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-primary via-secondary to-accent flex items-center justify-center">
+                <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-alfie-mint via-alfie-lilac to-alfie-pink flex items-center justify-center">
                   <Sparkles className="h-4 w-4 text-white" />
                 </div>
                 <span className="font-bold">Alfie Designer</span>
@@ -423,77 +341,5 @@ export default function AlfieLanding() {
         </div>
       </footer>
     </div>
-  );
-}
-
-interface PriceCardProps {
-  title: string;
-  monthlyPrice: number;
-  isAnnual: boolean;
-  calculatePrice: (price: number) => string;
-  calculateOriginalAnnualPrice: (price: number) => number;
-  getPriceLabel: () => string;
-  features: string[];
-  plan: 'starter' | 'pro' | 'studio' | 'enterprise';
-  popular?: boolean;
-  createCheckout: (plan: 'starter' | 'pro' | 'studio' | 'enterprise', billingPeriod?: 'monthly' | 'annual', brandName?: string) => Promise<void>;
-  checkoutLoading: boolean;
-}
-
-function PriceCard({
-  title,
-  monthlyPrice,
-  isAnnual,
-  calculatePrice,
-  calculateOriginalAnnualPrice,
-  getPriceLabel,
-  features,
-  plan,
-  popular,
-  createCheckout,
-  checkoutLoading,
-}: PriceCardProps) {
-  return (
-    <Card className={`relative border-border/50 bg-card/50 backdrop-blur-sm hover:shadow-2xl transition-all ${popular ? 'border-primary shadow-xl scale-105' : ''}`}>
-      {popular && (
-        <div className="absolute -top-4 left-0 right-0 flex justify-center">
-          <Badge className="bg-primary text-white shadow-lg">
-            Le plus populaire
-          </Badge>
-        </div>
-      )}
-      <CardHeader className="text-center pb-8 pt-8">
-        <CardTitle className="text-2xl mb-2">{title}</CardTitle>
-        <div className="flex items-baseline justify-center gap-1 mb-2">
-          <span className="text-5xl font-bold">{calculatePrice(monthlyPrice)}</span>
-          <span className="text-muted-foreground">{getPriceLabel()}</span>
-        </div>
-        {isAnnual && (
-          <div className="text-sm text-muted-foreground line-through">
-            {calculateOriginalAnnualPrice(monthlyPrice)}€ / an
-          </div>
-        )}
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <ul className="space-y-3">
-          {features.map((feature, idx) => (
-            <li key={idx} className="flex items-start gap-2">
-              <Check className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-              <span className="text-sm">{feature}</span>
-            </li>
-          ))}
-        </ul>
-      </CardContent>
-      <CardFooter>
-        <Button
-          className="w-full h-12"
-          variant={popular ? "default" : "outline"}
-          disabled={checkoutLoading}
-          onClick={() => createCheckout(plan, isAnnual ? 'annual' : 'monthly')}
-        >
-          {checkoutLoading ? "Chargement..." : "Commencer"}
-        </Button>
-      </CardFooter>
-    </Card>
   );
 }
