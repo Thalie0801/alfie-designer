@@ -33,13 +33,11 @@ export function AppSidebar() {
   const { open, isMobile } = useSidebar();
   const location = useLocation();
   const { user, profile, isAdmin, signOut } = useAuth();
+
   const canSeeAdminToggle = user?.email
     ? ["nathaliestaelens@gmail.com", "staelensnathalie@gmail.com"].includes(user.email)
     : false;
 
-  // Removed automatic sidebar toggle on route changes to prevent menu disappearing bug
-
-  // Construire la liste des items de navigation selon les droits
   const baseNavItems: Array<{
     path: string;
     label: string;
@@ -56,9 +54,7 @@ export function AppSidebar() {
     { path: "/affiliate", label: "Affiliation", icon: TrendingUp, tourId: "affiliate" },
   ];
 
-  // Navigation principale (sans "Créer")
-  const navItems = baseNavItems;
-
+  const navItems = [...baseNavItems];
   if (isAdmin || canSeeAdminToggle) {
     navItems.push({ path: "/admin", label: "Admin", icon: Settings });
   }
@@ -72,6 +68,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar className="z-30 border-r border-border bg-sidebar text-sidebar-foreground shadow-sm">
+    <Sidebar className="z-30 border-r border-border bg-card">
       <SidebarContent>
         {/* Logo */}
         <div className="p-4 flex items-center gap-3">
@@ -107,6 +104,10 @@ export function AppSidebar() {
                             <Badge
                               variant="outline"
                               className="text-[10px] px-1.5 py-0 border-none bg-alfie-pink text-white"
+                              className={cn(
+                                "text-[10px] px-1.5 py-0 border-none bg-alfie-pink text-[#2C2340]",
+                                "dark:bg-alfie-pink dark:text-[#151325]",
+                              )}
                             >
                               {item.badge}
                             </Badge>
