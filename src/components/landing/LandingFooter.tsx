@@ -1,5 +1,6 @@
 import logoBlack from "@/assets/alfie-logo-black.svg";
 import logoWhite from "@/assets/alfie-logo-white.svg";
+import { Sparkles } from "lucide-react";
 
 export function LandingFooter() {
   return (
@@ -13,6 +14,20 @@ export function LandingFooter() {
         </div>
 
         <div className="grid gap-8 md:grid-cols-3">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-8 grid gap-8 md:grid-cols-4">
+          <div>
+            <div className="mb-4 flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-alfie-mint via-alfie-lilac to-alfie-pink">
+                <Sparkles className="h-4 w-4 text-white" />
+              </div>
+              <span className="font-bold">Alfie Designer</span>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              L'agent IA qui transforme tes idées en designs professionnels
+            </p>
+          </div>
+
           <div>
             <h4 className="mb-4 font-semibold">Produit</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
@@ -72,6 +87,7 @@ export function LandingFooter() {
             <img src={logoBlack} alt="Alfie Designer" className="h-10 w-auto" />
             <p>© 2025 Alfie Designer. Tous droits réservés.</p>
           </div>
+          <p>© 2024 Alfie Designer. Tous droits réservés.</p>
         </div>
       </div>
     </footer>
