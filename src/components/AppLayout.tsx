@@ -91,6 +91,18 @@ export function AppLayout({ children }: AppLayoutProps) {
             <Badge
               variant="secondary"
               className={cn(
+                'hidden sm:inline-flex text-xs',
+                (profile?.plan || 'starter').toLowerCase() === 'free' &&
+                  'bg-alfie-mintSoft text-slate-900 border border-alfie-mint/50'
+              )}
+            >
+              {profile?.plan || 'starter'}
+            </Badge>
+
+            {/* Badge plan */}
+            <Badge
+              variant="secondary"
+              className={cn(
                 "hidden sm:inline-flex text-xs",
                 (profile?.plan || "starter").toLowerCase() === "free" &&
                   "bg-alfie-mintSoft text-slate-900 border border-alfie-mint/50",
