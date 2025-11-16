@@ -15,6 +15,12 @@ export default {
     },
     extend: {
       colors: {
+        alfie: {
+          primary: "#F6B36A",
+          pink: "#FF8BC2",
+          aqua: "#7EE2E0",
+          lilac: "#C8A9FF",
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
