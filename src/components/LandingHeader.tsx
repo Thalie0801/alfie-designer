@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import logoWhite from "@/assets/alfie-logo-white.svg";
+import logo from "@/assets/alfie-logo.jpg";
 
 export function LandingHeader() {
   const [scrolled, setScrolled] = useState(false);
@@ -37,6 +38,10 @@ export function LandingHeader() {
             className="h-6 w-auto drop-shadow-[0_0_12px_rgba(255,255,255,0.55)] md:h-7"
           />
           <span className="sr-only">Alfie Designer</span>
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 shadow-md">
+            <img src={logo} alt="Alfie Designer" className="h-6 w-6 object-contain" />
+          </div>
+          <span className="text-sm font-semibold text-slate-900 md:text-base">Alfie Designer</span>
         </Link>
 
         <Button
