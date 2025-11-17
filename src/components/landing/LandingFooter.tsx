@@ -13,9 +13,7 @@ export function LandingFooter() {
           </p>
         </div>
 
-        <div className="grid gap-8 md:grid-cols-3">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-8 grid gap-8 md:grid-cols-4">
+        <div className="grid gap-8 md:grid-cols-4">
           <div>
             <div className="mb-4 flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-alfie-mint via-alfie-lilac to-alfie-pink">
@@ -87,9 +85,10 @@ export function LandingFooter() {
             <img src={logoBlack} alt="Alfie Designer" className="h-10 w-auto" />
             <p>© 2025 Alfie Designer. Tous droits réservés.</p>
           </div>
-          <p>© 2024 Alfie Designer. Tous droits réservés.</p>
         </div>
       </div>
     </footer>
   );
 }
+
+export default LandingFooter;
