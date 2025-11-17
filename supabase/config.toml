@@ -1,6 +1,7 @@
 project_id = "onxqgtuiagiuomlstcmt"
 project_ref = "onxqgtuiagiuomlstcmt"
 
+
 [functions.alfie-job-worker]
 verify_jwt = false
 schedule = "*/10 * * * * *"
