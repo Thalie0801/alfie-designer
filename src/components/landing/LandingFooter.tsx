@@ -1,0 +1,66 @@
+import logoBlack from "@/assets/alfie-logo-black.svg";
+import logoWhite from "@/assets/alfie-logo-white.svg";
+
+const footerLinks = [
+  {
+    title: "Produit",
+    items: [
+      { label: "Démo", href: "/demo" },
+      { label: "Tarifs", href: "#pricing" },
+      { label: "Dashboard", href: "/dashboard" },
+    ],
+  },
+  {
+    title: "Ressources",
+    items: [
+      { label: "FAQ", href: "/faq" },
+      { label: "Support", href: "/contact" },
+    ],
+  },
+  {
+    title: "Légal",
+    items: [
+      { label: "Mentions légales", href: "/legal" },
+      { label: "Confidentialité", href: "/privacy" },
+    ],
+  },
+];
+
+export function LandingFooter() {
+  return (
+    <footer className="bg-muted/30 px-4 py-12 sm:px-6">
+      <div className="mx-auto max-w-7xl space-y-10">
+        <div className="rounded-3xl bg-gradient-to-b from-slate-900 via-slate-900 to-black p-8 text-center shadow-lg">
+          <img src={logoWhite} alt="Alfie Designer" className="mx-auto h-11 w-auto" />
+          <p className="mt-4 text-sm text-white/80">
+            L'agent IA qui transforme tes idées en designs professionnels
+          </p>
+        </div>
+
+        <div className="grid gap-8 md:grid-cols-3">
+          {footerLinks.map((column) => (
+            <div key={column.title}>
+              <h4 className="mb-4 font-semibold">{column.title}</h4>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                {column.items.map((item) => (
+                  <li key={item.label}>
+                    <a href={item.href} className="transition-colors hover:text-foreground">
+                      {item.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+
+        <div className="border-t border-border/50 pt-8 text-center text-sm text-muted-foreground">
+          <div className="flex flex-col items-center gap-4">
+            <img src={logoBlack} alt="Alfie Designer" className="h-10 w-auto" />
+            <p>© 2025 Alfie Designer. Tous droits réservés.</p>
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
+}
