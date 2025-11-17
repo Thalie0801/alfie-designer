@@ -1,9 +1,8 @@
-project_id = "itsjonazifiiikozengd"
-project_ref = "itsjonazifiiikozengd"
+project_id = "onxqgtuiagiuomlstcmt"
+
 
 [functions.alfie-job-worker]
 verify_jwt = false
-schedule = "*/10 * * * * *"
 
 
 [functions.creations-api]
@@ -138,9 +137,6 @@ verify_jwt = true
 [functions.alfie-render-image]
 verify_jwt = false
 
-[functions.alfie-render-carousel-slide]
-verify_jwt = false
-
 [functions.alfie-score-coherence]
 verify_jwt = true
 
@@ -176,7 +172,6 @@ verify_jwt = true
 
 [functions.cleanup-stuck-jobs]
 verify_jwt = false
-schedule = "*/5 * * * *"
 
 [functions.cancel-job-set]
 verify_jwt = true

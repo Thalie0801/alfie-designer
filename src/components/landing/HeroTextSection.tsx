@@ -10,6 +10,7 @@ const featurePills = [
 ];
 
 const rotatingKeywords = ["professionnels", "impactants", "brandés"];
+const heroAdjectives = ["viraux", "professionnels", "impactants"];
 
 export function HeroTextSection() {
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -22,11 +23,20 @@ export function HeroTextSection() {
     const interval = window.setInterval(() => {
       setKeywordIndex((prev) => (prev + 1) % rotatingKeywords.length);
     }, 2400);
+  const [phraseIndex, setPhraseIndex] = useState(0);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const interval = window.setInterval(() => {
+      setPhraseIndex((prev) => (prev + 1) % heroAdjectives.length);
+    }, 2500);
 
     return () => window.clearInterval(interval);
   }, []);
 
   const typedText = rotatingKeywords[keywordIndex];
+  const typedText = heroAdjectives[phraseIndex];
 
   useEffect(() => {
     if (typeof window === "undefined" || !sectionRef.current) {
@@ -61,7 +71,7 @@ export function HeroTextSection() {
   return (
     <section ref={sectionRef} className="relative bg-gradient-to-b from-white to-slate-50">
       <div
-        className={`mx-auto flex max-w-5xl flex-col items-center gap-8 px-4 pt-20 pb-24 text-center transition-all duration-700 ease-out ${
+        className={`mx-auto flex max-w-5xl flex-col items-center gap-8 px-4 py-20 text-center transition-all duration-700 ease-out sm:px-6 lg:px-8 sm:py-24 ${
           isVisible ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"
         }`}
       >
@@ -70,11 +80,13 @@ export function HeroTextSection() {
         </Badge>
 
         <div className="space-y-4">
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-5xl md:text-6xl">
+          <h1 className="text-center text-3xl font-extrabold tracking-tight text-slate-900 leading-tight sm:text-5xl md:text-6xl">
             Crée des designs{" "}
             <span className="relative inline-flex items-center">
               <span className="bg-gradient-to-r from-alfie-mint via-alfie-lilac to-alfie-pink bg-clip-text text-transparent">
                 {typedText}
+              <span className="bg-gradient-to-r from-[#7fdce2] via-[#c99df8] to-[#ff9fd4] bg-clip-text text-transparent">
+                {typedText || "\u00A0"}
               </span>
               <span
                 className="ml-1 inline-block h-8 w-[2px] animate-pulse rounded bg-alfie-mint align-middle"
@@ -88,13 +100,16 @@ export function HeroTextSection() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center justify-center gap-4">
-          <Button className="h-11 rounded-full bg-alfie-mint px-6 text-slate-900 hover:bg-alfie-pink" onClick={scrollToPricing}>
+        <div className="flex w-full flex-col items-center justify-center gap-4 sm:flex-row">
+          <Button
+            className="h-11 w-full rounded-full bg-alfie-mint px-6 text-slate-900 hover:bg-alfie-pink sm:w-auto"
+            onClick={scrollToPricing}
+          >
             Commencer maintenant ✨
           </Button>
           <Button
             variant="outline"
-            className="h-11 rounded-full border-slate-200 bg-white/80 px-6 text-slate-900 hover:bg-slate-100"
+            className="h-11 w-full rounded-full border-slate-200 bg-white/80 px-6 text-slate-900 hover:bg-slate-100 sm:w-auto"
             onClick={goToDemo}
           >
             Voir la démo →
