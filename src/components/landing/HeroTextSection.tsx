@@ -9,9 +9,24 @@ const featurePills = [
   { icon: Globe, label: "Intégration Canva" },
 ];
 
+const rotatingKeywords = ["professionnels", "impactants", "brandés"];
+
 export function HeroTextSection() {
   const sectionRef = useRef<HTMLElement | null>(null);
   const [isVisible, setIsVisible] = useState(false);
+  const [keywordIndex, setKeywordIndex] = useState(0);
+
+  useEffect(() => {
+    if (rotatingKeywords.length <= 1) return undefined;
+
+    const interval = window.setInterval(() => {
+      setKeywordIndex((prev) => (prev + 1) % rotatingKeywords.length);
+    }, 2400);
+
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const typedText = rotatingKeywords[keywordIndex];
 
   useEffect(() => {
     if (typeof window === "undefined" || !sectionRef.current) {
@@ -59,14 +74,12 @@ export function HeroTextSection() {
             Crée des designs{" "}
             <span className="relative inline-flex items-center">
               <span className="bg-gradient-to-r from-alfie-mint via-alfie-lilac to-alfie-pink bg-clip-text text-transparent">
-                {typedText || "\u00A0"}
+                {typedText}
               </span>
               <span
                 className="ml-1 inline-block h-8 w-[2px] animate-pulse rounded bg-alfie-mint align-middle"
                 aria-hidden="true"
               />
-            <span className="bg-gradient-to-r from-alfie-mint via-alfie-lilac to-alfie-pink bg-clip-text text-transparent">
-              professionnels
             </span>{" "}
             en quelques secondes
           </h1>
