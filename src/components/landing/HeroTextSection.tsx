@@ -12,9 +12,6 @@ const featurePills = [
 export function HeroTextSection() {
   const sectionRef = useRef<HTMLElement | null>(null);
   const [isVisible, setIsVisible] = useState(false);
-  const [typedText, setTypedText] = useState("");
-  const typingStarted = useRef(false);
-  const typewriterText = "designs professionnels";
 
   useEffect(() => {
     if (typeof window === "undefined" || !sectionRef.current) {
@@ -35,25 +32,6 @@ export function HeroTextSection() {
     observer.observe(sectionRef.current);
     return () => observer.disconnect();
   }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !isVisible || typingStarted.current) {
-      return;
-    }
-
-    typingStarted.current = true;
-    let index = 0;
-    const interval = window.setInterval(() => {
-      index += 1;
-      setTypedText(typewriterText.slice(0, index));
-
-      if (index >= typewriterText.length) {
-        window.clearInterval(interval);
-      }
-    }, 60);
-
-    return () => window.clearInterval(interval);
-  }, [isVisible, typewriterText]);
 
   const scrollToPricing = () => {
     if (typeof document === "undefined") return;
@@ -87,6 +65,8 @@ export function HeroTextSection() {
                 className="ml-1 inline-block h-8 w-[2px] animate-pulse rounded bg-alfie-mint align-middle"
                 aria-hidden="true"
               />
+            <span className="bg-gradient-to-r from-alfie-mint via-alfie-lilac to-alfie-pink bg-clip-text text-transparent">
+              professionnels
             </span>{" "}
             en quelques secondes
           </h1>
