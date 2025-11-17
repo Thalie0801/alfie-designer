@@ -22,6 +22,7 @@ export function HeroTextSection() {
       typeof window.IntersectionObserver === "undefined" ||
       !sectionRef.current
     ) {
+    if (typeof window === "undefined" || !sectionRef.current) {
       setIsVisible(true);
       return;
     }
@@ -32,6 +33,11 @@ export function HeroTextSection() {
           setIsVisible(true);
           observer?.disconnect();
           observer = null;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
         }
       },
       { threshold: 0.3 }
@@ -39,6 +45,7 @@ export function HeroTextSection() {
 
     observer.observe(sectionRef.current);
     return () => observer?.disconnect();
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -77,6 +84,8 @@ export function HeroTextSection() {
           isVisible ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"
         }`}
       >
+    <section className="relative bg-gradient-to-b from-white to-slate-50">
+      <div className="mx-auto flex max-w-5xl flex-col items-center gap-8 px-4 pt-20 pb-24 text-center">
         <Badge variant="secondary" className="border border-alfie-mint/40 bg-alfie-mintSoft text-slate-700">
           Agent IA de Création Visuelle
         </Badge>
@@ -89,11 +98,14 @@ export function HeroTextSection() {
                 {typedText || "\u00A0"}
               </span>
               <span className="ml-1 inline-block h-8 w-[2px] animate-pulse rounded bg-alfie-mint align-middle" aria-hidden="true" />
+            <span className="bg-gradient-to-r from-alfie-mint via-alfie-lilac to-alfie-pink bg-clip-text text-transparent">
+              professionnels
             </span>{" "}
             en quelques secondes
           </h1>
           <p className="mx-auto max-w-2xl text-base text-slate-600 sm:text-lg">
             Alfie génère tes visuels pour tous tes réseaux, carrousels et reels directement dans Canva. Pas de design, juste tes idées.
+            Alfie génère tes visuels Instagram, carrousels et reels directement dans Canva. Pas de design, juste tes idées.
           </p>
         </div>
 
