@@ -3,8 +3,8 @@
  * Handles campaign creation from Chat Alfie
  */
 
-import { supabase } from '@/integrations/supabase/client';
 import { getAuthHeader } from '@/lib/auth';
+import { SUPABASE_URL } from '@/config/env';
 import type { CampaignPlan, CreateCampaignResponse } from '@/types/campaign';
 
 /**
@@ -108,22 +108,19 @@ export async function createCampaignFromPlan(
   brandKit?: any
 ): Promise<CreateCampaignResponse> {
   const authHeader = await getAuthHeader();
-  
-  const response = await fetch(
-    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-create-campaign`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: authHeader,
-      },
-      body: JSON.stringify({
-        campaign_name: plan.campaign_name,
-        assets: plan.assets,
-        brandKit,
-      }),
-    }
-  );
+
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/chat-create-campaign`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeader,
+    },
+    body: JSON.stringify({
+      campaign_name: plan.campaign_name,
+      assets: plan.assets,
+      brandKit,
+    }),
+  });
   
   if (!response.ok) {
     const error = await response.json();
