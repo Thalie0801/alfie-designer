@@ -108,15 +108,16 @@ export async function createCampaignFromPlan(
   brandKit?: any
 ): Promise<CreateCampaignResponse> {
   const authHeader = await getAuthHeader();
-  
+  const headers = {
+    'Content-Type': 'application/json',
+    ...authHeader,
+  };
+
   const response = await fetch(
     `${SUPABASE_URL}/functions/v1/chat-create-campaign`,
     {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: authHeader,
-      },
+      headers,
       body: JSON.stringify({
         campaign_name: plan.campaign_name,
         assets: plan.assets,
