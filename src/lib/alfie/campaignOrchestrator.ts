@@ -5,6 +5,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { getAuthHeader } from '@/lib/auth';
+import { SUPABASE_URL } from '@/config/env';
 import type { CampaignPlan, CreateCampaignResponse } from '@/types/campaign';
 
 /**
@@ -110,7 +111,7 @@ export async function createCampaignFromPlan(
   const authHeader = await getAuthHeader();
   
   const response = await fetch(
-    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-create-campaign`,
+    `${SUPABASE_URL}/functions/v1/chat-create-campaign`,
     {
       method: 'POST',
       headers: {
