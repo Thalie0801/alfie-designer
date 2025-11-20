@@ -3,7 +3,6 @@
  * Handles campaign creation from Chat Alfie
  */
 
-import { supabase } from '@/integrations/supabase/client';
 import { getAuthHeader } from '@/lib/auth';
 import { SUPABASE_URL } from '@/config/env';
 import type { CampaignPlan, CreateCampaignResponse } from '@/types/campaign';
