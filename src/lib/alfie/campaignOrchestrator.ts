@@ -6,106 +6,107 @@
 import { getAuthHeader } from '@/lib/auth';
 import { SUPABASE_URL } from '@/config/env';
 import type { CampaignPlan, CreateCampaignResponse } from '@/types/campaign';
+import { getAuthHeader } from "@/lib/auth";
+import { SUPABASE_URL } from "@/config/env";
+import type { CampaignPlan, CreateCampaignResponse } from "@/types/campaign";
 
 /**
- * Parse user message to detect campaign creation intent
+ * Detect if a user message is asking to create a campaign
  * Examples:
  * - "Fais-moi 3 carrousels et 5 images pour [sujet]"
  * - "Crée une campagne avec 2 vidéos et 10 images sur [sujet]"
  */
 export function detectCampaignIntent(message: string): boolean {
   const campaignKeywords = /\b(campagne|campaign)\b/i;
-  const multipleAssetsPattern = /\b(\d+)\s*(carrousels?|carousels?|images?|vid[ée]os?)\b.*\b(\d+)\s*(carrousels?|carousels?|images?|vid[ée]os?)\b/i;
-  
+  const multipleAssetsPattern =
+    /\b(\d+)\s*(carrousels?|carousels?|images?|vid[ée]os?)\b.*\b(\d+)\s*(carrousels?|carousels?|images?|vid[ée]os?)\b/i;
+
   return campaignKeywords.test(message) || multipleAssetsPattern.test(message);
 }
 
 /**
- * Extract campaign plan from user message using simple pattern matching
- * This is a basic implementation - you can enhance it with LLM later
+ * Basic extraction of a campaign plan from a natural language message.
+ * This is volontairement simple : on pourra le remplacer par un LLM plus tard.
+ *
+ * Pattern géré :
+ *   "X carrousels et Y images pour [sujet]"
+ *   "X images sur [sujet]"
  */
-export function extractCampaignPlan(message: string, brandKit?: any): CampaignPlan | null {
+export function extractCampaignPlan(
+  message: string,
+  brandKit?: unknown
+): CampaignPlan | null {
   // Pattern: "X carrousels et Y images pour [sujet]"
-  const pattern = /(\d+)\s*(carrousels?|carousels?|images?|vid[ée]os?)\s*(?:et|and)?\s*(\d+)?\s*(carrousels?|carousels?|images?|vid[ée]os?)?\s*(?:pour|sur|about)\s*(.+)/i;
+  const pattern =
+    /(\d+)\s*(carrousels?|carousels?|images?|vid[ée]os?)\s*(?:et|and)?\s*(\d+)?\s*(carrousels?|carousels?|images?|vid[ée]os?)?\s*(?:pour|sur|about)\s*(.+)/i;
+
   const match = message.match(pattern);
-  
+
   if (!match) {
-    // Try simpler pattern: "X carrousels [sujet]"
-    const simplePattern = /(\d+)\s*(carrousels?|carousels?|images?|vid[ée]os?)\s*(?:pour|sur|about)?\s*(.+)/i;
-    const simpleMatch = message.match(simplePattern);
-    
-    if (simpleMatch) {
-      const [, count, type, topic] = simpleMatch;
-      const assetType = normalizeAssetType(type);
-      
-      return {
-        campaign_name: `Campagne ${topic.substring(0, 50)}`,
-        assets: [
-          {
-            type: assetType,
-            count: parseInt(count, 10),
-            topic: topic.trim(),
-            slides: assetType === 'carousel' ? 5 : undefined,
-          },
-        ],
-      };
-    }
-    
     return null;
   }
-  
-  const [, count1, type1, count2, type2, topic] = match;
-  const assets = [];
-  
-  // First asset type
-  const assetType1 = normalizeAssetType(type1);
-  assets.push({
-    type: assetType1,
-    count: parseInt(count1, 10),
-    topic: topic.trim(),
-    slides: assetType1 === 'carousel' ? 5 : undefined,
-  });
-  
-  // Second asset type (if exists)
-  if (count2 && type2) {
-    const assetType2 = normalizeAssetType(type2);
+
+  const firstCount = parseInt(match[1], 10);
+  const firstType = normalizeAssetType(match[2]);
+  const secondCount = match[3] ? parseInt(match[3], 10) : 0;
+  const secondType = match[4] ? normalizeAssetType(match[4]) : null;
+  const topic = match[5]?.trim() ?? "";
+
+  const assets: CampaignPlan["assets"] = [];
+
+  if (firstCount > 0) {
     assets.push({
-      type: assetType2,
-      count: parseInt(count2, 10),
-      topic: topic.trim(),
-      slides: assetType2 === 'carousel' ? 5 : undefined,
+      type: firstType,
+      count: firstCount,
+      topic,
+      slides: firstType === "carousel" ? 5 : undefined,
+      brandKit,
     });
   }
-  
+
+  if (secondType && secondCount > 0) {
+    assets.push({
+      type: secondType,
+      count: secondCount,
+      topic,
+      slides: secondType === "carousel" ? 5 : undefined,
+      brandKit,
+    });
+  }
+
+  if (assets.length === 0) {
+    return null;
+  }
+
   return {
-    campaign_name: `Campagne ${topic.substring(0, 50)}`,
+    campaign_name: topic || "Campagne Alfie",
     assets,
   };
 }
 
 /**
- * Normalize asset type from French/English variations
+ * Normalize user text into our internal asset types.
  */
-function normalizeAssetType(type: string): 'image' | 'carousel' | 'video' {
+function normalizeAssetType(type: string): "image" | "carousel" | "video" {
   const normalized = type.toLowerCase();
-  
+
   if (/carrousel|carousel/.test(normalized)) {
-    return 'carousel';
+    return "carousel";
   }
-  
+
   if (/vid[ée]o/.test(normalized)) {
-    return 'video';
+    return "video";
   }
-  
-  return 'image';
+
+  return "image";
 }
 
 /**
- * Create a campaign from a plan by calling the Edge Function
+ * Call the Edge Function that creates the campaign + assets in Supabase.
  */
 export async function createCampaignFromPlan(
   plan: CampaignPlan,
-  brandKit?: any
+  brandKit?: unknown
 ): Promise<CreateCampaignResponse> {
   const authHeader = await getAuthHeader();
   const headers = {
@@ -118,6 +119,12 @@ export async function createCampaignFromPlan(
     {
       method: 'POST',
       headers,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: authHeader.Authorization,
+        apikey: authHeader.apikey,
+      },
       body: JSON.stringify({
         campaign_name: plan.campaign_name,
         assets: plan.assets,
@@ -125,50 +132,23 @@ export async function createCampaignFromPlan(
       }),
     }
   );
-  
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || 'Failed to create campaign');
-  }
-  
-  const result = await response.json();
-  
-  if (!result.ok) {
-    throw new Error(result.message || 'Failed to create campaign');
-  }
-  
-  return {
-    campaign: result.campaign,
-    assets: result.assets,
-  };
-}
 
-/**
- * Generate a user-friendly confirmation message
- */
-export function generateCampaignConfirmationMessage(
-  campaignName: string,
-  summary: {
-    images: number;
-    carousels: number;
-    videos: number;
+  if (!response.ok) {
+    let errorMessage = "Failed to create campaign";
+    try {
+      const error = await response.json();
+      errorMessage = error.message || errorMessage;
+    } catch {
+      // ignore JSON parse error
+    }
+    throw new Error(errorMessage);
   }
-): string {
-  const parts = [];
-  
-  if (summary.carousels > 0) {
-    parts.push(`${summary.carousels} carrousel${summary.carousels > 1 ? 's' : ''}`);
+
+  const result = (await response.json()) as CreateCampaignResponse;
+
+  if (!result.ok) {
+    throw new Error(result.message || "Failed to create campaign");
   }
-  
-  if (summary.images > 0) {
-    parts.push(`${summary.images} image${summary.images > 1 ? 's' : ''}`);
-  }
-  
-  if (summary.videos > 0) {
-    parts.push(`${summary.videos} vidéo${summary.videos > 1 ? 's' : ''}`);
-  }
-  
-  const assetsList = parts.join(' et ');
-  
-  return `✅ Parfait ! Je lance ${assetsList} pour ta campagne "${campaignName}".\n\nTu peux suivre la progression dans l'onglet Campagnes à droite. Je te préviens dès que c'est prêt ! 🚀`;
+
+  return result;
 }
