@@ -50,6 +50,7 @@ export default {
         !!roles?.some((r) => r.role === 'admin') ||
         profile.plan === 'admin' ||
         !!profile.granted_by_admin;
+      const isAdmin = adminEmails.includes(userEmail) || !!roles?.some((r) => r.role === 'admin');
 
       // 2. ✅ FIX: Calculer la période actuelle YYYYMM
       const now = new Date();

@@ -92,6 +92,7 @@ Deno.serve(async (req: Request) => {
     !!roleRows?.some((r) => r.role === "admin") ||
     profile?.plan === "admin" ||
     !!profile?.granted_by_admin;
+  const isAdmin = adminEmails.includes(userEmail) || !!roleRows?.some((r) => r.role === "admin");
 
   const { data: brand, error: brandError } = await supabase
     .from("brands")
