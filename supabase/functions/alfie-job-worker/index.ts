@@ -198,6 +198,10 @@ Deno.serve(async (req) => {
         .eq("status", "queued")
         .select("id, status")
         .maybeSingle();
+      const { error: markError } = await supabaseAdmin
+        .from("job_queue")
+        .update({ status: "processing", started_at: startedAt, updated_at: startedAt })
+        .eq("id", job.id);
 
       if (markError) {
         console.error("❌ failed to mark job as processing", { jobId: job.id, markError });
