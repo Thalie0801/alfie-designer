@@ -54,6 +54,7 @@ export default {
       let userId: string;
       let supabaseAuth: any;
       let userEmail: string | null = null;
+      const isAdminHint = input.isAdmin === true || input.is_admin === true;
 
       if (isInternalCall) {
         // Internal call: userId MUST be in input
@@ -92,10 +93,11 @@ export default {
         .eq("id", userId)
         .maybeSingle();
 
-      const isAdmin = isAdminUser(userEmail, roleRows, {
+      let isAdmin = isAdminUser(userEmail, roleRows, {
         plan: profile?.plan ?? undefined,
         grantedByAdmin: profile?.granted_by_admin ?? undefined,
         logContext: "quota",
+        isAdminFlag: isAdminHint,
       });
 
       // 1. Vérifier quota (skip for internal calls or admin)
@@ -108,7 +110,13 @@ export default {
           if (checkError) {
             // ⚠️ On log mais on ne bloque pas la génération si la fonction de quota bug
             console.error("[alfie-render-image] Quota check failed with error:", checkError);
-          } else if (!checkData?.ok || !checkData.data?.ok) {
+          }
+
+          if (checkData?.data?.is_admin || checkData?.is_admin) {
+            isAdmin = true;
+          }
+
+          if (!isAdmin && (!checkData?.ok || !checkData.data?.ok)) {
             console.error("[alfie-render-image] Quota check indicates insufficient quota:", checkData);
             throw new Error("INSUFFICIENT_QUOTA");
           }
