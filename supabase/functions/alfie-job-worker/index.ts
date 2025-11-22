@@ -184,6 +184,7 @@ Deno.serve(async (req) => {
 
       const startedAt = new Date().toISOString();
       const { data: claimRow, error: markError } = await supabaseAdmin
+      const { data: claimed, error: markError } = await supabaseAdmin
         .from("job_queue")
         .update({ status: "processing", started_at: startedAt, updated_at: startedAt })
         .eq("id", job.id)
@@ -192,7 +193,20 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (markError || !claimRow) {
+        .select("id, status")
+        .maybeSingle();
+      const { error: markError } = await supabaseAdmin
+        .from("job_queue")
+        .update({ status: "processing", started_at: startedAt, updated_at: startedAt })
+        .eq("id", job.id);
+
+      if (markError) {
         console.error("❌ failed to mark job as processing", { jobId: job.id, markError });
+        continue;
+      }
+
+      if (!claimed) {
+        console.warn("⚠️ job already claimed or status changed", { jobId: job.id });
         continue;
       }
 
@@ -230,6 +244,8 @@ Deno.serve(async (req) => {
             result,
             updated_at: finishedAt,
             finished_at: finishedAt,
+            updated_at: new Date().toISOString(),
+            finished_at: new Date().toISOString(),
           })
           .eq("id", job.id);
 
@@ -287,6 +303,38 @@ Deno.serve(async (req) => {
             finished_at: new Date().toISOString(),
           })
           .eq("id", job.id);
+
+        results.push({ job_id: job.id, success: false, retried: false, error: e instanceof Error ? e.message : String(e) });
+        const message = e instanceof Error ? e.message : "Unknown error";
+        console.error("🔴 job_failed", { id: job.id, message });
+
+        const retryCount = job.retry_count ?? 0;
+        const maxRetries = job.max_retries ?? 3;
+        const shouldRetry = retryCount < maxRetries && !isHttp402(e);
+
+        if (shouldRetry) {
+          await supabaseAdmin
+            .from("job_queue")
+            .update({
+              status: "queued",
+              retry_count: retryCount + 1,
+              error: message,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", job.id);
+
+          console.log(`🔄 requeued ${job.id} (${retryCount + 1}/${maxRetries})`);
+          results.push({ job_id: job.id, success: false, retried: true, error: message });
+        } else {
+          await supabaseAdmin
+            .from("job_queue")
+            .update({
+              status: "failed",
+              error: message,
+              updated_at: new Date().toISOString(),
+              finished_at: new Date().toISOString(),
+            })
+            .eq("id", job.id);
 
         results.push({ job_id: job.id, success: false, retried: false, error: e instanceof Error ? e.message : String(e) });
       }
