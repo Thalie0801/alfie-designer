@@ -136,6 +136,12 @@ Deno.serve(async (req) => {
           console.error("[queue-monitor] Failed to trigger alfie-job-worker", kickError);
           payload.workerKick = { attempted: true, error: (kickError as Error).message };
         }
+      try {
+        await supabase.functions.invoke("alfie-job-worker", { body: triggerPayload });
+        payload.workerKick = { attempted: true, triggerPayload };
+      } catch (kickError) {
+        console.error("[queue-monitor] Failed to trigger alfie-job-worker", kickError);
+        payload.workerKick = { attempted: true, error: (kickError as Error).message };
       }
     }
 
