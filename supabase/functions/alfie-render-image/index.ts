@@ -88,6 +88,12 @@ export default {
         isInternalCall,
         cost_woofs
       });
+        console.log("[alfie-render-image] ✅ External call authenticated, userId:", userId);
+      }
+
+      const isAdminUser = ADMIN_USER_IDS.includes(userId);
+
+      console.log("[alfie-render-image] Quota system temporarily disabled");
 
       try {
         // 1. Récupérer le Brand Kit si nécessaire
@@ -371,6 +377,8 @@ A reference image is provided. Mirror its composition rhythm, spacing, and text 
       } catch (genError: any) {
         console.error('[alfie-render-image] Generation failed:', genError);
         // Pas de remboursement woofs car le système de quotas est désactivé
+        console.error("[Render] Generation failed:", genError);
+        console.log("[alfie-render-image] Quota system temporarily disabled");
         throw genError;
       }
     });
