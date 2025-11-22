@@ -114,6 +114,7 @@ function extractMediaUrl(payload: unknown): string | null {
 export function ChatGenerator() {
   const { user } = useAuth();
   const { activeBrandId, activeBrand, brands, loading: isLoadingBrands } = useBrandKit();
+  const { activeBrandId, brands } = useBrandKit();
   const resolvedBrandId = useMemo(() => {
     const defaultBrand = brands?.find(
       (brand) => (brand as Record<string, unknown>)?.is_default || (brand as Record<string, unknown>)?.isDefault,
@@ -126,6 +127,7 @@ export function ChatGenerator() {
 
     return null;
   }, [activeBrand?.id, activeBrandId, brands]);
+  }, [activeBrandId, brands]);
   const location = useLocation();
   const navigate = useNavigate();
   const orderId =
@@ -783,6 +785,13 @@ export function ChatGenerator() {
           variant: "destructive",
         });
       }
+      console.error("[Studio] no brand found for current user, prompting setup");
+      showToast({
+        title: "Marque requise",
+        description:
+          "Aucune marque n’est configurée pour ce compte. Merci de créer une marque dans vos paramètres avant de générer des visuels.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -901,6 +910,7 @@ export function ChatGenerator() {
         if (!isLoadingBrands) {
           console.error("[Studio] no brand found for current user, prompting setup");
         }
+        console.error("[Studio] no brand found for current user, prompting setup");
         throw new Error(
           "Aucune marque n’est configurée pour ce compte. Merci de créer une marque dans vos paramètres avant de générer des visuels.",
         );
@@ -952,6 +962,7 @@ export function ChatGenerator() {
     videoDuration,
     isLoadingBrands,
   ]);
+  }, [aspectRatio, navigate, prompt, resolvedBrandId, uploadedSource, videoDuration]);
 
   const handleGenerate = useCallback(() => {
     if (contentType === "image") {
@@ -1193,6 +1204,7 @@ export function ChatGenerator() {
               Chargement des commandes…
             </div>
           ) : !resolvedBrandId && !isLoadingBrands ? (
+          ) : !resolvedBrandId ? (
             <p className="text-sm text-muted-foreground">
               Aucune marque n’est configurée pour ce compte. Merci de créer une marque dans vos paramètres avant de générer des visuels.
             </p>
