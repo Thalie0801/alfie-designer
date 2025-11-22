@@ -45,12 +45,14 @@ export default {
 
       if (isAdmin) {
         const unlimited = 1_000_000_000;
+        console.log(`[quota] admin bypass applied for ${user.email ?? 'unknown-email'}`);
         return {
           ok: true,
           remaining: unlimited,
           quota_total: unlimited,
           new_balance_if_ok: unlimited,
-          reason: 'admin-bypass'
+          reason: 'admin-bypass',
+          is_admin: true,
         };
       }
 
@@ -72,6 +74,7 @@ export default {
         remaining,
         quota_total: quota.woofs_quota,
         new_balance_if_ok: ok ? remaining - cost_woofs : remaining,
+        is_admin: quota.is_admin ?? false,
       };
     });
   }
