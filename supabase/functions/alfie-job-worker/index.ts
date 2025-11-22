@@ -163,11 +163,11 @@ Deno.serve(async (req) => {
     let processed = 0;
 
     for (let i = 0; i < maxJobs; i++) {
+      // On prend simplement le premier job en file, sans supposer qu'il existe une colonne "created_at"
       const { data: job, error: fetchError } = await supabaseAdmin
         .from("job_queue")
         .select("*")
         .eq("status", "queued")
-        .order("created_at", { ascending: true })
         .limit(1)
         .maybeSingle();
 
@@ -183,7 +183,6 @@ Deno.serve(async (req) => {
       }
 
       const startedAt = new Date().toISOString();
-      const { data: claimRow, error: markError } = await supabaseAdmin
       const { data: claimed, error: markError } = await supabaseAdmin
         .from("job_queue")
         .update({ status: "processing", started_at: startedAt, updated_at: startedAt })
@@ -191,14 +190,6 @@ Deno.serve(async (req) => {
         .eq("status", "queued")
         .select("id")
         .maybeSingle();
-
-      if (markError || !claimRow) {
-        .select("id, status")
-        .maybeSingle();
-      const { error: markError } = await supabaseAdmin
-        .from("job_queue")
-        .update({ status: "processing", started_at: startedAt, updated_at: startedAt })
-        .eq("id", job.id);
 
       if (markError) {
         console.error("❌ failed to mark job as processing", { jobId: job.id, markError });
@@ -223,12 +214,54 @@ Deno.serve(async (req) => {
           case "generate_texts":
             result = await processGenerateTexts(job.payload);
             break;
-          case "render_images":
-            result = await processRenderImages(job.payload);
+          case "render_images": {
+            const safePayload = {
+              ...(job.payload ?? {}),
+              // on force les infos minimales depuis la ligne job_queue
+              userId: job.user_id,
+              orderId: job.order_id,
+            };
+
+            // si pas de brandId dans le payload, on le récupère via l’order
+            if (!safePayload.brandId && safePayload.orderId) {
+              const { data: orderRow, error: orderErr } = await supabaseAdmin
+                .from("orders")
+                .select("brand_id")
+                .eq("id", safePayload.orderId)
+                .maybeSingle();
+
+              if (orderErr) {
+                console.error("[job-worker] failed to resolve brandId from order", orderErr);
+              }
+              safePayload.brandId = safePayload.brandId ?? orderRow?.brand_id ?? null;
+            }
+
+            result = await processRenderImages(safePayload);
             break;
-          case "render_carousels":
-            result = await processRenderCarousels(job.payload);
+          }
+          case "render_carousels": {
+            const safePayload = {
+              ...(job.payload ?? {}),
+              userId: job.user_id,
+              orderId: job.order_id,
+            };
+
+            if (!safePayload.brandId && safePayload.orderId) {
+              const { data: orderRow, error: orderErr } = await supabaseAdmin
+                .from("orders")
+                .select("brand_id")
+                .eq("id", safePayload.orderId)
+                .maybeSingle();
+
+              if (orderErr) {
+                console.error("[job-worker] failed to resolve brandId from order", orderErr);
+              }
+              safePayload.brandId = safePayload.brandId ?? orderRow?.brand_id ?? null;
+            }
+
+            result = await processRenderCarousels(safePayload);
             break;
+          }
           case "generate_video":
             result = await processGenerateVideo(job.payload);
             break;
@@ -448,8 +481,19 @@ async function processRenderImage(payload: any) {
 }
 
 async function processRenderImages(payload: any) {
-  console.log("[processRenderImages] start", { orderId: payload?.orderId, brandId: payload?.brandId });
+  console.log("[processRenderImages] start", { orderId: payload.orderId, brandId: payload.brandId });
   console.log("🖼️ [processRenderImages] payload.in", payload);
+
+  // fallbacks supplémentaires
+  const userId = payload.userId ?? payload.user_id;
+  const orderId = payload.orderId ?? payload.order_id;
+
+  if (!userId || !orderId) {
+    throw new Error("Invalid render_images payload: missing userId or orderId");
+  }
+
+  payload.userId = userId;
+  payload.orderId = orderId;
 
   if (
     payload &&
@@ -459,10 +503,6 @@ async function processRenderImages(payload: any) {
     !payload.brief
   ) {
     return processRenderImage(payload);
-  }
-
-  if (!payload?.userId || !payload?.orderId) {
-    throw new Error("Invalid render_images payload: missing userId or orderId");
   }
 
   const payloadEmail = typeof payload?.userEmail === "string" ? payload.userEmail.toLowerCase() : null;
@@ -535,6 +575,10 @@ Format: ${aspectRatio} aspect ratio optimized.`;
     const aspectRatio = img.aspectRatio || "4:5";
     try {
       // 1) generate
+      console.log("[processRenderImages] calling image engine", {
+        orderId: payload.orderId,
+        brandId: payload.brandId,
+      });
       console.log(
         `[job-worker] calling image engine for order=${payload.orderId} brand=${img.brandId ?? payload.brandId} ratio=${aspectRatio}`,
       );
@@ -563,6 +607,7 @@ Format: ${aspectRatio} aspect ratio optimized.`;
         getResultValue<string>(imageResult, ["imageUrl", "url", "outputUrl", "output_url"]);
       if (!imageUrl) throw new Error("No image URL returned");
 
+      console.log("[processRenderImages] engine returned imageUrl", imageUrl);
       console.log("[processRenderImages] engine responded", { imageUrl, orderId: payload.orderId, brandId: img.brandId ?? payload.brandId });
 
       // 2) upload cloudinary from URL
@@ -579,6 +624,7 @@ Format: ${aspectRatio} aspect ratio optimized.`;
           type: "image",
         },
       });
+      console.log("[job-worker] uploaded image to Cloudinary publicId=" + cloud.publicId);
 
       // 3) persist media_generations (best-effort)
       await supabaseAdmin.from("media_generations").insert({
