@@ -25,7 +25,7 @@ export async function consumeBrandQuotas(
   });
 
   if (isAdmin) {
-    console.log(`[quota] bypassing quota consumption for ${options.userEmail ?? "unknown-email"}`);
+    console.log(`[quota] admin bypass applied for ${options.userEmail ?? "unknown-email"}`);
     return true;
   }
 

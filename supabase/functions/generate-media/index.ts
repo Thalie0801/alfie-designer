@@ -92,6 +92,10 @@ Deno.serve(async (req: Request) => {
     logContext: "quota",
   });
 
+  if (isAdmin) {
+    console.log(`[quota] admin bypass applied for ${userEmail || "unknown-email"}`);
+  }
+
   const { data: brand, error: brandError } = await supabase
     .from("brands")
     .select("id, quota_images, images_used")
