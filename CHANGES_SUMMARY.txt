@@ -1,0 +1,87 @@
+RÉSUMÉ DES MODIFICATIONS - Réparation du Flux de Génération d'Images
+=====================================================================
+
+Date: 23 novembre 2024
+Objectif: Réparer le flux de génération d'images pour que les images apparaissent dans la bibliothèque du Studio
+
+FICHIERS MODIFIÉS
+-----------------
+
+1. supabase/functions/generate-media/index.ts
+   - Changement: Insertion dans job_queue au lieu de jobs
+   - Raison: Le worker process-job-worker lit depuis job_queue
+   - Impact: Les jobs sont maintenant correctement traités
+
+2. supabase/functions/track-job-status/index.ts
+   - Changement: Lecture depuis job_queue au lieu de jobs
+   - Raison: Cohérence avec la table utilisée par generate-media
+   - Impact: Le WebSocket renvoie maintenant les bons statuts
+
+FICHIERS CRÉÉS
+--------------
+
+3. supabase/migrations/20251123_fix_media_generation_flow.sql
+   - Contenu: Trigger de synchronisation job_queue -> media_generations
+   - Raison: Filet de sécurité pour garantir que les images apparaissent toujours
+   - Impact: Protection contre les échecs du worker
+
+4. FLUX_GENERATION_REPAIR.md
+   - Contenu: Documentation complète du flux et des modifications
+   - Raison: Documentation pour l'équipe de développement
+   - Impact: Facilite la compréhension et la maintenance
+
+5. DEPLOYMENT_GUIDE.md
+   - Contenu: Guide de déploiement étape par étape
+   - Raison: Simplifier le déploiement des corrections
+   - Impact: Déploiement en ~15 minutes
+
+6. test_generation_flow.sh
+   - Contenu: Script de test automatisé
+   - Raison: Valider le bon fonctionnement du flux
+   - Impact: Tests rapides et reproductibles
+
+7. CHANGES_SUMMARY.txt
+   - Contenu: Ce fichier
+   - Raison: Résumé rapide des modifications
+   - Impact: Vue d'ensemble immédiate
+
+ACTIONS REQUISES POUR LE DÉPLOIEMENT
+-------------------------------------
+
+1. Déployer les fonctions Edge:
+   supabase functions deploy generate-media
+   supabase functions deploy track-job-status
+
+2. Appliquer la migration:
+   supabase db push
+
+3. Tester le flux:
+   ./test_generation_flow.sh
+
+IMPACT SUR LE SYSTÈME
+----------------------
+
+✅ Compatibilité ascendante: Oui (les anciennes entrées dans 'jobs' ne sont pas affectées)
+✅ Risque de régression: Faible (modifications ciblées et documentées)
+✅ Performance: Améliorée (index ajouté pour les vérifications de doublons)
+✅ Fiabilité: Améliorée (trigger de secours en cas d'échec du worker)
+
+TESTS RECOMMANDÉS
+-----------------
+
+1. Test unitaire: Appeler generate-media et vérifier la création du job
+2. Test d'intégration: Vérifier que le worker traite le job
+3. Test de bout en bout: Vérifier que l'image apparaît dans le Studio
+4. Test de régression: Vérifier que les carrousels fonctionnent toujours
+
+ROLLBACK
+--------
+
+En cas de problème, consulter la section "Rollback" dans DEPLOYMENT_GUIDE.md
+
+CONTACT
+-------
+
+Pour toute question, consulter:
+- FLUX_GENERATION_REPAIR.md (documentation technique)
+- DEPLOYMENT_GUIDE.md (guide de déploiement)

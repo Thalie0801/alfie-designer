@@ -1,5 +1,5 @@
 // supabase/functions/generate-media/index.ts
-// Crée un job dans la table jobs pour que le worker s'en occupe.
+// Crée un job dans la table job_queue pour que le worker s'en occupe.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2?target=deno";
@@ -90,24 +90,33 @@ serve(async (req: Request): Promise<Response> => {
       ratio,
     });
 
-    // 🔹 Création du job dans la table jobs
-    const metadata = {
-      user_id: userId,
-      brand_id: brandId,
-      type: kind, // "image" ou "carousel"
-      count,
-      ratio,
-      prompt,
-      // Tu peux ajouter d'autres champs si nécessaire
+    // 🔹 Déterminer le type de job en fonction du kind
+    let jobType: string;
+    if (kind === "carousel") {
+      jobType = "render_carousels";
+    } else if (kind === "video") {
+      jobType = "generate_video";
+    } else {
+      jobType = "render_images";
+    }
+
+    // 🔹 Création du job dans la table job_queue (pas jobs)
+    const payload = {
+      intent: {
+        brandId,
+        topic: prompt,
+        ratio,
+        count,
+      },
     };
 
     const { data: job, error: insertError } = await supabaseAdmin
-      .from("jobs")
+      .from("job_queue")
       .insert({
+        user_id: userId,
+        type: jobType,
         status: "queued",
-        prompt,
-        metadata,
-        // job_set_id, index_in_set, etc. peuvent rester null si tu n'en as pas besoin
+        payload,
       })
       .select("*")
       .single();
@@ -118,6 +127,7 @@ serve(async (req: Request): Promise<Response> => {
         JSON.stringify({
           ok: false,
           error: "JOB_INSERT_FAILED",
+          details: insertError?.message,
         }),
         {
           status: 500,
@@ -126,11 +136,11 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    console.log("[generate-media] ✅ Job created", {
+    console.log("[generate-media] ✅ Job created in job_queue", {
       jobId: job.id,
       userId,
       brandId,
-      kind,
+      jobType,
       count,
     });
 

@@ -8,7 +8,7 @@ interface JobUpdate {
   error?: string;
 }
 
-type JobStatus = 'pending' | 'queued' | 'running' | 'checking' | 'ready' | 'failed' | 'canceled';
+type JobStatus = 'queued' | 'running' | 'completed' | 'failed';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -51,12 +51,12 @@ Deno.serve(async (req) => {
             clearInterval(pollInterval);
           }
 
-          // Start polling for job updates
+          // Start polling for job updates from job_queue table
           pollInterval = setInterval(async () => {
             if (!activeJobId) return;
 
             const { data: job, error } = await supabase
-              .from('jobs')
+              .from('job_queue')
               .select('*')
               .eq('id', activeJobId)
               .single();
@@ -72,19 +72,25 @@ Deno.serve(async (req) => {
 
             if (!job) return;
 
+            // Calculate progress based on status
+            let progress = 0;
+            if (job.status === 'queued') progress = 0;
+            else if (job.status === 'running') progress = 50;
+            else if (job.status === 'completed') progress = 100;
+            else if (job.status === 'failed') progress = 0;
+
             // Send update to client
             socket.send(JSON.stringify({
               type: 'job_update',
               jobId: job.id,
-              shortId: job.short_id,
               status: job.status,
-              progress: job.progress || 0,
-              output_data: job.output_data,
+              progress,
+              result: job.result,
               error: job.error
             }));
 
             // Stop polling if job is complete or failed
-            if (['ready', 'failed', 'canceled'].includes(job.status)) {
+            if (['completed', 'failed'].includes(job.status)) {
               if (pollInterval) {
                 clearInterval(pollInterval);
                 pollInterval = null;
@@ -95,7 +101,8 @@ Deno.serve(async (req) => {
                 type: 'job_complete',
                 jobId: job.id,
                 status: job.status,
-                output_data: job.output_data
+                result: job.result,
+                error: job.error
               }));
             }
           }, 2000); // Poll every 2 seconds
@@ -110,10 +117,13 @@ Deno.serve(async (req) => {
         }
 
         if (message.type === 'cancel' && message.jobId) {
-          // Update job status to canceled
+          // Update job status to failed (job_queue doesn't have 'canceled' status)
           await supabase
-            .from('jobs')
-            .update({ status: 'canceled' })
+            .from('job_queue')
+            .update({ 
+              status: 'failed',
+              error: 'Canceled by user'
+            })
             .eq('id', message.jobId);
 
           socket.send(JSON.stringify({

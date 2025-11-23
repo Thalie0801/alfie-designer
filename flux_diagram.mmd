@@ -1,0 +1,33 @@
+graph TD
+    A[Frontend: Demande de génération] -->|POST /generate-media| B[Edge Function: generate-media]
+    B -->|INSERT| C[(Table: job_queue)]
+    C -->|status: queued| D{Worker: process-job-worker}
+    
+    D -->|claim_next_job| E[UPDATE status: running]
+    E -->|Appel API| F[Edge Function: alfie-render-image]
+    F -->|Retourne URL| G[Worker: insertMediaGeneration]
+    
+    G -->|INSERT| H[(Table: media_generations)]
+    G -->|UPDATE| I[job_queue: status=completed]
+    
+    I -->|TRIGGER| J[sync_job_completion_to_media_generations]
+    J -->|Vérification| K{Entrée existe dans media_generations?}
+    
+    K -->|Non| L[INSERT dans media_generations]
+    K -->|Oui| M[Skip - Pas de doublon]
+    
+    L --> N[(Table: media_generations)]
+    H --> N
+    
+    N -->|SELECT| O[Frontend: Bibliothèque du Studio]
+    
+    P[Frontend: WebSocket] -->|subscribe jobId| Q[Edge Function: track-job-status]
+    Q -->|Poll toutes les 2s| C
+    C -->|status update| Q
+    Q -->|WebSocket message| P
+    
+    style B fill:#4CAF50
+    style D fill:#2196F3
+    style J fill:#FF9800
+    style N fill:#9C27B0
+    style O fill:#E91E63
