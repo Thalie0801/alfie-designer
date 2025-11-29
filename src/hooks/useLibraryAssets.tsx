@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { cleanCloudinaryUrl, getBestAvailableUrl } from '@/utils/cleanCloudinaryUrl';
 
 const MEDIA_URL_KEYS = [
   'videoUrl',
@@ -181,11 +182,15 @@ export function useLibraryAssets(userId: string | undefined, type: 'images' | 'v
 
       const assetType = type === 'images' ? 'image' : 'video';
       
-      // Optimized query: exclude output_url to avoid loading large base64 images
-      // Output URL will be loaded individually when downloading
+      // Optimized query: for videos, include output_url to enable preview
+      // For images, exclude output_url to avoid loading large base64 images
+      const selectFields = assetType === 'video' 
+        ? 'id, type, status, output_url, thumbnail_url, prompt, engine, woofs, created_at, expires_at, metadata, job_id, is_source_upload, brand_id, duration_seconds, file_size_bytes'
+        : 'id, type, status, thumbnail_url, prompt, engine, woofs, created_at, expires_at, metadata, job_id, is_source_upload, brand_id, duration_seconds, file_size_bytes';
+      
       const { data, error } = await supabase
         .from('media_generations')
-        .select('id, type, status, thumbnail_url, prompt, engine, woofs, created_at, expires_at, metadata, job_id, is_source_upload, brand_id, duration_seconds, file_size_bytes')
+        .select(selectFields)
         .eq('user_id', userId)
         .eq('type', assetType)
         .order('created_at', { ascending: false })
@@ -198,12 +203,38 @@ export function useLibraryAssets(userId: string | undefined, type: 'images' | 'v
 
       console.log(`[LibraryAssets] Loaded ${data?.length || 0} ${type}`);
       
-      // Map data to include a placeholder output_url that will be loaded on demand
-      const mappedAssets = (data || []).map(asset => ({
-        ...asset,
-        output_url: asset.thumbnail_url || '', // Use thumbnail as placeholder, full URL loaded on download
-        thumbnail_url: asset.thumbnail_url || undefined,
-      })) as LibraryAsset[];
+      // Map data: for images use thumbnail as placeholder, for videos use actual output_url
+      // Clean Cloudinary URLs to remove problematic transformations
+      const mappedAssets = (data || []).map(asset => {
+        let outputUrl: string;
+        let thumbnailUrl: string | undefined;
+        
+        if (assetType === 'video') {
+          // Pour les vidéos, nettoyer les URLs et utiliser la meilleure disponible
+          const cleanedOutput = cleanCloudinaryUrl((asset as any).output_url);
+          const cleanedThumbnail = cleanCloudinaryUrl(asset.thumbnail_url);
+          outputUrl = getBestAvailableUrl(cleanedOutput, cleanedThumbnail) || '';
+          thumbnailUrl = cleanedThumbnail || undefined;
+        } else {
+          // Pour les images, utiliser le thumbnail comme placeholder
+          outputUrl = cleanCloudinaryUrl(asset.thumbnail_url) || '';
+          thumbnailUrl = cleanCloudinaryUrl(asset.thumbnail_url) || undefined;
+        }
+        
+        return {
+          ...asset,
+          output_url: outputUrl,
+          thumbnail_url: thumbnailUrl,
+        };
+      }) as LibraryAsset[];
+      
+      // Log video URLs for debugging
+      if (assetType === 'video') {
+        console.log('[LibraryAssets] Videos loaded:', mappedAssets.length);
+        console.log('[LibraryAssets] Video URLs sample:', mappedAssets.slice(0, 3).map(a => ({ id: a.id, url: a.output_url?.substring(0, 100) })));
+        const invalidUrls = mappedAssets.filter(a => !a.output_url || (!a.output_url.startsWith('http') && !a.output_url.startsWith('data:')));
+        console.log('[LibraryAssets] Videos with invalid URLs:', invalidUrls.map(a => ({ id: a.id, status: a.status })));
+      }
       
       setAssets(mappedAssets);
       setRetryCount(0); // Reset retry count on success

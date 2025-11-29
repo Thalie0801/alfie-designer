@@ -39,11 +39,27 @@ function safeTimeAgo(dateISO?: string | null) {
 
 export function AssetCard({ asset, selected, onSelect, onDownload, onDelete, daysUntilExpiry }: AssetCardProps) {
   const [imageError, setImageError] = useState(false);
+  const [videoError, setVideoError] = useState(false);
 
-  // Reset l'état d'erreur si l’URL change
+  // Reset l'état d'erreur si l'URL change
   useEffect(() => {
     setImageError(false);
+    setVideoError(false);
   }, [asset.output_url, asset.thumbnail_url, asset.type]);
+
+  // Fonction pour gérer les erreurs de chargement vidéo silencieusement
+  const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
+    e.preventDefault();
+    setVideoError(true);
+    console.log('[AssetCard] Video preview failed', asset.id, asset.output_url);
+  };
+
+  // Fonction pour gérer les erreurs de chargement d'image silencieusement
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    e.preventDefault();
+    setImageError(true);
+    console.log('[AssetCard] Image preview failed', asset.id, asset.thumbnail_url || asset.output_url);
+  };
 
   const expiryBadge = useMemo(() => {
     if (daysUntilExpiry < 0) {
@@ -108,22 +124,22 @@ export function AssetCard({ asset, selected, onSelect, onDownload, onDelete, day
         <div className="relative aspect-video bg-muted overflow-hidden rounded-t-lg">
           {asset.type === "video" ? (
             <>
-              {asset.output_url && !imageError ? (
+              {asset.output_url && !videoError && !imageError ? (
                 <video
                   src={asset.output_url}
                   className="w-full h-full object-cover"
                   poster={asset.thumbnail_url || undefined}
                   preload="metadata"
                   controls
-                  onError={() => setImageError(true)}
+                  onError={handleVideoError}
                   aria-label="Aperçu vidéo"
                 />
-              ) : asset.thumbnail_url && !imageError ? (
+              ) : asset.thumbnail_url && !imageError && !videoError ? (
                 <img
                   src={asset.thumbnail_url}
                   alt="Miniature vidéo"
                   className="w-full h-full object-cover"
-                  onError={() => setImageError(true)}
+                  onError={handleImageError}
                   loading="lazy"
                 />
               ) : (
@@ -150,7 +166,7 @@ export function AssetCard({ asset, selected, onSelect, onDownload, onDelete, day
                   src={asset.output_url}
                   alt="Création"
                   className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                  onError={() => setImageError(true)}
+                  onError={handleImageError}
                   loading="lazy"
                 />
               ) : asset.thumbnail_url && !imageError ? (
@@ -158,7 +174,7 @@ export function AssetCard({ asset, selected, onSelect, onDownload, onDelete, day
                   src={asset.thumbnail_url}
                   alt="Miniature"
                   className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                  onError={() => setImageError(true)}
+                  onError={handleImageError}
                   loading="lazy"
                 />
               ) : (
